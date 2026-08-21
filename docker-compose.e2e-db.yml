@@ -1,0 +1,18 @@
+# Base Postgres éphémère pour les tests e2e locaux (port 5434).
+# Lancée/détruite par `npm run e2e` (scripts/e2e.sh).
+services:
+  db_e2e:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: crm_e2e
+      POSTGRES_PASSWORD: crm_e2e
+      POSTGRES_DB: crm_e2e
+    ports:
+      - "5434:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_e2e -d crm_e2e"]
+      interval: 2s
+      timeout: 3s
+      retries: 15

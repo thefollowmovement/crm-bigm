@@ -1,0 +1,18 @@
+# Base Postgres éphémère pour les tests d'intégration (port 5433).
+# Lancée/détruite par `npm run test:integration`.
+services:
+  db_test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: crm_test
+      POSTGRES_PASSWORD: crm_test
+      POSTGRES_DB: crm_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_test -d crm_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
