@@ -3,6 +3,12 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [tsconfigPaths()],
+  resolve: {
+    alias: {
+      "server-only": new URL("./tests/helpers/stubs/server-only.ts", import.meta.url)
+        .pathname,
+    },
+  },
   test: {
     include: ["tests/integration/**/*.test.ts"],
     environment: "node",

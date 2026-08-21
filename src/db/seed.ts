@@ -120,6 +120,17 @@ async function main() {
     pole: "DEVELOPPEMENT",
   });
 
+  // Compte désactivé pour les tests e2e
+  const inactive = await upsertUser({
+    email: "inactif@bigm.fr",
+    password: demoPassword,
+    firstName: "Inès",
+    lastName: "Inactive",
+    role: "COMMUNICATION",
+    pole: "COMMUNICATION",
+  });
+  await db.update(users).set({ isActive: false }).where(eq(users.id, inactive.id));
+
   const existingFranchisee = await db.query.franchisees.findFirst({
     where: eq(franchisees.siren, "912345678"),
   });
