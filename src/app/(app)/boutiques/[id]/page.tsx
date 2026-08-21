@@ -14,6 +14,8 @@ import { getStore } from "@/services/stores.service";
 import { listStoreContracts } from "@/services/contracts.service";
 import { listExchanges } from "@/services/exchanges.service";
 import { isOverdue, listStoreInvoices } from "@/services/invoices.service";
+import { getStoreMonth } from "@/services/revenue.service";
+import { REVENUE_CHANNEL_LABELS } from "@/lib/labels";
 import { formatEUR } from "@/lib/money";
 import { todayParis } from "@/lib/dates";
 import { INVOICE_STATUS_LABELS, INVOICE_TYPE_LABELS } from "@/lib/labels";
@@ -99,9 +101,9 @@ export default async function FicheBoutiquePage({
           {can(user, "finance:read") ? (
             <TabsTrigger value="finances">Finances</TabsTrigger>
           ) : null}
-          <TabsTrigger value="ca" disabled title="Disponible à l'étape CA">
-            CA
-          </TabsTrigger>
+          {can(user, "revenue:read") ? (
+            <TabsTrigger value="ca">CA</TabsTrigger>
+          ) : null}
           {canAudit ? <TabsTrigger value="historique">Historique</TabsTrigger> : null}
         </TabsList>
 
@@ -197,6 +199,12 @@ export default async function FicheBoutiquePage({
         {can(user, "finance:read") ? (
           <TabsContent value="finances">
             <StoreInvoicesTab user={user} storeId={store.id} />
+          </TabsContent>
+        ) : null}
+
+        {can(user, "revenue:read") ? (
+          <TabsContent value="ca">
+            <StoreRevenueTab user={user} storeId={store.id} />
           </TabsContent>
         ) : null}
 
@@ -374,6 +382,51 @@ async function StoreInvoicesTab({
         </li>
       ))}
     </ul>
+  );
+}
+
+async function StoreRevenueTab({
+  user,
+  storeId,
+}: {
+  user: Awaited<ReturnType<typeof requireUser>>;
+  storeId: string;
+}) {
+  const month = todayParis().slice(0, 7);
+  const data = await getStoreMonth(user, storeId, month);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Mois en cours ({month}) — total :{" "}
+          <span className="font-semibold text-foreground">
+            {formatEUR(data.grandTotal)}
+          </span>
+        </p>
+        <Link
+          href={`/ca?boutique=${storeId}`}
+          className="text-sm text-brand hover:underline"
+        >
+          Saisie et historique complet →
+        </Link>
+      </div>
+      {data.totals.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          Aucune donnée ce mois-ci.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-3">
+          {data.totals.map((t) => (
+            <div key={t.channel} className="rounded-lg border bg-card p-3 text-sm">
+              <div className="text-xs text-muted-foreground">
+                {REVENUE_CHANNEL_LABELS[t.channel]}
+              </div>
+              <div className="font-semibold">{formatEUR(t.gross)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
