@@ -11,3 +11,5 @@ const testUrl =
   "postgresql://crm_test:crm_test@localhost:5433/crm_test";
 
 process.env.DATABASE_URL = testUrl;
+// Les tests qui écrivent des fichiers utilisent un répertoire jetable.
+process.env.UPLOAD_DIR = "/tmp/crm-test-uploads";

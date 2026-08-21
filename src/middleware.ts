@@ -23,6 +23,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Tout sauf les assets Next, les fichiers statiques et le healthcheck.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health|.*\\..*).*)"],
+  // Tout sauf les assets Next, les fichiers statiques et les routes API :
+  // les API (/api/files, /api/health…) gèrent leur propre authentification
+  // et doivent répondre 401, pas rediriger.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/|.*\\..*).*)"],
 };
