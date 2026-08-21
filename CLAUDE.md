@@ -106,11 +106,21 @@ salaire/notes RH absents des DTO hors `hr:read`, pointeuse à index unique
 partiel « un badge ouvert », congés avec anti-chevauchement et notifications).
 6 jobs cron (06h00→06h50).
 
+**PHASE 4 « Croissance réseau » LIVRÉE** (commits « Étape 22 » à « Étape 24 ») :
+workflow d'ouverture (`openingProjects` un par franchise EN_PROJET, 8 jalons
+générés DIP→…→J+30, checklist collaborative « chaque pôle coche ses items »,
+job `opening-late` 07h00, `/developpement/ouvertures`, bandeau fiche
+boutique) · prospection (`/developpement/prospects` pipeline à statuts libres
+mais événement STATUT journalisé, relance `prospect-followup` 07h10 dedupeKey
+par jour, agents immobiliers, base de locaux avec photos PJ) · cessions
+(`resale:*` — module invisible hors développement/direction, nav comprise) ·
+succursales (`storeExpenses`, P&L mensuel dérivé CA−achats−dépenses en
+centimes entiers via `branches.service.ts`, `/succursales`, onglet
+Rentabilité, permissions `branch:*` compta+direction). 8 jobs cron
+(06h00→07h10).
+
 **RESTE À FAIRE** (feuille de route client, dans l'ordre ; la « V2 » est hors
 périmètre) :
-- **Phase 4 — Croissance réseau** : workflow d'ouverture de franchise
-  (DIP → contrat → travaux → formation → ouverture → J+30) + checklist
-  collaborative ; pipeline prospects ; base de locaux ; suivi succursales.
 - **Phase 5 — Enrichissement** : cockpit Direction, tableau financier Big M
   CIE, écart matière, registre logiciels, coffre-fort de mots de passe.
 
