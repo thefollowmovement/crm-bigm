@@ -3,6 +3,8 @@
 // - si SEED_DEMO=true : jeu de démonstration (utilisateurs par rôle, boutiques,
 //   franchisés, contrats) — utilisé par le dev local et les tests e2e.
 // Idempotent : réexécutable sans doublons.
+import "@/lib/load-env";
+
 import { eq } from "drizzle-orm";
 
 import { db, pool } from "@/lib/db/client";

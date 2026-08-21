@@ -59,3 +59,60 @@ PostgreSQL 16 + **Drizzle ORM** + Tailwind v4 + composants shadcn maison (`src/c
 - Code et identifiants en anglais, libellés UI et messages d'erreur utilisateur en français.
 - Formulaires : server actions + `useActionState` (pas de react-hook-form).
 - Pas de nouvelle dépendance sans nécessité réelle.
+
+## État du projet (source de vérité pour reprendre le dev, même sans contexte)
+
+**V1 LIVRÉE** (backlog « Phase 0 Socle + Phase 1 Cœur d'usage » du cahier des
+charges, cf. commits « Étape 1 » à « Étape 11 ») : auth sessions DB + admin
+utilisateurs · RBAC (matrice `authz/permissions.ts`, rôle FRANCHISE scopé à ses
+boutiques) · audit trail complet + `/admin/audit` · boutiques & franchisés
+(fiche à onglets) · bibliothèque documentaire versionnée · fichiers via
+`/api/files/[id]` · contrats + job `contract-expiry` (J-180) · échanges
+franchisés (notes internes/décisions) · finances (factures `F<année>-XXXX`,
+paiements, relances 1-3, job `invoice-overdue`) · CA par canal + import CSV
+(`lib/csv/revenue-import.ts`) · tickets inter-pôles (machine à états dans
+`services/tickets.service.ts`) · notifications (cloche, `dedupeKey`) ·
+packaging prod (`docker/`, `docker-compose.prod.yml`, Caddy HTTPS, entrypoint
+= migrations + admin initial ; guide dans README).
+
+**RESTE À FAIRE** (feuille de route client, dans l'ordre ; la « V2 » est hors
+périmètre) :
+- **Phase 2 — Pilotage réseau** : tableaux de bord multi-niveaux (boutique /
+  animateur / région / national) sur la page d'accueil ; comparaisons N vs N-1
+  et graphiques d'évolution du CA ; audits & visites terrain avec compte rendu ;
+  plans d'action (responsable, échéance, statut, validation) ; plannings hebdo
+  des animateurs + fiches animateurs ; data ventes enrichie (commandes, panier
+  moyen, par produit/famille) ; alertes avancées (baisse de CA, audit non fait).
+- **Phase 3 — Métier spécialisé** : achats DPS vs CA ; module Food Cost
+  (ingrédients, grammages, recettes, multi-dépôts, coût matière) ; fiches
+  formation + rattachement des documents signés ; tâches communication
+  (affectation, validation, dates de publication) ; fiches partenaires ;
+  RH (fiches salariés, workflow congés, pointeuse).
+- **Phase 4 — Croissance réseau** : workflow d'ouverture de franchise
+  (DIP → contrat → travaux → formation → ouverture → J+30) + checklist
+  collaborative ; pipeline prospects ; base de locaux ; suivi succursales.
+- **Phase 5 — Enrichissement** : cockpit Direction, tableau financier Big M
+  CIE, écart matière, registre logiciels, coffre-fort de mots de passe.
+
+**Process par étape (non négociable)** : implémenter (nouvelle table = ajout
+dans `src/db/schema.ts` + `npm run db:generate`, jamais de SQL à la main) →
+`npm run gate` (ou `gate:full` si UI) vert → commit en français « Étape N : … »
+→ push sur la branche de travail. S'inspirer d'un module existant proche
+(ex. tickets ou finances) pour les patterns.
+
+## Pièges connus de l'environnement
+
+- **Prisma est banni** (binaires bloqués) — Drizzle uniquement, cf. plus haut.
+- Environnements sans Docker (sandbox CI) : les scripts de test basculent
+  automatiquement sur un Postgres local (`scripts/local-pg.sh`) ; les registres
+  d'images peuvent être bloqués → `docker build`/`pull` impossibles, valider le
+  compose avec `docker compose config`.
+- Playwright : si le navigateur téléchargé manque, exporter
+  `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium` (géré par `scripts/e2e.sh`).
+- Ports : dev 5432 · tests intégration 5433 · e2e 5434 (app e2e sur 3100).
+- Pas de Google Fonts ni d'appel réseau au build (doit builder hors ligne).
+- Fichier « use server » : jamais d'arrow inline dans `z.custom()` au niveau
+  d'un export — la hisser en const module (erreur de build Next sinon).
+- Comptes seed démo (`SEED_DEMO=true`) : `admin@bigm.fr` (mdp du .env) ;
+  `direction@ / compta@ / animateur@ / communication@ / rh@ / developpement@ /
+  franchise@bigm.fr`, mdp commun `Test1234!` ; `inactif@bigm.fr` désactivé.
