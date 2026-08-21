@@ -225,6 +225,28 @@ async function main() {
     }
   }
 
+  // Contrat proche de l'échéance (3 mois) : déclenche l'alerte J-180 en démo/e2e.
+  const bm002 = await db.query.stores.findFirst({ where: eq(stores.code, "BM-002") });
+  if (bm002) {
+    const already = await db.query.contracts.findFirst({
+      where: eq(contracts.reference, "BAIL-BM-002"),
+    });
+    if (!already) {
+      const soon = new Date();
+      soon.setMonth(soon.getMonth() + 3);
+      await db.insert(contracts).values({
+        storeId: bm002.id,
+        franchiseeId: bm002.franchiseeId,
+        type: "BAIL",
+        status: "ACTIF",
+        reference: "BAIL-BM-002",
+        startDate: "2020-01-01",
+        endDate: soon.toISOString().slice(0, 10),
+      });
+      console.log("Contrat BAIL-BM-002 créé (échéance dans 3 mois).");
+    }
+  }
+
   console.log(`Seed démo terminé (mot de passe commun : ${demoPassword}).`);
   console.log(`Direction : ${direction.email}`);
 }

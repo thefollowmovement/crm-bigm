@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/current-user";
 import { can, type Permission } from "@/lib/authz/permissions";
 import { ROLE_LABELS } from "@/lib/labels";
 import { NAV_SECTIONS } from "@/components/app-shell/nav-config";
+import { NotificationBell } from "@/components/app-shell/notification-bell";
 import { Sidebar } from "@/components/app-shell/sidebar";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { logoutAction } from "@/app/(auth)/connexion/actions";
@@ -28,6 +29,7 @@ export default async function AppLayout({
         <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-card px-4">
           <div className="text-sm text-muted-foreground md:hidden">CRM Big M</div>
           <div className="flex-1" />
+          <NotificationBell />
           <UserMenu
             name={`${user.firstName} ${user.lastName}`}
             roleLabel={ROLE_LABELS[user.role] ?? user.role}

@@ -11,6 +11,10 @@ import {
   STORE_TYPE_LABELS,
 } from "@/lib/labels";
 import { getStore } from "@/services/stores.service";
+import { listStoreContracts } from "@/services/contracts.service";
+import { formatDateFr } from "@/lib/dates";
+import { CONTRACT_STATUS_LABELS, CONTRACT_TYPE_LABELS } from "@/lib/labels";
+import { CreateContractDialog } from "@/app/(app)/contrats/contract-form";
 import { ForbiddenError } from "@/lib/authz/guards";
 import { AccessDenied } from "@/components/access-denied";
 import { EntityHistory } from "@/components/entity-history";
@@ -77,9 +81,9 @@ export default async function FicheBoutiquePage({
         <TabsList className="flex-wrap">
           <TabsTrigger value="infos">Informations</TabsTrigger>
           <TabsTrigger value="plateformes">Plateformes</TabsTrigger>
-          <TabsTrigger value="contrats" disabled title="Disponible à l'étape Contrats">
-            Contrats
-          </TabsTrigger>
+          {can(user, "contract:read") ? (
+            <TabsTrigger value="contrats">Contrats</TabsTrigger>
+          ) : null}
           <TabsTrigger value="echanges" disabled title="Disponible à l'étape Échanges">
             Échanges
           </TabsTrigger>
@@ -161,6 +165,16 @@ export default async function FicheBoutiquePage({
           ) : null}
         </TabsContent>
 
+        {can(user, "contract:read") ? (
+          <TabsContent value="contrats">
+            <StoreContractsTab
+              user={user}
+              storeId={store.id}
+              canWrite={can(user, "contract:write")}
+            />
+          </TabsContent>
+        ) : null}
+
         <TabsContent value="plateformes">
           <PlatformsEditor
             storeId={store.id}
@@ -181,6 +195,60 @@ export default async function FicheBoutiquePage({
           </TabsContent>
         ) : null}
       </Tabs>
+    </div>
+  );
+}
+
+async function StoreContractsTab({
+  user,
+  storeId,
+  canWrite,
+}: {
+  user: Awaited<ReturnType<typeof requireUser>>;
+  storeId: string;
+  canWrite: boolean;
+}) {
+  const contracts = await listStoreContracts(user, storeId);
+  return (
+    <div className="space-y-4">
+      {canWrite ? (
+        <div className="flex justify-end">
+          <CreateContractDialog storeId={storeId} />
+        </div>
+      ) : null}
+      {contracts.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          Aucun contrat pour cette boutique.
+        </p>
+      ) : (
+        <ul className="space-y-2" data-testid="store-contracts">
+          {contracts.map((contract) => (
+            <li
+              key={contract.id}
+              className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 text-sm"
+            >
+              <Link
+                href={`/contrats/${contract.id}`}
+                className="font-medium text-brand hover:underline"
+              >
+                {CONTRACT_TYPE_LABELS[contract.type]}
+                {contract.reference ? ` — ${contract.reference}` : ""}
+              </Link>
+              <Badge variant={contract.status === "ACTIF" ? "success" : "secondary"}>
+                {CONTRACT_STATUS_LABELS[contract.status]}
+              </Badge>
+              {contract.parentContract ? (
+                <span className="text-xs text-muted-foreground">
+                  avenant de {contract.parentContract.reference ?? "contrat"}
+                </span>
+              ) : null}
+              <span className="ml-auto text-muted-foreground">
+                {formatDateFr(contract.startDate)} → {formatDateFr(contract.endDate)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
