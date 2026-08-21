@@ -13,6 +13,11 @@ import {
 import { getStore } from "@/services/stores.service";
 import { listStoreContracts } from "@/services/contracts.service";
 import { listExchanges } from "@/services/exchanges.service";
+import { isOverdue, listStoreInvoices } from "@/services/invoices.service";
+import { formatEUR } from "@/lib/money";
+import { todayParis } from "@/lib/dates";
+import { INVOICE_STATUS_LABELS, INVOICE_TYPE_LABELS } from "@/lib/labels";
+import { invoiceStatusVariant } from "@/app/(app)/finances/status-variant";
 import { EXCHANGE_STATUS_LABELS, EXCHANGE_TYPE_LABELS } from "@/lib/labels";
 import { exchangeStatusVariant } from "@/app/(app)/echanges/status-variant";
 import { NewExchangeDialog } from "@/app/(app)/echanges/new-exchange-dialog";
@@ -91,9 +96,9 @@ export default async function FicheBoutiquePage({
           {can(user, "exchange:read") ? (
             <TabsTrigger value="echanges">Échanges</TabsTrigger>
           ) : null}
-          <TabsTrigger value="finances" disabled title="Disponible à l'étape Finances">
-            Finances
-          </TabsTrigger>
+          {can(user, "finance:read") ? (
+            <TabsTrigger value="finances">Finances</TabsTrigger>
+          ) : null}
           <TabsTrigger value="ca" disabled title="Disponible à l'étape CA">
             CA
           </TabsTrigger>
@@ -186,6 +191,12 @@ export default async function FicheBoutiquePage({
               store={{ id: store.id, code: store.code, name: store.name }}
               canWrite={can(user, "exchange:write")}
             />
+          </TabsContent>
+        ) : null}
+
+        {can(user, "finance:read") ? (
+          <TabsContent value="finances">
+            <StoreInvoicesTab user={user} storeId={store.id} />
           </TabsContent>
         ) : null}
 
@@ -320,6 +331,49 @@ async function StoreExchangesTab({
         </ul>
       )}
     </div>
+  );
+}
+
+async function StoreInvoicesTab({
+  user,
+  storeId,
+}: {
+  user: Awaited<ReturnType<typeof requireUser>>;
+  storeId: string;
+}) {
+  const rows = await listStoreInvoices(user, storeId);
+  const today = todayParis();
+  return rows.length === 0 ? (
+    <p className="py-8 text-center text-sm text-muted-foreground">
+      Aucune facture pour cette boutique.
+    </p>
+  ) : (
+    <ul className="space-y-2" data-testid="store-invoices">
+      {rows.map((invoice) => (
+        <li
+          key={invoice.id}
+          className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 text-sm"
+        >
+          <Link
+            href={`/finances/${invoice.id}`}
+            className="font-medium text-brand hover:underline"
+          >
+            {invoice.number}
+          </Link>
+          <span className="text-muted-foreground">
+            {INVOICE_TYPE_LABELS[invoice.type]}
+            {invoice.label ? ` — ${invoice.label}` : ""}
+          </span>
+          <Badge variant={invoiceStatusVariant(invoice.status)}>
+            {INVOICE_STATUS_LABELS[invoice.status]}
+          </Badge>
+          {isOverdue(invoice, today) ? (
+            <Badge variant="destructive">En retard</Badge>
+          ) : null}
+          <span className="ml-auto font-medium">{formatEUR(invoice.amountTTC)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
