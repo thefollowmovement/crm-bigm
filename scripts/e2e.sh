@@ -22,7 +22,10 @@ trap cleanup EXIT
 
 DATABASE_URL="$E2E_DATABASE_URL" node scripts/db.mjs fresh
 if [ -f src/db/seed.ts ]; then
-  DATABASE_URL="$E2E_DATABASE_URL" npx tsx src/db/seed.ts
+  DATABASE_URL="$E2E_DATABASE_URL" SEED_DEMO=true \
+    SEED_ADMIN_EMAIL="admin@bigm.fr" SEED_ADMIN_PASSWORD="Admin1234!" \
+    SEED_DEMO_PASSWORD="Test1234!" \
+    npx tsx src/db/seed.ts
 fi
 
 rm -rf ./.uploads-e2e
