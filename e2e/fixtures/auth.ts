@@ -17,6 +17,9 @@ export async function login(
   page: Page,
   account: { email: string; password: string }
 ) {
+  // Purge la session précédente : le middleware redirige un utilisateur
+  // connecté hors de /connexion (nécessaire pour changer de compte en test).
+  await page.context().clearCookies();
   await page.goto("/connexion");
   await page.getByLabel("Adresse e-mail").fill(account.email);
   await page.getByLabel("Mot de passe").fill(account.password);
