@@ -11,6 +11,7 @@ const ROLES: Role[] = [
   "COMMUNICATION",
   "DEVELOPPEMENT",
   "FRANCHISE",
+  "SALARIE",
 ];
 
 const SENSITIVE: Permission[] = ["finance:read", "finance:write", "user:manage", "audit:read"];
@@ -66,7 +67,9 @@ describe("matrice de permissions", () => {
       const writeExpected =
         role === "ADMIN" || role === "DIRECTION" || role === "ANIMATION";
       expect(can({ role }, "visit:write")).toBe(writeExpected);
-      expect(can({ role }, "visit:read")).toBe(role !== "FRANCHISE");
+      expect(can({ role }, "visit:read")).toBe(
+        role !== "FRANCHISE" && role !== "SALARIE"
+      );
     }
     // Le franchisé suit les plans d'action de SES boutiques (scopé), sans
     // voir les comptes rendus de visite internes.
@@ -76,7 +79,9 @@ describe("matrice de permissions", () => {
 
   it("le planning : lecture siège, écriture animation/direction, invisible au franchisé", () => {
     for (const role of ROLES) {
-      expect(can({ role }, "planning:read")).toBe(role !== "FRANCHISE");
+      expect(can({ role }, "planning:read")).toBe(
+        role !== "FRANCHISE" && role !== "SALARIE"
+      );
       const writeExpected =
         role === "ADMIN" || role === "DIRECTION" || role === "ANIMATION";
       expect(can({ role }, "planning:write")).toBe(writeExpected);
@@ -95,7 +100,7 @@ describe("matrice de permissions", () => {
 
   it("les formations : lecture pour tous (franchisé scopé), écriture animation/RH/direction", () => {
     for (const role of ROLES) {
-      expect(can({ role }, "training:read")).toBe(true);
+      expect(can({ role }, "training:read")).toBe(role !== "SALARIE");
       const writeExpected = ["ADMIN", "DIRECTION", "ANIMATION", "RH"].includes(role);
       expect(can({ role }, "training:write")).toBe(writeExpected);
     }
@@ -124,6 +129,19 @@ describe("matrice de permissions", () => {
     expect(can({ role: "FRANCHISE" }, "revenue:write")).toBe(true);
     expect(can({ role: "FRANCHISE" }, "revenue:import")).toBe(false);
     expect(can({ role: "FRANCHISE" }, "store:write")).toBe(false);
+  });
+
+  it("le rôle SALARIE n'a QUE la pointeuse et les congés en self-service", () => {
+    const salariePerms = [...PERMISSIONS.SALARIE].sort();
+    expect(salariePerms).toEqual(["self:clock", "self:leave"]);
+  });
+
+  it("le dossier RH est réservé à la RH et à la direction", () => {
+    for (const role of ROLES) {
+      const expected = role === "ADMIN" || role === "DIRECTION" || role === "RH";
+      expect(can({ role }, "hr:read")).toBe(expected);
+      expect(can({ role }, "hr:write")).toBe(expected);
+    }
   });
 
   it("seuls ADMIN et DIRECTION gèrent les utilisateurs et lisent l'audit", () => {

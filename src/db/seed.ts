@@ -23,6 +23,7 @@ import {
   ingredients,
   recipeItems,
   recipes,
+  employees,
   exchangeMessages,
   exchanges,
   franchisees,
@@ -830,6 +831,52 @@ async function main() {
           publicationDate: nextWeek,
         });
         console.log("Tâche communication de démonstration créée.");
+      }
+    }
+  }
+
+  // ── RH : salarié de démonstration (pointeuse) ───────────────────
+  {
+    const salarieUser = await upsertUser({
+      email: "salarie@bigm.fr",
+      password: demoPassword,
+      firstName: "Sami",
+      lastName: "Salarié",
+      role: "SALARIE",
+    });
+    if (bm003) {
+      const existingEmployee = await db.query.employees.findFirst({
+        where: eq(employees.userId, salarieUser.id),
+      });
+      if (!existingEmployee) {
+        await db.insert(employees).values({
+          userId: salarieUser.id,
+          storeId: bm003.id,
+          firstName: "Sami",
+          lastName: "Salarié",
+          position: "Équipier polyvalent",
+          email: "salarie@bigm.fr",
+          contractType: "CDI",
+          hireDate: "2024-09-02",
+          salaryMonthly: "1820.04",
+          hrNotes: "Prévoir le passage référent hygiène en 2027 (confidentiel).",
+        });
+        console.log("Fiche salarié de démonstration créée (BM-003).");
+      }
+      const existingSecond = await db.query.employees.findFirst({
+        where: and(eq(employees.lastName, "Brigade"), eq(employees.storeId, bm003.id)),
+      });
+      if (!existingSecond) {
+        await db.insert(employees).values({
+          storeId: bm003.id,
+          firstName: "Louna",
+          lastName: "Brigade",
+          position: "Cuisinière",
+          contractType: "CDD",
+          hireDate: "2026-01-15",
+          endDate: "2026-12-31",
+          salaryMonthly: "1950.00",
+        });
       }
     }
   }

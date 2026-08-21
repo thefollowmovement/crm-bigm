@@ -10,6 +10,7 @@ export const ACCOUNTS = {
   rh: { email: "rh@bigm.fr", password: "Test1234!" },
   developpement: { email: "developpement@bigm.fr", password: "Test1234!" },
   franchise: { email: "franchise@bigm.fr", password: "Test1234!" },
+  salarie: { email: "salarie@bigm.fr", password: "Test1234!" },
   inactif: { email: "inactif@bigm.fr", password: "Test1234!" },
 } as const;
 

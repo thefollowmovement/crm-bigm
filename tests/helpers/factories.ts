@@ -7,6 +7,7 @@ import {
   contracts,
   depots,
   dpsPurchases,
+  employees,
   franchisees,
   invoices,
   productFamilies,
@@ -325,4 +326,22 @@ export async function createTestInvoice(
     })
     .returning();
   return invoice;
+}
+
+type EmployeeOverrides = Partial<typeof employees.$inferInsert>;
+
+export async function createTestEmployee(overrides: EmployeeOverrides = {}) {
+  const n = nextId();
+  const [employee] = await db
+    .insert(employees)
+    .values({
+      firstName: `Salarié${n}`,
+      lastName: `Test${n}`,
+      position: "Équipier",
+      contractType: "CDI",
+      hireDate: "2025-01-06",
+      ...overrides,
+    })
+    .returning();
+  return employee;
 }

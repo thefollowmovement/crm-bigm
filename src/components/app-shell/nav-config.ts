@@ -3,9 +3,12 @@ import {
   Bell,
   Building2,
   CalendarDays,
+  CalendarOff,
   ChefHat,
+  Clock,
   GraduationCap,
   Handshake,
+  IdCard,
   Megaphone,
   ShoppingCart,
   ChartLine,
@@ -40,6 +43,12 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/", label: "Tableau de bord", icon: LayoutDashboard, permission: null },
       { href: "/notifications", label: "Notifications", icon: Bell, permission: null },
+      {
+        href: "/mon-espace",
+        label: "Mon espace",
+        icon: Clock,
+        permission: "self:clock",
+      },
     ],
   },
   {
@@ -115,6 +124,23 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/ca", label: "Chiffre d'affaires", icon: ChartLine, permission: "revenue:read" },
       { href: "/achats", label: "Achats DPS", icon: ShoppingCart, permission: "purchase:read" },
       { href: "/foodcost", label: "Food Cost", icon: ChefHat, permission: "foodcost:read" },
+    ],
+  },
+  {
+    title: "Ressources humaines",
+    items: [
+      {
+        href: "/rh/salaries",
+        label: "Salariés",
+        icon: IdCard,
+        permission: "hr:read",
+      },
+      {
+        href: "/rh/conges",
+        label: "Congés",
+        icon: CalendarOff,
+        permission: "hr:read",
+      },
     ],
   },
   {

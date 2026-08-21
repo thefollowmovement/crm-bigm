@@ -127,7 +127,11 @@ export function CreateDocumentDialog() {
             </legend>
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(ROLE_LABELS)
-                .filter(([value]) => value !== "ADMIN" && value !== "DIRECTION")
+                .filter(
+                  // SALARIE n'a pas document:read : inutile de le proposer.
+                  ([value]) =>
+                    value !== "ADMIN" && value !== "DIRECTION" && value !== "SALARIE"
+                )
                 .map(([value, label]) => (
                   <label
                     key={value}

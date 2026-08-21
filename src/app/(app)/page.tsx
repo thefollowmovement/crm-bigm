@@ -127,10 +127,34 @@ export default async function DashboardPage({
         <FranchiseDashboard user={user} params={params} />
       ) : user.role === "ANIMATION" ? (
         <AnimateurDashboard user={user} />
+      ) : user.role === "SALARIE" ? (
+        <SalarieDashboard />
       ) : (
         <NetworkDashboard user={user} params={params} />
       )}
     </div>
+  );
+}
+
+// ── Vue Salarié : renvoi vers l'espace pointeuse/congés ──────────
+
+function SalarieDashboard() {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-start gap-2 pt-6">
+        <p className="text-sm text-muted-foreground">
+          Votre pointeuse, vos heures et vos demandes de congés sont dans votre
+          espace personnel.
+        </p>
+        <Link
+          href="/mon-espace"
+          className="text-sm font-medium underline-offset-2 hover:underline"
+          data-testid="goto-mon-espace"
+        >
+          Ouvrir mon espace →
+        </Link>
+      </CardContent>
+    </Card>
   );
 }
 

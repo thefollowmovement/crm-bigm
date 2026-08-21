@@ -9,6 +9,7 @@ export const ROLE_LABELS: Record<string, string> = {
   COMMUNICATION: "Communication",
   DEVELOPPEMENT: "Développement",
   FRANCHISE: "Franchisé",
+  SALARIE: "Salarié",
 };
 
 export const POLE_LABELS: Record<string, string> = {
@@ -203,6 +204,29 @@ export const PLAN_ACTIVITY_LABELS: Record<string, string> = {
   REUNION: "Réunion",
   TRAJET: "Trajet",
   AUTRE: "Autre",
+};
+
+export const EMPLOYEE_CONTRACT_TYPE_LABELS: Record<string, string> = {
+  CDI: "CDI",
+  CDD: "CDD",
+  APPRENTISSAGE: "Apprentissage",
+  STAGE: "Stage",
+  EXTRA: "Extra",
+};
+
+export const LEAVE_TYPE_LABELS: Record<string, string> = {
+  CONGES_PAYES: "Congés payés",
+  SANS_SOLDE: "Sans solde",
+  MALADIE: "Maladie",
+  FAMILIAL: "Événement familial",
+  AUTRE: "Autre",
+};
+
+export const LEAVE_STATUS_LABELS: Record<string, string> = {
+  DEMANDEE: "Demandée",
+  VALIDEE: "Validée",
+  REFUSEE: "Refusée",
+  ANNULEE: "Annulée",
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {

@@ -22,6 +22,7 @@ const roleSchema = z.enum([
   "COMMUNICATION",
   "DEVELOPPEMENT",
   "FRANCHISE",
+  "SALARIE",
 ]);
 const poleSchema = z.enum([
   "DIRECTION",

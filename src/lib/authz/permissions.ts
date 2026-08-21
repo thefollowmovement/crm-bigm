@@ -44,6 +44,10 @@ export type Permission =
   | "commtask:request"
   | "partner:read"
   | "partner:write"
+  | "hr:read"
+  | "hr:write"
+  | "self:clock"
+  | "self:leave"
   | "user:manage"
   | "audit:read";
 
@@ -87,6 +91,10 @@ const ALL: readonly Permission[] = [
   "commtask:request",
   "partner:read",
   "partner:write",
+  "hr:read",
+  "hr:write",
+  "self:clock",
+  "self:leave",
   "user:manage",
   "audit:read",
 ];
@@ -137,6 +145,10 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "commtask:read",
     "commtask:request",
     "partner:read",
+    "hr:read",
+    "hr:write",
+    "self:clock",
+    "self:leave",
   ]),
   ANIMATION: new Set([
     "store:read",
@@ -214,6 +226,9 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "commtask:read",
     "commtask:request",
   ]),
+  // Salarié d'une boutique : pointeuse et congés en self-service, rien d'autre
+  // (cdc §12) — pas d'accès aux modules réseau.
+  SALARIE: new Set(["self:clock", "self:leave"]),
 };
 
 export function can(user: Pick<SessionUser, "role">, permission: Permission): boolean {

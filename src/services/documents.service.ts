@@ -13,11 +13,13 @@ type Role = SessionUser["role"];
 type DocumentRow = typeof documents.$inferSelect;
 
 // Un document est visible si :
-// - visibleToRoles vide → tous les rôles SIÈGE (jamais FRANCHISE) ;
+// - visibleToRoles vide → tous les rôles SIÈGE (jamais FRANCHISE ni SALARIE) ;
 // - sinon → rôles listés uniquement (FRANCHISE inclus s'il est listé).
 export function isDocumentVisible(doc: Pick<DocumentRow, "visibleToRoles">, role: Role) {
   if (role === "ADMIN" || role === "DIRECTION") return true;
-  if (doc.visibleToRoles.length === 0) return role !== "FRANCHISE";
+  if (doc.visibleToRoles.length === 0) {
+    return role !== "FRANCHISE" && role !== "SALARIE";
+  }
   return doc.visibleToRoles.includes(role);
 }
 

@@ -92,13 +92,22 @@ partout) · alertes `revenue-drop` (7 j vs N-1, seuil env
 `REVENUE_DROP_THRESHOLD_PCT`) et `audit-overdue` (`AUDIT_MAX_DAYS`), dedupeKey
 hebdo/mensuel sans marqueur. 5 jobs cron au total (06h00→06h40).
 
+**PHASE 3 « Métier spécialisé » LIVRÉE** (commits « Étape 17 » à « Étape 21 ») :
+achats DPS (`depots` + `stores.depotId`, import CSV, ratio achats/CA en SQL,
+`/achats`) · Food Cost (`lib/foodcost.ts` en micro-euros BigInt, prix par
+dépôt à date via DISTINCT ON, recettes/grammages, `/foodcost` — invisible du
+franchisé) · formations (`/animation/formations`, machine à états REALISEE
+exige compte rendu, docs REMIS/SIGNE remontés sur fiche franchisé) · tâches
+communication « COM-… » (`/communication`, DEMANDE ouverte à tous, validation
+par le demandeur, job `comm-task-overdue`) + partenaires (`/partenaires`,
+`internalNotes` sensibles hors pôle) · RH (`/rh/salaries` + `/rh/conges` +
+`/mon-espace`, rôle **SALARIE** = `self:clock`+`self:leave` uniquement,
+salaire/notes RH absents des DTO hors `hr:read`, pointeuse à index unique
+partiel « un badge ouvert », congés avec anti-chevauchement et notifications).
+6 jobs cron (06h00→06h50).
+
 **RESTE À FAIRE** (feuille de route client, dans l'ordre ; la « V2 » est hors
 périmètre) :
-- **Phase 3 — Métier spécialisé** : achats DPS vs CA ; module Food Cost
-  (ingrédients, grammages, recettes, multi-dépôts, coût matière) ; fiches
-  formation + rattachement des documents signés ; tâches communication
-  (affectation, validation, dates de publication) ; fiches partenaires ;
-  RH (fiches salariés, workflow congés, pointeuse).
 - **Phase 4 — Croissance réseau** : workflow d'ouverture de franchise
   (DIP → contrat → travaux → formation → ouverture → J+30) + checklist
   collaborative ; pipeline prospects ; base de locaux ; suivi succursales.
@@ -127,4 +136,5 @@ dans `src/db/schema.ts` + `npm run db:generate`, jamais de SQL à la main) →
   module (« Server Actions must be async functions » au build Next sinon).
 - Comptes seed démo (`SEED_DEMO=true`) : `admin@bigm.fr` (mdp du .env) ;
   `direction@ / compta@ / animateur@ / communication@ / rh@ / developpement@ /
-  franchise@bigm.fr`, mdp commun `Test1234!` ; `inactif@bigm.fr` désactivé.
+  franchise@ / salarie@bigm.fr`, mdp commun `Test1234!` ; `inactif@bigm.fr`
+  désactivé.

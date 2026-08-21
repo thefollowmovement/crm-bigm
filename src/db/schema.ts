@@ -4,7 +4,7 @@
 // - montants : numeric(12,2) — le driver pg renvoie des strings (jamais de float)
 // - dates civiles (échéances, CA journalier) : date — strings "YYYY-MM-DD"
 // - horodatages : timestamptz
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -32,6 +32,9 @@ export const roleEnum = pgEnum("role", [
   "COMMUNICATION",
   "DEVELOPPEMENT",
   "FRANCHISE",
+  // valeurs ajoutées EN FIN de tableau uniquement (ALTER TYPE … ADD VALUE)
+  // SALARIE : accès pointeuse + congés uniquement (users.pole reste null)
+  "SALARIE",
 ]);
 
 export const poleEnum = pgEnum("pole", [
@@ -172,6 +175,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "ALERTE",
   "FORMATION",
   "COMMUNICATION",
+  "RH",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
@@ -200,6 +204,7 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "TRAINING",
   "COMM_TASK",
   "PARTNER",
+  "EMPLOYEE",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -1235,6 +1240,117 @@ export const animatorPlanEntries = pgTable(
   ]
 );
 
+// ─────────────── RH (étape 21) ───────────────
+
+export const employeeContractTypeEnum = pgEnum("employee_contract_type", [
+  "CDI",
+  "CDD",
+  "APPRENTISSAGE",
+  "STAGE",
+  "EXTRA",
+]);
+
+export const leaveTypeEnum = pgEnum("leave_type", [
+  "CONGES_PAYES",
+  "SANS_SOLDE",
+  "MALADIE",
+  "FAMILIAL",
+  "AUTRE",
+]);
+
+export const leaveStatusEnum = pgEnum("leave_status", [
+  "DEMANDEE",
+  "VALIDEE",
+  "REFUSEE",
+  "ANNULEE",
+]);
+
+export const clockEntryTypeEnum = pgEnum("clock_entry_type", ["TRAVAIL", "PAUSE"]);
+
+// Fiches salariés (cdc §12). salaryMonthly et hrNotes sont SENSIBLES :
+// absents des DTO pour qui n'a pas hr:read (field-visibility, règle n°4).
+export const employees = pgTable(
+  "employees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // compte de connexion lié (pointeuse / congés en self-service)
+    userId: uuid("user_id").references(() => users.id),
+    // null = siège, sinon boutique (succursale ou franchise en propre)
+    storeId: uuid("store_id").references(() => stores.id),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    position: text("position").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    contractType: employeeContractTypeEnum("contract_type").notNull(),
+    hireDate: date("hire_date").notNull(),
+    endDate: date("end_date"),
+    salaryMonthly: numeric("salary_monthly", { precision: 12, scale: 2 }),
+    hrNotes: text("hr_notes"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("employees_user_unique").on(t.userId),
+    index("employees_store_idx").on(t.storeId),
+  ]
+);
+
+export const leaveRequests = pgTable(
+  "leave_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    type: leaveTypeEnum("type").notNull(),
+    // dates civiles incluses (endDate >= startDate, gardé par le service)
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    comment: text("comment"),
+    status: leaveStatusEnum("status").notNull().default("DEMANDEE"),
+    decidedById: uuid("decided_by_id").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionComment: text("decision_comment"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("leave_requests_employee_start_idx").on(t.employeeId, t.startDate),
+    index("leave_requests_status_idx").on(t.status),
+  ]
+);
+
+// Pointeuse : intervalles TRAVAIL / PAUSE. Un seul badge ouvert par salarié
+// (index unique partiel sur ended_at is null) — cdc §12 : actions explicites,
+// la connexion à l'outil ne vaut pas temps de travail.
+export const clockEntries = pgTable(
+  "clock_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    type: clockEntryTypeEnum("type").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("clock_entries_one_open_unique")
+      .on(t.employeeId)
+      .where(sql`ended_at is null`),
+    index("clock_entries_employee_started_idx").on(t.employeeId, t.startedAt),
+  ]
+);
+
 // ─────────────── TICKETS INTER-PÔLES ───────────────
 
 export const tickets = pgTable(
@@ -1709,4 +1825,29 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   user: one(users, { fields: [auditLogs.userId], references: [users.id] }),
+}));
+
+export const employeesRelations = relations(employees, ({ one, many }) => ({
+  user: one(users, { fields: [employees.userId], references: [users.id] }),
+  store: one(stores, { fields: [employees.storeId], references: [stores.id] }),
+  leaveRequests: many(leaveRequests),
+  clockEntries: many(clockEntries),
+}));
+
+export const leaveRequestsRelations = relations(leaveRequests, ({ one }) => ({
+  employee: one(employees, {
+    fields: [leaveRequests.employeeId],
+    references: [employees.id],
+  }),
+  decidedBy: one(users, {
+    fields: [leaveRequests.decidedById],
+    references: [users.id],
+  }),
+}));
+
+export const clockEntriesRelations = relations(clockEntries, ({ one }) => ({
+  employee: one(employees, {
+    fields: [clockEntries.employeeId],
+    references: [employees.id],
+  }),
 }));

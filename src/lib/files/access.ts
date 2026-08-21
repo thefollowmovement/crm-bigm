@@ -8,6 +8,7 @@ import {
   commTasks,
   contracts,
   documentVersions,
+  employees,
   exchangeMessages,
   fileAttachments,
   reminders,
@@ -147,6 +148,17 @@ export async function canDownloadFile(
     case "PARTNER": {
       if (!can(user, "partner:read")) return deny;
       return { allowed: true, audit: false };
+    }
+    case "EMPLOYEE": {
+      // Dossier RH : RH/direction, ou le salarié lui-même (compte lié).
+      const employee = await db.query.employees.findFirst({
+        where: eq(employees.id, attachment.entityId ?? ""),
+      });
+      if (!employee) return deny;
+      if (can(user, "hr:read") || employee.userId === user.id) {
+        return { allowed: true, audit: true };
+      }
+      return deny;
     }
     case "FRANCHISEE": {
       if (user.role === "FRANCHISE") {
