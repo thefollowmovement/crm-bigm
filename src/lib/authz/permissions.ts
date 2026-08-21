@@ -35,6 +35,8 @@ export type Permission =
   | "purchase:read"
   | "purchase:write"
   | "purchase:import"
+  | "foodcost:read"
+  | "foodcost:write"
   | "user:manage"
   | "audit:read";
 
@@ -69,6 +71,8 @@ const ALL: readonly Permission[] = [
   "purchase:read",
   "purchase:write",
   "purchase:import",
+  "foodcost:read",
+  "foodcost:write",
   "user:manage",
   "audit:read",
 ];
@@ -98,6 +102,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "purchase:read",
     "purchase:write",
     "purchase:import",
+    "foodcost:read",
   ]),
   RH: new Set([
     "store:read",
@@ -128,6 +133,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "planning:read",
     "planning:write",
     "purchase:read",
+    "foodcost:read",
   ]),
   COMMUNICATION: new Set([
     "store:read",

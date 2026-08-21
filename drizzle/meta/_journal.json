@@ -43,6 +43,13 @@
       "when": 1787346918948,
       "tag": "0005_wise_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787347564839,
+      "tag": "0006_lonely_gunslinger",
+      "breakpoints": true
     }
   ]
 }

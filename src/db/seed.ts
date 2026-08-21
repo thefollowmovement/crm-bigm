@@ -5,7 +5,7 @@
 // Idempotent : réexécutable sans doublons.
 import "@/lib/load-env";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db, pool } from "@/lib/db/client";
 import { hashPassword } from "@/lib/auth/password";
@@ -19,6 +19,10 @@ import {
   contracts,
   depots,
   dpsPurchases,
+  ingredientPrices,
+  ingredients,
+  recipeItems,
+  recipes,
   exchangeMessages,
   exchanges,
   franchisees,
@@ -663,6 +667,88 @@ async function main() {
           },
         ]);
         console.log("Achats DPS de démonstration créés (BM-003).");
+      }
+    }
+
+    // ── Food Cost de démonstration ────────────────────────────────
+    const demoIngredients = [
+      { name: "Steak haché", unit: "KG" as const },
+      { name: "Pain burger", unit: "PIECE" as const },
+      { name: "Cheddar", unit: "KG" as const },
+    ];
+    const ingredientIds = new Map<string, string>();
+    for (const ing of demoIngredients) {
+      const existing = await db.query.ingredients.findFirst({
+        where: eq(ingredients.name, ing.name),
+      });
+      const row = existing ?? (await db.insert(ingredients).values(ing).returning())[0];
+      ingredientIds.set(ing.name, row.id);
+    }
+
+    const demoPrices: [string, string, string][] = [
+      // [ingrédient, dépôt, tarif €/unité]
+      ["Steak haché", "DPS-LYON", "9.8000"],
+      ["Steak haché", "DPS-PARIS", "10.4000"],
+      ["Pain burger", "DPS-LYON", "0.3500"],
+      ["Pain burger", "DPS-PARIS", "0.3900"],
+      ["Cheddar", "DPS-LYON", "7.2000"],
+      ["Cheddar", "DPS-PARIS", "7.9000"],
+    ];
+    for (const [ingName, depotCode, price] of demoPrices) {
+      const ingredientId = ingredientIds.get(ingName)!;
+      const depotId = depotIds.get(depotCode)!;
+      const existing = await db.query.ingredientPrices.findFirst({
+        where: and(
+          eq(ingredientPrices.ingredientId, ingredientId),
+          eq(ingredientPrices.depotId, depotId)
+        ),
+      });
+      if (!existing) {
+        await db.insert(ingredientPrices).values({
+          ingredientId,
+          depotId,
+          pricePerUnit: price,
+          effectiveDate: "2026-01-01",
+        });
+      }
+    }
+
+    const burger = await db.query.products.findFirst({
+      where: eq(products.code, "BURGER-CLASSIC"),
+    });
+    if (burger) {
+      if (!burger.salePriceHT) {
+        await db
+          .update(products)
+          .set({ salePriceHT: "9.00" })
+          .where(eq(products.id, burger.id));
+      }
+      const existingRecipe = await db.query.recipes.findFirst({
+        where: eq(recipes.productId, burger.id),
+      });
+      if (!existingRecipe) {
+        const [recipe] = await db
+          .insert(recipes)
+          .values({ productId: burger.id })
+          .returning();
+        await db.insert(recipeItems).values([
+          {
+            recipeId: recipe.id,
+            ingredientId: ingredientIds.get("Steak haché")!,
+            quantity: "0.0900",
+          },
+          {
+            recipeId: recipe.id,
+            ingredientId: ingredientIds.get("Pain burger")!,
+            quantity: "1.0000",
+          },
+          {
+            recipeId: recipe.id,
+            ingredientId: ingredientIds.get("Cheddar")!,
+            quantity: "0.0200",
+          },
+        ]);
+        console.log("Recette Food Cost de démonstration créée (Burger Classic).");
       }
     }
   }

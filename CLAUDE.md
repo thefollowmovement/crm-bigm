@@ -122,8 +122,9 @@ dans `src/db/schema.ts` + `npm run db:generate`, jamais de SQL à la main) →
   `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium` (géré par `scripts/e2e.sh`).
 - Ports : dev 5432 · tests intégration 5433 · e2e 5434 (app e2e sur 3100).
 - Pas de Google Fonts ni d'appel réseau au build (doit builder hors ligne).
-- Fichier « use server » : jamais d'arrow inline dans `z.custom()` au niveau
-  d'un export — la hisser en const module (erreur de build Next sinon).
+- Fichier « use server » : jamais d'arrow inline dans un schéma Zod au niveau
+  d'un export (`z.custom()`, `.transform()`, etc.) — hisser le schéma en const
+  module (« Server Actions must be async functions » au build Next sinon).
 - Comptes seed démo (`SEED_DEMO=true`) : `admin@bigm.fr` (mdp du .env) ;
   `direction@ / compta@ / animateur@ / communication@ / rh@ / developpement@ /
   franchise@bigm.fr`, mdp commun `Test1234!` ; `inactif@bigm.fr` désactivé.

@@ -670,6 +670,8 @@ export const products = pgTable(
     familyId: uuid("family_id")
       .notNull()
       .references(() => productFamilies.id),
+    // prix de vente HT (pour le % de coût matière du Food Cost)
+    salePriceHT: numeric("sale_price_ht", { precision: 12, scale: 2 }),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -841,6 +843,91 @@ export const actionPlanComments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("action_plan_comments_plan_idx").on(t.planId)]
+);
+
+// ─────────────── FOOD COST ───────────────
+
+// Unité de base d'un ingrédient : l'UI saisit en g/ml et convertit, la base
+// stocke toujours en KG / L / PIECE (quantités numeric(12,4) string).
+export const ingredientUnitEnum = pgEnum("ingredient_unit", ["KG", "L", "PIECE"]);
+
+export const ingredients = pgTable(
+  "ingredients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    unit: ingredientUnitEnum("unit").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("ingredients_name_unique").on(t.name)]
+);
+
+// Tarif d'un ingrédient PAR DÉPÔT, historisé par date d'effet : le prix
+// applicable à une date est le dernier effectiveDate <= date. numeric(12,4)
+// car c'est un tarif unitaire (€/kg…), pas un montant affiché.
+export const ingredientPrices = pgTable(
+  "ingredient_prices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    depotId: uuid("depot_id")
+      .notNull()
+      .references(() => depots.id),
+    pricePerUnit: numeric("price_per_unit", { precision: 12, scale: 4 }).notNull(),
+    effectiveDate: date("effective_date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ingredient_prices_unique").on(t.ingredientId, t.depotId, t.effectiveDate),
+    index("ingredient_prices_lookup_idx").on(t.depotId, t.ingredientId, t.effectiveDate),
+  ]
+);
+
+// Une recette par produit du référentiel (cdc §6).
+export const recipes = pgTable(
+  "recipes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("recipes_product_unique").on(t.productId)]
+);
+
+export const recipeItems = pgTable(
+  "recipe_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id),
+    // quantité en unité de base (kg / l / pièce)
+    quantity: numeric("quantity", { precision: 12, scale: 4 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("recipe_items_unique").on(t.recipeId, t.ingredientId)]
 );
 
 // ─────────────── ACHATS DPS (dépôts d'approvisionnement) ───────────────
@@ -1262,6 +1349,36 @@ export const actionPlanCommentsRelations = relations(
 export const depotsRelations = relations(depots, ({ many }) => ({
   stores: many(stores),
   purchases: many(dpsPurchases),
+  ingredientPrices: many(ingredientPrices),
+}));
+
+export const ingredientsRelations = relations(ingredients, ({ many }) => ({
+  prices: many(ingredientPrices),
+  recipeItems: many(recipeItems),
+}));
+
+export const ingredientPricesRelations = relations(ingredientPrices, ({ one }) => ({
+  ingredient: one(ingredients, {
+    fields: [ingredientPrices.ingredientId],
+    references: [ingredients.id],
+  }),
+  depot: one(depots, {
+    fields: [ingredientPrices.depotId],
+    references: [depots.id],
+  }),
+}));
+
+export const recipesRelations = relations(recipes, ({ one, many }) => ({
+  product: one(products, { fields: [recipes.productId], references: [products.id] }),
+  items: many(recipeItems),
+}));
+
+export const recipeItemsRelations = relations(recipeItems, ({ one }) => ({
+  recipe: one(recipes, { fields: [recipeItems.recipeId], references: [recipes.id] }),
+  ingredient: one(ingredients, {
+    fields: [recipeItems.ingredientId],
+    references: [ingredients.id],
+  }),
 }));
 
 export const dpsPurchasesRelations = relations(dpsPurchases, ({ one }) => ({
