@@ -25,6 +25,13 @@ export function addMonthsIso(iso: string, months: number): string {
   return `${String(targetYear).padStart(4, "0")}-${String(normalizedMonth + 1).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
 }
 
+// Ajoute (ou retire) des jours à une date ISO.
+export function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d + days));
+  return date.toISOString().slice(0, 10);
+}
+
 // Différence en jours entiers entre deux dates ISO (b - a).
 export function daysBetweenIso(a: string, b: string): number {
   const toUtc = (iso: string) => {

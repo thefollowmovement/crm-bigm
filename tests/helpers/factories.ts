@@ -5,6 +5,7 @@ import {
   contracts,
   franchisees,
   invoices,
+  revenueEntries,
   stores,
   users,
 } from "@/db/schema";
@@ -89,6 +90,28 @@ export async function createTestContract(
     })
     .returning();
   return contract;
+}
+
+type RevenueEntryOverrides = Partial<typeof revenueEntries.$inferInsert>;
+
+export async function createRevenueEntry(
+  storeId: string,
+  overrides: RevenueEntryOverrides = {}
+) {
+  const enteredById = overrides.enteredById ?? (await createTestUser()).id;
+  const [entry] = await db
+    .insert(revenueEntries)
+    .values({
+      storeId,
+      date: "2026-08-01",
+      channel: "SUR_PLACE",
+      grossAmount: "100.00",
+      source: "SAISIE",
+      ...overrides,
+      enteredById,
+    })
+    .returning();
+  return entry;
 }
 
 type InvoiceOverrides = Partial<typeof invoices.$inferInsert>;

@@ -2,10 +2,17 @@ import type { Metadata } from "next";
 
 import { requireUser } from "@/lib/auth/current-user";
 import { can } from "@/lib/authz/permissions";
-import { formatDateFr, todayParis } from "@/lib/dates";
+import { addDaysIso, addMonthsIso, formatDateFr, todayParis } from "@/lib/dates";
 import { formatEUR } from "@/lib/money";
+import { formatMonthFr, percentChange } from "@/lib/analytics";
 import { REVENUE_CHANNEL_LABELS } from "@/lib/labels";
 import { getNetworkSummary, getStoreMonth } from "@/services/revenue.service";
+import {
+  getSeries,
+  getYearComparison,
+  listRegions,
+  type SeriesGranularity,
+} from "@/services/revenue-analytics.service";
 import { listStores } from "@/services/stores.service";
 import { AccessDenied } from "@/components/access-denied";
 import { Badge } from "@/components/ui/badge";
@@ -18,15 +25,42 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ComparisonBarChart, TimeSeriesChart } from "@/components/charts/charts";
 
 import { CaFilters, CsvImportCard, RevenueEntryDialog } from "./ca-components";
+import { AnalyticsFilters } from "./analytics-filters";
 
 export const metadata: Metadata = { title: "Chiffre d'affaires" };
+
+type Params = Record<string, string | string[] | undefined>;
+
+const GRANULARITIES: Record<string, SeriesGranularity> = {
+  jour: "day",
+  semaine: "week",
+  mois: "month",
+};
+
+// Périmètre des onglets analytiques : réseau entier, boutique courante ou
+// région (valeur validée contre la liste des régions accessibles).
+function parseScope(
+  params: Params,
+  storeId: string,
+  regions: string[]
+): { key: string; filter: { storeId?: string; region?: string } } {
+  const raw = typeof params.perimetre === "string" ? params.perimetre : "reseau";
+  if (raw === "boutique") return { key: raw, filter: { storeId } };
+  if (raw.startsWith("region:")) {
+    const region = raw.slice("region:".length);
+    if (regions.includes(region)) return { key: raw, filter: { region } };
+  }
+  return { key: "reseau", filter: {} };
+}
 
 export default async function CaPage({
   searchParams,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<Params>;
 }) {
   const user = await requireUser();
   if (!can(user, "revenue:read")) return <AccessDenied />;
@@ -51,11 +85,58 @@ export default async function CaPage({
       ? params.boutique
       : stores[0].id;
   const store = stores.find((s) => s.id === storeId)!;
+  const storeLabel = `${store.code} — ${store.name}`;
 
-  const [monthData, summary] = await Promise.all([
+  const vue =
+    typeof params.vue === "string" &&
+    ["mois", "evolution", "comparaison"].includes(params.vue)
+      ? params.vue
+      : "mois";
+
+  const today = todayParis();
+  const currentYear = Number(today.slice(0, 4));
+  const granularite =
+    typeof params.granularite === "string" && params.granularite in GRANULARITIES
+      ? params.granularite
+      : "jour";
+  const annee =
+    typeof params.annee === "string" && /^\d{4}$/.test(params.annee)
+      ? Number(params.annee)
+      : currentYear;
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+
+  const regions = await listRegions(user);
+  const scope = parseScope(params, storeId, regions);
+
+  const granularity = GRANULARITIES[granularite];
+  const seriesFrom =
+    granularity === "day"
+      ? addDaysIso(today, -30)
+      : granularity === "week"
+        ? addDaysIso(today, -7 * 12)
+        : `${addMonthsIso(today, -11).slice(0, 7)}-01`;
+
+  const [monthData, summary, series, comparison] = await Promise.all([
     getStoreMonth(user, storeId, month),
     getNetworkSummary(user, { from: `${month}-01`, to: `${month}-31` }),
+    getSeries(user, { granularity, from: seriesFrom, to: today, ...scope.filter }),
+    getYearComparison(user, { year: annee, ...scope.filter }),
   ]);
+
+  const seriesPoints = series.map((p) => ({
+    label:
+      granularity === "month"
+        ? formatMonthFr(p.period)
+        : granularity === "week"
+          ? `Sem. du ${formatDateFr(p.period)}`
+          : formatDateFr(p.period),
+    gross: p.gross,
+  }));
+  const comparisonPoints = comparison.map((row) => ({
+    label: formatMonthFr(row.month).replace(` ${annee}`, ""),
+    current: row.current,
+    previous: row.previous,
+  }));
 
   const canWrite = can(user, "revenue:write");
   const canImport = can(user, "revenue:import");
@@ -71,17 +152,146 @@ export default async function CaPage({
           </p>
         </div>
         {canWrite ? (
-          <RevenueEntryDialog
-            storeId={storeId}
-            storeLabel={`${store.code} — ${store.name}`}
-          />
+          <RevenueEntryDialog storeId={storeId} storeLabel={storeLabel} />
         ) : null}
       </div>
 
-      <CaFilters
-        stores={stores.map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` }))}
-        current={{ boutique: storeId, mois: month }}
-      />
+      <Tabs defaultValue={vue}>
+        <TabsList>
+          <TabsTrigger value="mois">Mois par mois</TabsTrigger>
+          <TabsTrigger value="evolution" data-testid="tab-evolution">
+            Évolution
+          </TabsTrigger>
+          <TabsTrigger value="comparaison" data-testid="tab-comparaison">
+            N vs N-1
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="mois" className="mt-4 space-y-6">
+          <MonthTab
+            stores={stores.map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` }))}
+            store={{ id: storeId, code: store.code }}
+            month={month}
+            monthData={monthData}
+            summary={summary}
+            canImport={canImport}
+          />
+        </TabsContent>
+
+        <TabsContent value="evolution" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Évolution du CA brut</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <AnalyticsFilters
+                vue="evolution"
+                perimetre={scope.key}
+                storeLabel={storeLabel}
+                regions={regions}
+                granularite={granularite}
+              />
+              {seriesPoints.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Aucune donnée sur la période.
+                </p>
+              ) : (
+                <TimeSeriesChart
+                  data={seriesPoints}
+                  seriesLabel="CA brut"
+                  testId="revenue-chart"
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="comparaison" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                Comparaison mensuelle {annee} vs {annee - 1}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <AnalyticsFilters
+                vue="comparaison"
+                perimetre={scope.key}
+                storeLabel={storeLabel}
+                regions={regions}
+                annee={annee}
+                years={years}
+              />
+              <ComparisonBarChart
+                data={comparisonPoints}
+                currentLabel={String(annee)}
+                previousLabel={String(annee - 1)}
+                testId="revenue-comparison"
+              />
+              <Table data-testid="comparison-table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Mois</TableHead>
+                    <TableHead className="text-right">{annee}</TableHead>
+                    <TableHead className="text-right">{annee - 1}</TableHead>
+                    <TableHead className="text-right">Écart</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {comparison.map((row) => {
+                    const delta = percentChange(row.current, row.previous);
+                    return (
+                      <TableRow key={row.month}>
+                        <TableCell>{formatMonthFr(row.month)}</TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatEUR(row.current)}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatEUR(row.previous)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {delta === null ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <Badge variant={delta >= 0 ? "success" : "destructive"}>
+                              {delta >= 0 ? "+" : ""}
+                              {String(delta).replace(".", ",")} %
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// Onglet « Mois par mois » : contenu historique de la page (saisie, totaux,
+// import CSV, comparatif réseau) — les e2e existants s'appuient dessus.
+function MonthTab({
+  stores,
+  store,
+  month,
+  monthData,
+  summary,
+  canImport,
+}: {
+  stores: { id: string; label: string }[];
+  store: { id: string; code: string };
+  month: string;
+  monthData: Awaited<ReturnType<typeof getStoreMonth>>;
+  summary: Awaited<ReturnType<typeof getNetworkSummary>>;
+  canImport: boolean;
+}) {
+  return (
+    <>
+      <CaFilters stores={stores} current={{ boutique: store.id, mois: month }} />
 
       <Card>
         <CardHeader>
@@ -201,6 +411,6 @@ export default async function CaPage({
           )}
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }
