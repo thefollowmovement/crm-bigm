@@ -75,14 +75,25 @@ paiements, relances 1-3, job `invoice-overdue`) · CA par canal + import CSV
 packaging prod (`docker/`, `docker-compose.prod.yml`, Caddy HTTPS, entrypoint
 = migrations + admin initial ; guide dans README).
 
+**PHASE 2 « Pilotage réseau » LIVRÉE** (commits « Étape 12 » à « Étape 16 ») :
+analytics CA via recharts derrière les wrappers uniques
+`src/components/charts/` (évolution jour/semaine/mois, N vs N-1, régions,
+animateurs — `services/revenue-analytics.service.ts`) · data ventes enrichie
+(`revenueEntries.orderCount`, panier moyen dérivé en SQL, référentiel
+produits/familles `/admin/produits` + import CSV ventes produits idempotent) ·
+audits & visites terrain (grille paramétrable `auditCriteria`, note % dérivée,
+`/animation/visites`) · plans d'action « PA-… » (machine à états + validation
+créateur/direction, job `action-plan-overdue`) · plannings hebdo
+(`/animation/planning`, créneau unique animateur+jour+période, notification si
+modifié par un tiers) + fiches animateurs (zone, coût/km, stats) · page
+d'accueil = dashboards par rôle (boutique/animateur/réseau+région, blocs
+présents SEULEMENT si permission — garder `data-testid="dashboard-title"`
+partout) · alertes `revenue-drop` (7 j vs N-1, seuil env
+`REVENUE_DROP_THRESHOLD_PCT`) et `audit-overdue` (`AUDIT_MAX_DAYS`), dedupeKey
+hebdo/mensuel sans marqueur. 5 jobs cron au total (06h00→06h40).
+
 **RESTE À FAIRE** (feuille de route client, dans l'ordre ; la « V2 » est hors
 périmètre) :
-- **Phase 2 — Pilotage réseau** : tableaux de bord multi-niveaux (boutique /
-  animateur / région / national) sur la page d'accueil ; comparaisons N vs N-1
-  et graphiques d'évolution du CA ; audits & visites terrain avec compte rendu ;
-  plans d'action (responsable, échéance, statut, validation) ; plannings hebdo
-  des animateurs + fiches animateurs ; data ventes enrichie (commandes, panier
-  moyen, par produit/famille) ; alertes avancées (baisse de CA, audit non fait).
 - **Phase 3 — Métier spécialisé** : achats DPS vs CA ; module Food Cost
   (ingrédients, grammages, recettes, multi-dépôts, coût matière) ; fiches
   formation + rattachement des documents signés ; tâches communication

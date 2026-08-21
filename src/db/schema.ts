@@ -169,6 +169,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "VISITE",
   "PLAN_ACTION",
   "PLANNING",
+  "ALERTE",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
