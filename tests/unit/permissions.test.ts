@@ -155,6 +155,16 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("prospection et cessions : invisibles hors développement/direction", () => {
+    for (const role of ROLES) {
+      const expected = ["ADMIN", "DIRECTION", "DEVELOPPEMENT"].includes(role);
+      expect(can({ role }, "development:read")).toBe(expected);
+      expect(can({ role }, "development:write")).toBe(expected);
+      expect(can({ role }, "resale:read")).toBe(expected);
+      expect(can({ role }, "resale:write")).toBe(expected);
+    }
+  });
+
   it("seuls ADMIN et DIRECTION gèrent les utilisateurs et lisent l'audit", () => {
     for (const role of ROLES) {
       const expected = role === "ADMIN" || role === "DIRECTION";

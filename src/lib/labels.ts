@@ -260,6 +260,53 @@ export const CHECKLIST_STATUS_LABELS: Record<string, string> = {
   TERMINE: "Terminé",
 };
 
+export const PROSPECT_STATUS_LABELS: Record<string, string> = {
+  NOUVEAU: "Nouveau",
+  CONTACTE: "Contacté",
+  QUALIFIE: "Qualifié",
+  RDV: "RDV réalisé",
+  DIP: "DIP remis",
+  RECHERCHE_LOCAL: "Recherche de local",
+  CONTRAT: "Contrat signé",
+  OUVERTURE: "Ouverture",
+  ABANDONNE: "Abandonné",
+};
+
+export const INTEREST_LEVEL_LABELS: Record<string, string> = {
+  FAIBLE: "Faible",
+  MOYEN: "Moyen",
+  FORT: "Fort",
+};
+
+export const PROSPECT_EVENT_TYPE_LABELS: Record<string, string> = {
+  APPEL: "Appel",
+  EMAIL: "E-mail",
+  RDV: "Rendez-vous",
+  COURRIER: "Courrier",
+  STATUT: "Changement de statut",
+  NOTE: "Note",
+};
+
+export const PREMISES_STATUS_LABELS: Record<string, string> = {
+  DISPONIBLE: "Disponible",
+  EN_NEGOCIATION: "En négociation",
+  RETENU: "Retenu",
+  ECARTE: "Écarté",
+};
+
+export const RESALE_WISH_LABELS: Record<string, string> = {
+  VENTE_TOTALE: "Vente totale",
+  VENTE_PARTIELLE: "Vente partielle",
+  RECHERCHE_ASSOCIE: "Recherche d'associé",
+};
+
+export const RESALE_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Active",
+  SUSPENDUE: "Suspendue",
+  CONCLUE: "Conclue",
+  ANNULEE: "Annulée",
+};
+
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   CREATE: "Création",
   UPDATE: "Modification",

@@ -51,6 +51,10 @@ export type Permission =
   | "opening:read"
   | "opening:write"
   | "opening:checklist"
+  | "development:read"
+  | "development:write"
+  | "resale:read"
+  | "resale:write"
   | "user:manage"
   | "audit:read";
 
@@ -101,6 +105,10 @@ const ALL: readonly Permission[] = [
   "opening:read",
   "opening:write",
   "opening:checklist",
+  "development:read",
+  "development:write",
+  "resale:read",
+  "resale:write",
   "user:manage",
   "audit:read",
 ];
@@ -228,6 +236,11 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "opening:read",
     "opening:write",
     "opening:checklist",
+    // Prospection et cessions : réservées au pôle (et à la direction).
+    "development:read",
+    "development:write",
+    "resale:read",
+    "resale:write",
   ]),
   FRANCHISE: new Set([
     "store:read",

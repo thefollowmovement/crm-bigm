@@ -160,6 +160,12 @@ export async function canDownloadFile(
       if (!step || !(await storeAllowed(user, step.project.storeId))) return deny;
       return { allowed: true, audit: false };
     }
+    case "PROSPECT":
+    case "PREMISES": {
+      // Dossiers de prospection : réservés au développement/direction.
+      if (!can(user, "development:read")) return deny;
+      return { allowed: true, audit: false };
+    }
     case "EMPLOYEE": {
       // Dossier RH : RH/direction, ou le salarié lui-même (compte lié).
       const employee = await db.query.employees.findFirst({

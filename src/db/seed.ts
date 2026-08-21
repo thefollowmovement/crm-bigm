@@ -12,6 +12,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { addDaysIso, startOfWeekIso, todayParis } from "@/lib/dates";
 import {
   actionPlans,
+  agents,
   animatorPlanEntries,
   animatorProfiles,
   auditCriteria,
@@ -30,6 +31,10 @@ import {
   openingChecklistItems,
   openingProjects,
   openingSteps,
+  premises,
+  prospectEvents,
+  prospects,
+  resaleListings,
   commTasks,
   invoices,
   partners,
@@ -954,6 +959,108 @@ async function main() {
           },
         ]);
         console.log("Projet d'ouverture de démonstration créé (BM-004).");
+      }
+    }
+  }
+
+  // ── Prospection & cessions de démonstration ─────────────────────
+  {
+    const devUser = await db.query.users.findFirst({
+      where: eq(users.email, "developpement@bigm.fr"),
+    });
+    const existingAgent = await db.query.agents.findFirst({
+      where: eq(agents.name, "Immo Centre-Est"),
+    });
+    const agent =
+      existingAgent ??
+      (
+        await db
+          .insert(agents)
+          .values({
+            name: "Immo Centre-Est",
+            agency: "Cabinet Bourdin",
+            email: "contact@immo-centre-est.fr",
+            zone: "Auvergne-Rhône-Alpes",
+          })
+          .returning()
+      )[0];
+
+    if (devUser) {
+      const existingProspect = await db.query.prospects.findFirst({
+        where: eq(prospects.lastName, "Reprise"),
+      });
+      if (!existingProspect) {
+        const [prospect] = await db
+          .insert(prospects)
+          .values({
+            firstName: "Karim",
+            lastName: "Reprise",
+            email: "karim.reprise@mail.fr",
+            city: "Annecy",
+            targetZone: "Haute-Savoie",
+            budget: "180000.00",
+            personalContribution: "60000.00",
+            leadSource: "Salon de la franchise",
+            interestLevel: "FORT",
+            status: "QUALIFIE",
+            agentId: agent.id,
+            assigneeId: devUser.id,
+            nextFollowUpDate: "2026-08-01", // dépassée → job prospect-followup
+            notes: "Profil restaurateur, apport confirmé.",
+          })
+          .returning();
+        await db.insert(prospectEvents).values({
+          prospectId: prospect.id,
+          type: "APPEL",
+          eventDate: "2026-07-20",
+          notes: "Premier échange téléphonique, très motivé.",
+          createdById: devUser.id,
+        });
+        await db.insert(prospects).values({
+          firstName: "Sonia",
+          lastName: "Candidate",
+          city: "Chambéry",
+          leadSource: "Site web",
+          status: "NOUVEAU",
+        });
+        console.log("Prospects de démonstration créés.");
+      }
+    }
+
+    const existingPremises = await db.query.premises.findFirst({
+      where: eq(premises.address, "12 rue de la République"),
+    });
+    if (!existingPremises) {
+      await db.insert(premises).values({
+        address: "12 rue de la République",
+        city: "Annecy",
+        postalCode: "74000",
+        surfaceM2: "85.0",
+        monthlyRent: "2400.00",
+        leaseRights: "45000.00",
+        status: "DISPONIBLE",
+        agentId: agent.id,
+        notes: "Angle passant, extraction possible.",
+      });
+      console.log("Local de démonstration créé.");
+    }
+
+    const bm002ForResale = await db.query.stores.findFirst({
+      where: eq(stores.code, "BM-002"),
+    });
+    if (bm002ForResale) {
+      const existingResale = await db.query.resaleListings.findFirst({
+        where: eq(resaleListings.storeId, bm002ForResale.id),
+      });
+      if (!existingResale) {
+        await db.insert(resaleListings).values({
+          storeId: bm002ForResale.id,
+          wish: "VENTE_TOTALE",
+          askingPrice: "250000.00",
+          urgency: "HAUTE",
+          notes: "Souhaite céder d'ici 12 mois (confidentiel).",
+        });
+        console.log("Cession de démonstration créée (BM-002).");
       }
     }
   }

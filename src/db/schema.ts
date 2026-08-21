@@ -177,6 +177,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "COMMUNICATION",
   "RH",
   "OUVERTURE",
+  "DEVELOPPEMENT",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
@@ -207,6 +208,8 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "PARTNER",
   "EMPLOYEE",
   "OPENING_STEP",
+  "PROSPECT",
+  "PREMISES",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -1461,6 +1464,168 @@ export const openingChecklistItems = pgTable(
   (t) => [index("opening_checklist_project_idx").on(t.projectId, t.pole)]
 );
 
+// ─────────────── PROSPECTION & CESSIONS (étape 23) ───────────────
+
+// Pipeline candidats franchisés (cdc §14). Transitions libres : chaque
+// changement de statut journalise un événement STATUT.
+export const prospectStatusEnum = pgEnum("prospect_status", [
+  "NOUVEAU",
+  "CONTACTE",
+  "QUALIFIE",
+  "RDV",
+  "DIP",
+  "RECHERCHE_LOCAL",
+  "CONTRAT",
+  "OUVERTURE",
+  "ABANDONNE",
+]);
+
+export const interestLevelEnum = pgEnum("interest_level", ["FAIBLE", "MOYEN", "FORT"]);
+
+export const prospectEventTypeEnum = pgEnum("prospect_event_type", [
+  "APPEL",
+  "EMAIL",
+  "RDV",
+  "COURRIER",
+  "STATUT",
+  "NOTE",
+]);
+
+export const premisesStatusEnum = pgEnum("premises_status", [
+  "DISPONIBLE",
+  "EN_NEGOCIATION",
+  "RETENU",
+  "ECARTE",
+]);
+
+export const resaleWishEnum = pgEnum("resale_wish", [
+  "VENTE_TOTALE",
+  "VENTE_PARTIELLE",
+  "RECHERCHE_ASSOCIE",
+]);
+
+export const resaleStatusEnum = pgEnum("resale_status", [
+  "ACTIVE",
+  "SUSPENDUE",
+  "CONCLUE",
+  "ANNULEE",
+]);
+
+// Agents immobiliers partenaires de la recherche de locaux.
+export const agents = pgTable("agents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  agency: text("agency"),
+  email: text("email"),
+  phone: text("phone"),
+  zone: text("zone"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const prospects = pgTable(
+  "prospects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    city: text("city"),
+    targetZone: text("target_zone"),
+    budget: numeric("budget", { precision: 12, scale: 2 }),
+    personalContribution: numeric("personal_contribution", {
+      precision: 12,
+      scale: 2,
+    }),
+    leadSource: text("lead_source"),
+    interestLevel: interestLevelEnum("interest_level"),
+    status: prospectStatusEnum("status").notNull().default("NOUVEAU"),
+    agentId: uuid("agent_id").references(() => agents.id),
+    assigneeId: uuid("assignee_id").references(() => users.id),
+    nextFollowUpDate: date("next_follow_up_date"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("prospects_status_idx").on(t.status),
+    index("prospects_follow_up_idx").on(t.nextFollowUpDate),
+  ]
+);
+
+export const prospectEvents = pgTable(
+  "prospect_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    prospectId: uuid("prospect_id")
+      .notNull()
+      .references(() => prospects.id, { onDelete: "cascade" }),
+    type: prospectEventTypeEnum("type").notNull(),
+    eventDate: date("event_date").notNull(),
+    notes: text("notes"),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("prospect_events_prospect_idx").on(t.prospectId, t.eventDate)]
+);
+
+// Base de locaux commerciaux (photos via PJ PREMISES).
+export const premises = pgTable(
+  "premises",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    address: text("address").notNull(),
+    city: text("city").notNull(),
+    postalCode: text("postal_code"),
+    surfaceM2: numeric("surface_m2", { precision: 7, scale: 1 }),
+    monthlyRent: numeric("monthly_rent", { precision: 12, scale: 2 }),
+    leaseRights: numeric("lease_rights", { precision: 12, scale: 2 }),
+    status: premisesStatusEnum("status").notNull().default("DISPONIBLE"),
+    agentId: uuid("agent_id").references(() => agents.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("premises_status_idx").on(t.status)]
+);
+
+// Franchisés vendeurs / recherche d'associé (cdc §14) — module réservé
+// au développement et à la direction (resale:*), invisible du reste.
+export const resaleListings = pgTable(
+  "resale_listings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id),
+    wish: resaleWishEnum("wish").notNull(),
+    askingPrice: numeric("asking_price", { precision: 12, scale: 2 }),
+    urgency: ticketPriorityEnum("urgency").notNull().default("NORMALE"),
+    status: resaleStatusEnum("status").notNull().default("ACTIVE"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("resale_listings_status_idx").on(t.status)]
+);
+
 // ─────────────── TICKETS INTER-PÔLES ───────────────
 
 export const tickets = pgTable(
@@ -1977,6 +2142,36 @@ export const openingStepsRelations = relations(openingSteps, ({ one }) => ({
     fields: [openingSteps.projectId],
     references: [openingProjects.id],
   }),
+}));
+
+export const agentsRelations = relations(agents, ({ many }) => ({
+  prospects: many(prospects),
+  premises: many(premises),
+}));
+
+export const prospectsRelations = relations(prospects, ({ one, many }) => ({
+  agent: one(agents, { fields: [prospects.agentId], references: [agents.id] }),
+  assignee: one(users, { fields: [prospects.assigneeId], references: [users.id] }),
+  events: many(prospectEvents),
+}));
+
+export const prospectEventsRelations = relations(prospectEvents, ({ one }) => ({
+  prospect: one(prospects, {
+    fields: [prospectEvents.prospectId],
+    references: [prospects.id],
+  }),
+  createdBy: one(users, {
+    fields: [prospectEvents.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const premisesRelations = relations(premises, ({ one }) => ({
+  agent: one(agents, { fields: [premises.agentId], references: [agents.id] }),
+}));
+
+export const resaleListingsRelations = relations(resaleListings, ({ one }) => ({
+  store: one(stores, { fields: [resaleListings.storeId], references: [stores.id] }),
 }));
 
 export const openingChecklistItemsRelations = relations(
