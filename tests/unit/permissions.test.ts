@@ -83,6 +83,16 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("les achats DPS : lecture compta/animation/franchisé (scopé), écriture et import compta", () => {
+    for (const role of ROLES) {
+      const readExpected = ["ADMIN", "DIRECTION", "COMPTABILITE", "ANIMATION", "FRANCHISE"].includes(role);
+      const writeExpected = ["ADMIN", "DIRECTION", "COMPTABILITE"].includes(role);
+      expect(can({ role }, "purchase:read")).toBe(readExpected);
+      expect(can({ role }, "purchase:write")).toBe(writeExpected);
+      expect(can({ role }, "purchase:import")).toBe(writeExpected);
+    }
+  });
+
   it("le référentiel produits est réservé à la compta et à la direction", () => {
     for (const role of ROLES) {
       const expected =

@@ -37,6 +37,7 @@ import { StoreForm } from "../store-form";
 import { loadStoreFormOptions } from "../form-options";
 import { PlatformsEditor } from "./platforms-editor";
 import { StoreAnimationTab } from "./animation-tab";
+import { StorePurchasesTab } from "./purchases-tab";
 
 export const metadata: Metadata = { title: "Fiche boutique" };
 
@@ -107,6 +108,9 @@ export default async function FicheBoutiquePage({
           ) : null}
           {can(user, "actionplan:read") ? (
             <TabsTrigger value="animation">Animation</TabsTrigger>
+          ) : null}
+          {can(user, "purchase:read") ? (
+            <TabsTrigger value="achats">Achats</TabsTrigger>
           ) : null}
           {canAudit ? <TabsTrigger value="historique">Historique</TabsTrigger> : null}
         </TabsList>
@@ -215,6 +219,12 @@ export default async function FicheBoutiquePage({
         {can(user, "actionplan:read") ? (
           <TabsContent value="animation">
             <StoreAnimationTab user={user} storeId={store.id} />
+          </TabsContent>
+        ) : null}
+
+        {can(user, "purchase:read") ? (
+          <TabsContent value="achats">
+            <StorePurchasesTab user={user} storeId={store.id} />
           </TabsContent>
         ) : null}
 

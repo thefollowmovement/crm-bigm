@@ -312,6 +312,8 @@ export const stores = pgTable(
     franchiseeId: uuid("franchisee_id").references(() => franchisees.id),
     // animateur réseau responsable
     animateurId: uuid("animateur_id").references(() => users.id),
+    // dépôt DPS qui approvisionne la boutique (Food Cost par zone)
+    depotId: uuid("depot_id").references(() => depots.id),
     address: text("address"),
     postalCode: text("postal_code"),
     city: text("city"),
@@ -841,6 +843,60 @@ export const actionPlanComments = pgTable(
   (t) => [index("action_plan_comments_plan_idx").on(t.planId)]
 );
 
+// ─────────────── ACHATS DPS (dépôts d'approvisionnement) ───────────────
+
+// Dépôt DPS : les tarifs (Food Cost, étape 18) varient par dépôt.
+export const depots = pgTable(
+  "depots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // ex. "DPS-LYON"
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    city: text("city"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("depots_code_unique").on(t.code)]
+);
+
+export const dpsPurchases = pgTable(
+  "dps_purchases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id),
+    depotId: uuid("depot_id")
+      .notNull()
+      .references(() => depots.id),
+    date: date("date").notNull(),
+    // n° de bon de livraison / facture DPS — clé d'idempotence des imports
+    reference: text("reference").notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    notes: text("notes"),
+    source: revenueSourceEnum("source").notNull().default("SAISIE"),
+    enteredById: uuid("entered_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("dps_purchases_store_date_ref_unique").on(t.storeId, t.date, t.reference),
+    index("dps_purchases_store_date_idx").on(t.storeId, t.date),
+    index("dps_purchases_depot_date_idx").on(t.depotId, t.date),
+    index("dps_purchases_date_idx").on(t.date),
+  ]
+);
+
 // ─────────────── PLANNINGS DES ANIMATEURS ───────────────
 
 // Fiche animateur (cdc §7 : zone, itinéraire théorique, coût kilométrique).
@@ -1027,6 +1083,7 @@ export const storesRelations = relations(stores, ({ one, many }) => ({
     references: [franchisees.id],
   }),
   animateur: one(users, { fields: [stores.animateurId], references: [users.id] }),
+  depot: one(depots, { fields: [stores.depotId], references: [depots.id] }),
   platforms: many(storePlatforms),
   contracts: many(contracts),
   exchanges: many(exchanges),
@@ -1201,6 +1258,20 @@ export const actionPlanCommentsRelations = relations(
     }),
   })
 );
+
+export const depotsRelations = relations(depots, ({ many }) => ({
+  stores: many(stores),
+  purchases: many(dpsPurchases),
+}));
+
+export const dpsPurchasesRelations = relations(dpsPurchases, ({ one }) => ({
+  store: one(stores, { fields: [dpsPurchases.storeId], references: [stores.id] }),
+  depot: one(depots, { fields: [dpsPurchases.depotId], references: [depots.id] }),
+  enteredBy: one(users, {
+    fields: [dpsPurchases.enteredById],
+    references: [users.id],
+  }),
+}));
 
 export const animatorProfilesRelations = relations(animatorProfiles, ({ one }) => ({
   user: one(users, { fields: [animatorProfiles.userId], references: [users.id] }),

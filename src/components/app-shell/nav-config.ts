@@ -3,6 +3,7 @@ import {
   Bell,
   Building2,
   CalendarDays,
+  ShoppingCart,
   ChartLine,
   ClipboardCheck,
   Contact,
@@ -85,6 +86,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/finances", label: "Factures & impayés", icon: Banknote, permission: "finance:read" },
       { href: "/ca", label: "Chiffre d'affaires", icon: ChartLine, permission: "revenue:read" },
+      { href: "/achats", label: "Achats DPS", icon: ShoppingCart, permission: "purchase:read" },
     ],
   },
   {

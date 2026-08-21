@@ -5,6 +5,8 @@ import {
   actionPlans,
   auditCriteria,
   contracts,
+  depots,
+  dpsPurchases,
   franchisees,
   invoices,
   productFamilies,
@@ -219,6 +221,42 @@ export async function createTestActionPlan(
     })
     .returning();
   return plan;
+}
+
+type DepotOverrides = Partial<typeof depots.$inferInsert>;
+
+export async function createTestDepot(overrides: DepotOverrides = {}) {
+  const n = nextId();
+  const [depot] = await db
+    .insert(depots)
+    .values({ code: `DPS-T${String(n).padStart(3, "0")}`, name: `Dépôt Test ${n}`, ...overrides })
+    .returning();
+  return depot;
+}
+
+type PurchaseOverrides = Partial<typeof dpsPurchases.$inferInsert>;
+
+export async function createTestPurchase(
+  storeId: string,
+  overrides: PurchaseOverrides = {}
+) {
+  const n = nextId();
+  const depotId = overrides.depotId ?? (await createTestDepot()).id;
+  const enteredById = overrides.enteredById ?? (await createTestUser()).id;
+  const [purchase] = await db
+    .insert(dpsPurchases)
+    .values({
+      storeId,
+      date: "2026-08-01",
+      reference: `BL-T${String(n).padStart(4, "0")}`,
+      amount: "100.00",
+      source: "SAISIE",
+      ...overrides,
+      depotId,
+      enteredById,
+    })
+    .returning();
+  return purchase;
 }
 
 type InvoiceOverrides = Partial<typeof invoices.$inferInsert>;

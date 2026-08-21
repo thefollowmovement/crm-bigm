@@ -17,6 +17,8 @@ import {
   auditCriteria,
   auditItems,
   contracts,
+  depots,
+  dpsPurchases,
   exchangeMessages,
   exchanges,
   franchisees,
@@ -598,6 +600,70 @@ async function main() {
         },
       ]);
       console.log("Planning de démonstration créé (semaine en cours).");
+    }
+  }
+
+  // ── Dépôts DPS + achats de démonstration ────────────────────────
+  {
+    const demoDepots = [
+      { code: "DPS-LYON", name: "DPS Lyon Rhône", city: "Lyon" },
+      { code: "DPS-PARIS", name: "DPS Paris Est", city: "Paris" },
+    ];
+    const depotIds = new Map<string, string>();
+    for (const d of demoDepots) {
+      const existing = await db.query.depots.findFirst({
+        where: eq(depots.code, d.code),
+      });
+      const row = existing ?? (await db.insert(depots).values(d).returning())[0];
+      depotIds.set(d.code, row.id);
+    }
+
+    // Rattachement des boutiques à leur dépôt (si pas déjà fait).
+    const assignments: [string, string][] = [
+      ["BM-001", "DPS-LYON"],
+      ["BM-002", "DPS-LYON"],
+      ["BM-003", "DPS-PARIS"],
+    ];
+    for (const [storeCode, depotCode] of assignments) {
+      const store = await db.query.stores.findFirst({
+        where: eq(stores.code, storeCode),
+      });
+      if (store && !store.depotId) {
+        await db
+          .update(stores)
+          .set({ depotId: depotIds.get(depotCode)! })
+          .where(eq(stores.id, store.id));
+      }
+    }
+
+    if (bm003 && comptaUser) {
+      const existingPurchase = await db.query.dpsPurchases.findFirst({
+        where: eq(dpsPurchases.storeId, bm003.id),
+      });
+      if (!existingPurchase) {
+        const month = new Date().toISOString().slice(0, 7);
+        await db.insert(dpsPurchases).values([
+          {
+            storeId: bm003.id,
+            depotId: depotIds.get("DPS-PARIS")!,
+            date: `${month}-02`,
+            reference: "BL-DEMO-2001",
+            amount: "980.40",
+            source: "SAISIE",
+            enteredById: comptaUser.id,
+          },
+          {
+            storeId: bm003.id,
+            depotId: depotIds.get("DPS-PARIS")!,
+            date: `${month}-01`,
+            reference: "BL-DEMO-2000",
+            amount: "540.10",
+            source: "SAISIE",
+            enteredById: comptaUser.id,
+          },
+        ]);
+        console.log("Achats DPS de démonstration créés (BM-003).");
+      }
     }
   }
 
