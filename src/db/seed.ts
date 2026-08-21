@@ -9,7 +9,13 @@ import { db, pool } from "@/lib/db/client";
 import { hashPassword } from "@/lib/auth/password";
 import {
   contracts,
+  exchangeMessages,
+  exchanges,
   franchisees,
+  invoices,
+  payments,
+  reminders,
+  revenueEntries,
   stores,
   users,
   type roleEnum,
@@ -244,6 +250,145 @@ async function main() {
         endDate: soon.toISOString().slice(0, 10),
       });
       console.log("Contrat BAIL-BM-002 créé (échéance dans 3 mois).");
+    }
+  }
+
+  // ── Échanges franchisés de démonstration ────────────────────────
+  const admin = await db.query.users.findFirst({
+    where: eq(users.email, adminEmail),
+  });
+  const franchiseUser = await db.query.users.findFirst({
+    where: eq(users.email, "franchise@bigm.fr"),
+  });
+  const bm001 = await db.query.stores.findFirst({ where: eq(stores.code, "BM-001") });
+  const bm003 = await db.query.stores.findFirst({ where: eq(stores.code, "BM-003") });
+
+  if (admin && franchiseUser && bm001) {
+    const existingExchange = await db.query.exchanges.findFirst({
+      where: eq(exchanges.subject, "Demande d'aménagement de la terrasse"),
+    });
+    if (!existingExchange) {
+      const [exchange] = await db
+        .insert(exchanges)
+        .values({
+          storeId: bm001.id,
+          type: "DEMANDE",
+          status: "EN_COURS",
+          subject: "Demande d'aménagement de la terrasse",
+          createdById: franchiseUser.id,
+        })
+        .returning();
+      await db.insert(exchangeMessages).values([
+        {
+          exchangeId: exchange.id,
+          authorId: franchiseUser.id,
+          body: "Bonjour, nous souhaitons installer 4 tables en terrasse cet été. Faut-il une validation du réseau ?",
+        },
+        {
+          exchangeId: exchange.id,
+          authorId: admin.id,
+          body: "Note interne : vérifier la conformité avec la charte terrasses avant de répondre.",
+          isInternal: true,
+        },
+        {
+          exchangeId: exchange.id,
+          authorId: admin.id,
+          body: "Accord de principe : mobilier conforme à la charte réseau, plan d'implantation à nous transmettre.",
+          isDecision: true,
+        },
+      ]);
+      console.log("Échange de démonstration créé (BM-001).");
+    }
+  }
+
+  // ── Factures de démonstration ───────────────────────────────────
+  const comptaUser = await db.query.users.findFirst({
+    where: eq(users.email, "compta@bigm.fr"),
+  });
+  if (bm001 && comptaUser) {
+    const existingInvoice = await db.query.invoices.findFirst({
+      where: eq(invoices.label, "Redevance de démonstration"),
+    });
+    if (!existingInvoice) {
+      const year = new Date().getFullYear();
+      const overdueDate = new Date();
+      overdueDate.setDate(overdueDate.getDate() - 30);
+      const overdueIso = overdueDate.toISOString().slice(0, 10);
+
+      const [paidInvoice] = await db
+        .insert(invoices)
+        .values({
+          number: `F${year}-9001`,
+          storeId: bm001.id,
+          type: "REDEVANCE",
+          label: "Redevance de démonstration",
+          amountHT: "2500.00",
+          vatRate: "20.00",
+          amountTTC: "3000.00",
+          issuedAt: `${year}-01-05`,
+          dueDate: `${year}-02-05`,
+          status: "PAYEE",
+        })
+        .returning();
+      await db.insert(payments).values({
+        invoiceId: paidInvoice.id,
+        amount: "3000.00",
+        paidAt: `${year}-01-28`,
+        method: "PRELEVEMENT",
+        reference: "PRLV-0128",
+      });
+
+      const [overdueInvoice] = await db
+        .insert(invoices)
+        .values({
+          number: `F${year}-9002`,
+          storeId: bm001.id,
+          type: "REDEVANCE_COMMUNICATION",
+          label: "Redevance communication (démo impayée)",
+          amountHT: "800.00",
+          vatRate: "20.00",
+          amountTTC: "960.00",
+          issuedAt: `${year}-01-05`,
+          dueDate: overdueIso,
+          status: "EMISE",
+        })
+        .returning();
+      await db.insert(reminders).values({
+        invoiceId: overdueInvoice.id,
+        level: 1,
+        channel: "EMAIL",
+        sentAt: new Date().toISOString().slice(0, 10),
+        sentById: comptaUser.id,
+        notes: "Première relance amiable.",
+      });
+      console.log("Factures de démonstration créées (BM-001).");
+    }
+  }
+
+  // ── Chiffre d'affaires de démonstration (succursale BM-003) ─────
+  if (bm003 && comptaUser) {
+    const existingRevenue = await db.query.revenueEntries.findFirst({
+      where: eq(revenueEntries.storeId, bm003.id),
+    });
+    if (!existingRevenue) {
+      const month = new Date().toISOString().slice(0, 7);
+      await db.insert(revenueEntries).values(
+        [
+          [`${month}-01`, "SUR_PLACE", "1850.50", null],
+          [`${month}-01`, "UBER_EATS", "620.00", "545.60"],
+          [`${month}-02`, "SUR_PLACE", "2104.00", null],
+          [`${month}-02`, "EMPORTE", "410.30", null],
+        ].map(([date, channel, gross, net]) => ({
+          storeId: bm003.id,
+          date: date as string,
+          channel: channel as "SUR_PLACE" | "UBER_EATS" | "EMPORTE",
+          grossAmount: gross as string,
+          netAmount: net,
+          source: "SAISIE" as const,
+          enteredById: comptaUser.id,
+        }))
+      );
+      console.log("CA de démonstration créé (BM-003).");
     }
   }
 
