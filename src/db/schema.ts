@@ -189,6 +189,9 @@ export const auditActionEnum = pgEnum("audit_action", [
   "LOGOUT",
   "DOWNLOAD",
   "IMPORT",
+  // valeurs ajoutées EN FIN de tableau uniquement (ALTER TYPE … ADD VALUE)
+  // REVEAL : révélation d'un secret du coffre-fort (étape 27)
+  "REVEAL",
 ]);
 
 export const attachmentEntityEnum = pgEnum("attachment_entity", [
@@ -1737,6 +1740,60 @@ export const companyBudgets = pgTable(
   ]
 );
 
+// ─────────────── LOGICIELS & COFFRE-FORT (étape 27) ───────────────
+
+// Registre des logiciels du réseau (cdc §21) : qui utilise quoi, à quel
+// niveau d'accès.
+export const softwareRegistry = pgTable("software_registry", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  purpose: text("purpose"),
+  url: text("url"),
+  // responsable interne de l'outil
+  ownerId: uuid("owner_id").references(() => users.id),
+  accessLevelNotes: text("access_level_notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const softwareUsers = pgTable(
+  "software_users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    softwareId: uuid("software_id")
+      .notNull()
+      .references(() => softwareRegistry.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    accessLevel: text("access_level"),
+  },
+  (t) => [uniqueIndex("software_users_unique").on(t.softwareId, t.userId)]
+);
+
+// Coffre-fort : `encrypted` = "v1:<iv>:<tag>:<cipher>" (AES-256-GCM, clé
+// VAULT_KEY en env). Jamais de clair en base ; le champ est aussi exclu des
+// snapshots d'audit (SENSITIVE_FIELDS d'audited.ts). Révélation À L'UNITÉ,
+// journalisée avec l'action REVEAL.
+export const vaultSecrets = pgTable("vault_secrets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  label: text("label").notNull(),
+  username: text("username"),
+  url: text("url"),
+  encrypted: text("encrypted").notNull(),
+  keyVersion: integer("key_version").notNull().default(1),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
 // ─────────────── TICKETS INTER-PÔLES ───────────────
 
 export const tickets = pgTable(
@@ -2283,6 +2340,25 @@ export const premisesRelations = relations(premises, ({ one }) => ({
 
 export const resaleListingsRelations = relations(resaleListings, ({ one }) => ({
   store: one(stores, { fields: [resaleListings.storeId], references: [stores.id] }),
+}));
+
+export const softwareRegistryRelations = relations(
+  softwareRegistry,
+  ({ one, many }) => ({
+    owner: one(users, {
+      fields: [softwareRegistry.ownerId],
+      references: [users.id],
+    }),
+    users: many(softwareUsers),
+  })
+);
+
+export const softwareUsersRelations = relations(softwareUsers, ({ one }) => ({
+  software: one(softwareRegistry, {
+    fields: [softwareUsers.softwareId],
+    references: [softwareRegistry.id],
+  }),
+  user: one(users, { fields: [softwareUsers.userId], references: [users.id] }),
 }));
 
 export const companyFlowsRelations = relations(companyFlows, ({ one }) => ({

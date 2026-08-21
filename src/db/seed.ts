@@ -46,6 +46,7 @@ import {
   productSales,
   reminders,
   revenueEntries,
+  softwareRegistry,
   storeExpenses,
   storeVisits,
   stores,
@@ -1146,6 +1147,23 @@ async function main() {
         ]);
         console.log("Flux et budgets Big M CIE de démonstration créés.");
       }
+    }
+  }
+
+  // ── Registre des logiciels de démonstration ─────────────────────
+  {
+    const existingSoftware = await db.query.softwareRegistry.findFirst({
+      where: eq(softwareRegistry.name, "Pack bureautique"),
+    });
+    if (!existingSoftware) {
+      await db.insert(softwareRegistry).values({
+        name: "Pack bureautique",
+        purpose: "Documents, tableurs et messagerie du siège",
+        url: "https://office.example.com",
+        ownerId: direction.id,
+        accessLevelNotes: "Tout le siège ; licences gérées par la direction.",
+      });
+      console.log("Logiciel de démonstration créé.");
     }
   }
 

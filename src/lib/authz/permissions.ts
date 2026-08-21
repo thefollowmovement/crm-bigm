@@ -60,6 +60,10 @@ export type Permission =
   | "company-finance:read"
   | "company-finance:write"
   | "direction:cockpit"
+  | "software:read"
+  | "software:write"
+  | "vault:read"
+  | "vault:write"
   | "user:manage"
   | "audit:read";
 
@@ -119,6 +123,10 @@ const ALL: readonly Permission[] = [
   "company-finance:read",
   "company-finance:write",
   "direction:cockpit",
+  "software:read",
+  "software:write",
+  "vault:read",
+  "vault:write",
   "user:manage",
   "audit:read",
 ];
@@ -161,6 +169,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     // Tableau financier de la tête de réseau : invisible aux autres pôles.
     "company-finance:read",
     "company-finance:write",
+    "software:read",
   ]),
   RH: new Set([
     "store:read",
@@ -183,6 +192,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "self:leave",
     "opening:read",
     "opening:checklist",
+    "software:read",
   ]),
   ANIMATION: new Set([
     "store:read",
@@ -210,6 +220,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "partner:read",
     "opening:read",
     "opening:checklist",
+    "software:read",
   ]),
   COMMUNICATION: new Set([
     "store:read",
@@ -229,6 +240,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "partner:write",
     "opening:read",
     "opening:checklist",
+    "software:read",
   ]),
   DEVELOPPEMENT: new Set([
     "store:read",
@@ -257,6 +269,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "development:write",
     "resale:read",
     "resale:write",
+    "software:read",
   ]),
   FRANCHISE: new Set([
     "store:read",

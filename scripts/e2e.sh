@@ -6,6 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 export E2E_DATABASE_URL="${E2E_DATABASE_URL:-postgresql://crm_e2e:crm_e2e@localhost:5434/crm_e2e}"
+# Clé de TEST du coffre-fort (32 octets base64) — jamais celle de prod.
+export VAULT_KEY="${VAULT_KEY:-dGVzdC1rZXktMzItYnl0ZXMtcG91ci1sZS1jb2ZmcmU=}"
 
 # Chromium système (sandbox/CI sans téléchargement Playwright)
 if [ -z "${PLAYWRIGHT_CHROMIUM_PATH:-}" ] && [ -x /opt/pw-browsers/chromium ]; then

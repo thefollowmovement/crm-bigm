@@ -343,4 +343,5 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   LOGOUT: "Déconnexion",
   DOWNLOAD: "Téléchargement",
   IMPORT: "Import",
+  REVEAL: "Révélation de secret",
 };

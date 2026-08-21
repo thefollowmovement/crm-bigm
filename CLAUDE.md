@@ -119,10 +119,24 @@ centimes entiers via `branches.service.ts`, `/succursales`, onglet
 Rentabilité, permissions `branch:*` compta+direction). 8 jobs cron
 (06h00→07h10).
 
-**RESTE À FAIRE** (feuille de route client, dans l'ordre ; la « V2 » est hors
-périmètre) :
-- **Phase 5 — Enrichissement** : cockpit Direction, tableau financier Big M
-  CIE, écart matière, registre logiciels, coffre-fort de mots de passe.
+**PHASE 5 « Enrichissement » LIVRÉE** (commits « Étape 25 » à « Étape 27 ») :
+finances Big M CIE (`companyFlows`/`companyBudgets`, 12 catégories cdc §5,
+sens dérivé par `CATEGORY_DIRECTION`, réel vs budget au centime,
+`/direction/finances-cie`, `company-finance:*` compta+direction) · écart
+matière (`material-variance.service.ts` : théorique = ventes produits ×
+recettes au tarif du dépôt, en 10^-8 € BigInt ; onglet sur `/foodcost`) ·
+job `purchase-anomaly` 07h20 (bornes `PURCHASE_RATIO_MIN/MAX_PCT`,
+`MATERIAL_VARIANCE_MAX_PCT`) · cockpit Direction (`/direction/cockpit`,
+permission `direction:cockpit`, 12 KPI cliquables en Promise.all) · registre
+logiciels (`/admin/logiciels`, `software:read` siège / write direction) ·
+coffre-fort (`/admin/coffre`, AES-256-GCM `lib/vault/crypto.ts`, clé env
+`VAULT_KEY` 32 o base64 SANS fallback, format `v1:iv:tag:cipher`, révélation
+à l'unité auditée `REVEAL`, `encrypted` dans SENSITIVE_FIELDS d'audited.ts).
+9 jobs cron (06h00→07h20).
+
+**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5).** Reste hors périmètre :
+la « V2 » (pôle 15 « Modules complémentaires » du cdc §24 : HACCP, litiges,
+assurances, maintenance, parc matériel, notes plateformes…) — nouveau devis.
 
 **Process par étape (non négociable)** : implémenter (nouvelle table = ajout
 dans `src/db/schema.ts` + `npm run db:generate`, jamais de SQL à la main) →

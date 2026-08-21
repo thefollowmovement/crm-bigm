@@ -181,6 +181,18 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("registre logiciels lisible du siège ; coffre-fort réservé à ADMIN/DIRECTION", () => {
+    for (const role of ROLES) {
+      expect(can({ role }, "software:read")).toBe(
+        role !== "FRANCHISE" && role !== "SALARIE"
+      );
+      const adminOnly = role === "ADMIN" || role === "DIRECTION";
+      expect(can({ role }, "software:write")).toBe(adminOnly);
+      expect(can({ role }, "vault:read")).toBe(adminOnly);
+      expect(can({ role }, "vault:write")).toBe(adminOnly);
+    }
+  });
+
   it("seuls ADMIN et DIRECTION gèrent les utilisateurs, l'audit et le cockpit", () => {
     for (const role of ROLES) {
       const expected = role === "ADMIN" || role === "DIRECTION";

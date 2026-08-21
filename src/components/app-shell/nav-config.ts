@@ -11,7 +11,9 @@ import {
   GraduationCap,
   Handshake,
   IdCard,
+  KeyRound,
   Megaphone,
+  MonitorSmartphone,
   Rocket,
   ShoppingCart,
   ChartLine,
@@ -230,6 +232,18 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Produits & familles",
         icon: Package,
         permission: "product:manage",
+      },
+      {
+        href: "/admin/logiciels",
+        label: "Logiciels",
+        icon: MonitorSmartphone,
+        permission: "software:read",
+      },
+      {
+        href: "/admin/coffre",
+        label: "Coffre-fort",
+        icon: KeyRound,
+        permission: "vault:read",
       },
       {
         href: "/admin/audit",

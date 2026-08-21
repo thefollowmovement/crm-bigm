@@ -13,8 +13,9 @@ import { auditLogs } from "@/db/schema";
 // delete directement (règle CLAUDE.md n°2).
 // ────────────────────────────────────────────────────────────────
 
-// Champs jamais journalisés (secrets)
-const SENSITIVE_FIELDS = new Set(["passwordHash"]);
+// Champs jamais journalisés (secrets) — `encrypted` : ciphertext du
+// coffre-fort, exclu même chiffré des snapshots d'audit.
+const SENSITIVE_FIELDS = new Set(["passwordHash", "encrypted"]);
 // Champs techniques exclus du diff (bruit)
 const NOISE_FIELDS = new Set(["updatedAt", "createdAt"]);
 
