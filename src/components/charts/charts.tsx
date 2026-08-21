@@ -54,27 +54,41 @@ const AXIS_STYLE = { fontSize: 12 } as const;
 
 export type TimeSeriesPoint = { label: string; gross: string };
 
-// Courbe d'évolution d'un montant dans le temps (CA par jour/semaine/mois).
+// Courbe d'évolution d'une valeur dans le temps. `unit` : "eur" (défaut,
+// montants string) ou "percent" (notes d'audit "82.5").
 export function TimeSeriesChart({
   data,
   seriesLabel,
+  unit = "eur",
   height = 320,
   testId,
 }: {
   data: TimeSeriesPoint[];
   seriesLabel: string;
+  unit?: "eur" | "percent";
   height?: number;
   testId?: string;
 }) {
-  const points = data.map((d) => ({ label: d.label, value: toEuros(d.gross) }));
+  const points = data.map((d) => ({
+    label: d.label,
+    value: unit === "eur" ? toEuros(d.gross) : Number(d.gross),
+  }));
+  const axisFormatter =
+    unit === "eur" ? formatAxis : (v: number) => `${COUNT_FORMAT.format(v)} %`;
+  const tooltipFormatter =
+    unit === "eur"
+      ? formatTooltip
+      : (v: number | string) => `${typeof v === "number" ? v : 0} %`;
   return (
     <div data-testid={testId} style={{ width: "100%", height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
           <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="label" tick={AXIS_STYLE} tickMargin={8} minTickGap={24} />
-          <YAxis tick={AXIS_STYLE} tickFormatter={formatAxis} width={90} />
-          <Tooltip formatter={(value) => [formatTooltip(value as number), seriesLabel]} />
+          <YAxis tick={AXIS_STYLE} tickFormatter={axisFormatter} width={90} />
+          <Tooltip
+            formatter={(value) => [tooltipFormatter(value as number), seriesLabel]}
+          />
           <Line
             type="monotone"
             dataKey="value"

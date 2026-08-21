@@ -10,6 +10,9 @@ import { eq } from "drizzle-orm";
 import { db, pool } from "@/lib/db/client";
 import { hashPassword } from "@/lib/auth/password";
 import {
+  actionPlans,
+  auditCriteria,
+  auditItems,
   contracts,
   exchangeMessages,
   exchanges,
@@ -21,6 +24,7 @@ import {
   productSales,
   reminders,
   revenueEntries,
+  storeVisits,
   stores,
   users,
   type roleEnum,
@@ -469,6 +473,77 @@ async function main() {
         }))
       );
       console.log("Ventes produits de démonstration créées (BM-003).");
+    }
+  }
+
+  // ── Animation terrain : grille d'audit, visite et plan d'action ─
+  if (bm001) {
+    const demoCriteria = [
+      { label: "Hygiène cuisine", category: "Hygiène", maxScore: 10, displayOrder: 1 },
+      { label: "Propreté salle", category: "Hygiène", maxScore: 10, displayOrder: 2 },
+      { label: "Qualité de service", category: "Service", maxScore: 10, displayOrder: 3 },
+      { label: "Respect des recettes", category: "Produit", maxScore: 10, displayOrder: 4 },
+    ];
+    const criterionIds: string[] = [];
+    for (const c of demoCriteria) {
+      const existing = await db.query.auditCriteria.findFirst({
+        where: eq(auditCriteria.label, c.label),
+      });
+      const row =
+        existing ?? (await db.insert(auditCriteria).values(c).returning())[0];
+      criterionIds.push(row.id);
+    }
+
+    const existingVisit = await db.query.storeVisits.findFirst({
+      where: eq(storeVisits.storeId, bm001.id),
+    });
+    if (!existingVisit) {
+      const [visit] = await db
+        .insert(storeVisits)
+        .values({
+          storeId: bm001.id,
+          type: "AUDIT",
+          status: "FINALISEE",
+          visitDate: new Date().toISOString().slice(0, 10),
+          visitedById: animateur.id,
+          report:
+            "Audit trimestriel : très bonne tenue générale. Un point de vigilance sur l'affichage des allergènes.",
+          finalizedAt: new Date(),
+        })
+        .returning();
+      await db.insert(auditItems).values([
+        { visitId: visit.id, criterionId: criterionIds[0], score: 9, isCompliant: true },
+        { visitId: visit.id, criterionId: criterionIds[1], score: 8, isCompliant: true },
+        {
+          visitId: visit.id,
+          criterionId: criterionIds[2],
+          score: 6,
+          isCompliant: false,
+          comment: "Affichage des allergènes incomplet au comptoir.",
+        },
+      ]);
+      console.log("Visite d'audit de démonstration créée (BM-001).");
+    }
+
+    const existingPlan = await db.query.actionPlans.findFirst({
+      where: eq(actionPlans.storeId, bm001.id),
+    });
+    if (!existingPlan) {
+      const nextMonth = new Date(Date.now() + 30 * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      await db.insert(actionPlans).values({
+        storeId: bm001.id,
+        title: "Mettre à jour l'affichage des allergènes",
+        description:
+          "Suite à l'audit : compléter l'affichage réglementaire au comptoir et en salle.",
+        priority: "HAUTE",
+        assigneeId: animateur.id,
+        createdById: animateur.id,
+        dueDate: nextMonth,
+        status: "EN_COURS",
+      });
+      console.log("Plan d'action de démonstration créé (BM-001).");
     }
   }
 

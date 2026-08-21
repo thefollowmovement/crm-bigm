@@ -15,6 +15,13 @@
       "when": 1787343553693,
       "tag": "0001_spotty_chameleon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787344404979,
+      "tag": "0002_light_harry_osborn",
+      "breakpoints": true
     }
   ]
 }

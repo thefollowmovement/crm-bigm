@@ -165,6 +165,9 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "ECHANGE",
   "DOCUMENT",
   "SYSTEME",
+  // valeurs ajoutées EN FIN de tableau uniquement (ALTER TYPE … ADD VALUE)
+  "VISITE",
+  "PLAN_ACTION",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
@@ -187,6 +190,30 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "STORE",
   "FRANCHISEE",
   "DOCUMENT_VERSION",
+  // valeurs ajoutées EN FIN de tableau uniquement (ALTER TYPE … ADD VALUE)
+  "STORE_VISIT",
+  "ACTION_PLAN",
+]);
+
+// ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
+
+export const visitTypeEnum = pgEnum("visit_type", [
+  "AUDIT",
+  "VISITE_COURTOISIE",
+  "OUVERTURE",
+  "FORMATION",
+  "NOUVEAU_PRODUIT",
+  "INTERVENTION",
+]);
+
+export const visitStatusEnum = pgEnum("visit_status", ["BROUILLON", "FINALISEE"]);
+
+export const actionPlanStatusEnum = pgEnum("action_plan_status", [
+  "A_FAIRE",
+  "EN_COURS",
+  "TERMINE",
+  "VALIDE",
+  "ANNULE",
 ]);
 
 // ─────────────── AUTH & UTILISATEURS ───────────────
@@ -672,6 +699,130 @@ export const productSales = pgTable(
   ]
 );
 
+// ─────────────── VISITES TERRAIN & PLANS D'ACTION ───────────────
+
+// Grille d'audit paramétrable : la note (%) est TOUJOURS dérivée en SQL
+// (SUM(score)/SUM(maxScore)), jamais stockée.
+export const auditCriteria = pgTable("audit_criteria", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  label: text("label").notNull(),
+  // regroupement libre (Hygiène, Service, Tenue du point de vente…)
+  category: text("category"),
+  maxScore: integer("max_score").notNull().default(10),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const storeVisits = pgTable(
+  "store_visits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id),
+    type: visitTypeEnum("type").notNull(),
+    status: visitStatusEnum("status").notNull().default("BROUILLON"),
+    visitDate: date("visit_date").notNull(),
+    visitedById: uuid("visited_by_id")
+      .notNull()
+      .references(() => users.id),
+    // compte rendu (obligatoire pour finaliser)
+    report: text("report"),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("store_visits_store_date_idx").on(t.storeId, t.visitDate),
+    index("store_visits_visitor_idx").on(t.visitedById, t.visitDate),
+    index("store_visits_type_date_idx").on(t.type, t.visitDate),
+  ]
+);
+
+export const auditItems = pgTable(
+  "audit_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    visitId: uuid("visit_id")
+      .notNull()
+      .references(() => storeVisits.id, { onDelete: "cascade" }),
+    criterionId: uuid("criterion_id")
+      .notNull()
+      .references(() => auditCriteria.id),
+    score: integer("score").notNull(),
+    isCompliant: boolean("is_compliant").notNull().default(true),
+    comment: text("comment"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("audit_items_visit_criterion_unique").on(t.visitId, t.criterionId)]
+);
+
+export const actionPlans = pgTable(
+  "action_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // numéro court affiché "PA-000123"
+    number: integer("number").notNull().generatedAlwaysAsIdentity(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id),
+    // visite d'origine (audit) le cas échéant
+    visitId: uuid("visit_id").references(() => storeVisits.id),
+    title: text("title").notNull(),
+    description: text("description"),
+    priority: ticketPriorityEnum("priority").notNull().default("NORMALE"),
+    assigneeId: uuid("assignee_id").references(() => users.id),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    dueDate: date("due_date"),
+    status: actionPlanStatusEnum("status").notNull().default("A_FAIRE"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    // marqueur du job de relance (idempotence)
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("action_plans_number_unique").on(t.number),
+    index("action_plans_store_status_idx").on(t.storeId, t.status),
+    index("action_plans_assignee_status_idx").on(t.assigneeId, t.status),
+    index("action_plans_due_status_idx").on(t.dueDate, t.status),
+  ]
+);
+
+export const actionPlanComments = pgTable(
+  "action_plan_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => actionPlans.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("action_plan_comments_plan_idx").on(t.planId)]
+);
+
 // ─────────────── TICKETS INTER-PÔLES ───────────────
 
 export const tickets = pgTable(
@@ -923,6 +1074,62 @@ export const productSalesRelations = relations(productSales, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const auditCriteriaRelations = relations(auditCriteria, ({ many }) => ({
+  items: many(auditItems),
+}));
+
+export const storeVisitsRelations = relations(storeVisits, ({ one, many }) => ({
+  store: one(stores, { fields: [storeVisits.storeId], references: [stores.id] }),
+  visitedBy: one(users, {
+    fields: [storeVisits.visitedById],
+    references: [users.id],
+  }),
+  items: many(auditItems),
+  actionPlans: many(actionPlans),
+}));
+
+export const auditItemsRelations = relations(auditItems, ({ one }) => ({
+  visit: one(storeVisits, {
+    fields: [auditItems.visitId],
+    references: [storeVisits.id],
+  }),
+  criterion: one(auditCriteria, {
+    fields: [auditItems.criterionId],
+    references: [auditCriteria.id],
+  }),
+}));
+
+export const actionPlansRelations = relations(actionPlans, ({ one, many }) => ({
+  store: one(stores, { fields: [actionPlans.storeId], references: [stores.id] }),
+  visit: one(storeVisits, {
+    fields: [actionPlans.visitId],
+    references: [storeVisits.id],
+  }),
+  assignee: one(users, {
+    fields: [actionPlans.assigneeId],
+    references: [users.id],
+  }),
+  createdBy: one(users, {
+    fields: [actionPlans.createdById],
+    references: [users.id],
+  }),
+  comments: many(actionPlanComments),
+}));
+
+export const actionPlanCommentsRelations = relations(
+  actionPlanComments,
+  ({ one }) => ({
+    plan: one(actionPlans, {
+      fields: [actionPlanComments.planId],
+      references: [actionPlans.id],
+    }),
+    author: one(users, {
+      fields: [actionPlanComments.authorId],
+      references: [users.id],
+    }),
+  })
+);
 
 export const ticketsRelations = relations(tickets, ({ one, many }) => ({
   store: one(stores, { fields: [tickets.storeId], references: [stores.id] }),

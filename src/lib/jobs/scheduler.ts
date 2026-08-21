@@ -2,6 +2,7 @@ import "server-only";
 
 import cron from "node-cron";
 
+import { runActionPlanOverdueJob } from "@/lib/jobs/action-plan-overdue";
 import { runContractExpiryJob } from "@/lib/jobs/contract-expiry";
 import { runInvoiceOverdueJob } from "@/lib/jobs/invoice-overdue";
 
@@ -14,6 +15,7 @@ const globalScheduler = globalThis as unknown as { crmJobsStarted?: boolean };
 export const JOBS: Record<string, () => Promise<unknown>> = {
   "contract-expiry": () => runContractExpiryJob(),
   "invoice-overdue": () => runInvoiceOverdueJob(),
+  "action-plan-overdue": () => runActionPlanOverdueJob(),
 };
 
 export function startScheduler() {
@@ -29,9 +31,12 @@ export function startScheduler() {
   cron.schedule("15 6 * * *", () => void safeRun("invoice-overdue"), {
     timezone: "Europe/Paris",
   });
+  cron.schedule("25 6 * * *", () => void safeRun("action-plan-overdue"), {
+    timezone: "Europe/Paris",
+  });
 
   console.log(
-    "[jobs] Planificateur démarré (contract-expiry 06h00, invoice-overdue 06h15, Europe/Paris)."
+    "[jobs] Planificateur démarré (contract-expiry 06h00, invoice-overdue 06h15, action-plan-overdue 06h25, Europe/Paris)."
   );
 }
 

@@ -136,6 +136,28 @@ export const TICKET_PRIORITY_LABELS: Record<string, string> = {
   CRITIQUE: "Critique",
 };
 
+export const VISIT_TYPE_LABELS: Record<string, string> = {
+  AUDIT: "Audit",
+  VISITE_COURTOISIE: "Visite de courtoisie",
+  OUVERTURE: "Ouverture",
+  FORMATION: "Formation",
+  NOUVEAU_PRODUIT: "Nouveau produit",
+  INTERVENTION: "Intervention",
+};
+
+export const VISIT_STATUS_LABELS: Record<string, string> = {
+  BROUILLON: "Brouillon",
+  FINALISEE: "Finalisée",
+};
+
+export const ACTION_PLAN_STATUS_LABELS: Record<string, string> = {
+  A_FAIRE: "À faire",
+  EN_COURS: "En cours",
+  TERMINE: "Terminé",
+  VALIDE: "Validé",
+  ANNULE: "Annulé",
+};
+
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   CREATE: "Création",
   UPDATE: "Modification",

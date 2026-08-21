@@ -36,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StoreForm } from "../store-form";
 import { loadStoreFormOptions } from "../form-options";
 import { PlatformsEditor } from "./platforms-editor";
+import { StoreAnimationTab } from "./animation-tab";
 
 export const metadata: Metadata = { title: "Fiche boutique" };
 
@@ -103,6 +104,9 @@ export default async function FicheBoutiquePage({
           ) : null}
           {can(user, "revenue:read") ? (
             <TabsTrigger value="ca">CA</TabsTrigger>
+          ) : null}
+          {can(user, "actionplan:read") ? (
+            <TabsTrigger value="animation">Animation</TabsTrigger>
           ) : null}
           {canAudit ? <TabsTrigger value="historique">Historique</TabsTrigger> : null}
         </TabsList>
@@ -205,6 +209,12 @@ export default async function FicheBoutiquePage({
         {can(user, "revenue:read") ? (
           <TabsContent value="ca">
             <StoreRevenueTab user={user} storeId={store.id} />
+          </TabsContent>
+        ) : null}
+
+        {can(user, "actionplan:read") ? (
+          <TabsContent value="animation">
+            <StoreAnimationTab user={user} storeId={store.id} />
           </TabsContent>
         ) : null}
 

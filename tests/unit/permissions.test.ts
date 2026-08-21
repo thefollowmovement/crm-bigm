@@ -61,6 +61,19 @@ describe("matrice de permissions", () => {
     expect(can({ role: "COMPTABILITE" }, "user:manage")).toBe(false);
   });
 
+  it("les visites terrain : lecture siège, écriture animation/direction, rien pour le franchisé", () => {
+    for (const role of ROLES) {
+      const writeExpected =
+        role === "ADMIN" || role === "DIRECTION" || role === "ANIMATION";
+      expect(can({ role }, "visit:write")).toBe(writeExpected);
+      expect(can({ role }, "visit:read")).toBe(role !== "FRANCHISE");
+    }
+    // Le franchisé suit les plans d'action de SES boutiques (scopé), sans
+    // voir les comptes rendus de visite internes.
+    expect(can({ role: "FRANCHISE" }, "actionplan:read")).toBe(true);
+    expect(can({ role: "FRANCHISE" }, "actionplan:write")).toBe(false);
+  });
+
   it("le référentiel produits est réservé à la compta et à la direction", () => {
     for (const role of ROLES) {
       const expected =

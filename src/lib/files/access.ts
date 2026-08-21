@@ -4,11 +4,13 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
+  actionPlans,
   contracts,
   documentVersions,
   exchangeMessages,
   fileAttachments,
   reminders,
+  storeVisits,
   ticketComments,
   tickets,
 } from "@/db/schema";
@@ -97,6 +99,23 @@ export async function canDownloadFile(
     case "STORE": {
       if (!can(user, "store:read")) return deny;
       if (!(await storeAllowed(user, attachment.entityId ?? null))) return deny;
+      return { allowed: true, audit: false };
+    }
+    case "STORE_VISIT": {
+      // Comptes rendus de visite : internes au siège (jamais FRANCHISE).
+      if (!can(user, "visit:read")) return deny;
+      const visit = await db.query.storeVisits.findFirst({
+        where: eq(storeVisits.id, attachment.entityId ?? ""),
+      });
+      if (!visit) return deny;
+      return { allowed: true, audit: false };
+    }
+    case "ACTION_PLAN": {
+      if (!can(user, "actionplan:read")) return deny;
+      const plan = await db.query.actionPlans.findFirst({
+        where: eq(actionPlans.id, attachment.entityId ?? ""),
+      });
+      if (!plan || !(await storeAllowed(user, plan.storeId))) return deny;
       return { allowed: true, audit: false };
     }
     case "FRANCHISEE": {

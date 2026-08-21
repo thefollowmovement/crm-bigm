@@ -2,6 +2,8 @@
 // défaut, surchargées librement par chaque test.
 import { db } from "@/lib/db/client";
 import {
+  actionPlans,
+  auditCriteria,
   contracts,
   franchisees,
   invoices,
@@ -9,6 +11,7 @@ import {
   products,
   productSales,
   revenueEntries,
+  storeVisits,
   stores,
   users,
 } from "@/db/schema";
@@ -166,6 +169,56 @@ export async function createTestProductSale(
     })
     .returning();
   return sale;
+}
+
+type CriterionOverrides = Partial<typeof auditCriteria.$inferInsert>;
+
+export async function createTestCriterion(overrides: CriterionOverrides = {}) {
+  const n = nextId();
+  const [criterion] = await db
+    .insert(auditCriteria)
+    .values({ label: `Critère ${n}`, maxScore: 10, ...overrides })
+    .returning();
+  return criterion;
+}
+
+type VisitOverrides = Partial<typeof storeVisits.$inferInsert>;
+
+export async function createTestVisit(
+  storeId: string,
+  overrides: VisitOverrides = {}
+) {
+  const visitedById = overrides.visitedById ?? (await createTestUser()).id;
+  const [visit] = await db
+    .insert(storeVisits)
+    .values({
+      storeId,
+      type: "AUDIT",
+      visitDate: "2026-08-01",
+      ...overrides,
+      visitedById,
+    })
+    .returning();
+  return visit;
+}
+
+type ActionPlanOverrides = Partial<typeof actionPlans.$inferInsert>;
+
+export async function createTestActionPlan(
+  storeId: string,
+  overrides: ActionPlanOverrides = {}
+) {
+  const createdById = overrides.createdById ?? (await createTestUser()).id;
+  const [plan] = await db
+    .insert(actionPlans)
+    .values({
+      storeId,
+      title: "Plan de test",
+      ...overrides,
+      createdById,
+    })
+    .returning();
+  return plan;
 }
 
 type InvoiceOverrides = Partial<typeof invoices.$inferInsert>;
