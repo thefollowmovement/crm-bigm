@@ -1,0 +1,19 @@
+# Reverse proxy HTTPS automatique (Let's Encrypt) devant l'app.
+# APP_DOMAIN vient du .env (compose). En local, mettre APP_DOMAIN=localhost
+# pour un certificat auto-signé interne.
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	request_body {
+		max_size 30MB
+	}
+
+	reverse_proxy app:3000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
