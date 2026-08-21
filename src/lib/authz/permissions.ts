@@ -30,6 +30,8 @@ export type Permission =
   | "visit:write"
   | "actionplan:read"
   | "actionplan:write"
+  | "planning:read"
+  | "planning:write"
   | "user:manage"
   | "audit:read";
 
@@ -59,6 +61,8 @@ const ALL: readonly Permission[] = [
   "visit:write",
   "actionplan:read",
   "actionplan:write",
+  "planning:read",
+  "planning:write",
   "user:manage",
   "audit:read",
 ];
@@ -84,6 +88,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "ticket:write",
     "visit:read",
     "actionplan:read",
+    "planning:read",
   ]),
   RH: new Set([
     "store:read",
@@ -94,6 +99,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "ticket:write",
     "visit:read",
     "actionplan:read",
+    "planning:read",
   ]),
   ANIMATION: new Set([
     "store:read",
@@ -110,6 +116,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "visit:write",
     "actionplan:read",
     "actionplan:write",
+    "planning:read",
+    "planning:write",
   ]),
   COMMUNICATION: new Set([
     "store:read",
@@ -120,6 +128,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "ticket:write",
     "visit:read",
     "actionplan:read",
+    "planning:read",
   ]),
   DEVELOPPEMENT: new Set([
     "store:read",
@@ -135,6 +144,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "ticket:write",
     "visit:read",
     "actionplan:read",
+    "planning:read",
   ]),
   FRANCHISE: new Set([
     "store:read",

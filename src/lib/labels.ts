@@ -158,6 +158,22 @@ export const ACTION_PLAN_STATUS_LABELS: Record<string, string> = {
   ANNULE: "Annulé",
 };
 
+export const PLAN_PERIOD_LABELS: Record<string, string> = {
+  MATIN: "Matin",
+  APRES_MIDI: "Après-midi",
+  JOURNEE: "Journée",
+};
+
+export const PLAN_ACTIVITY_LABELS: Record<string, string> = {
+  VISITE: "Visite",
+  AUDIT: "Audit",
+  FORMATION: "Formation",
+  OUVERTURE: "Ouverture",
+  REUNION: "Réunion",
+  TRAJET: "Trajet",
+  AUTRE: "Autre",
+};
+
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   CREATE: "Création",
   UPDATE: "Modification",

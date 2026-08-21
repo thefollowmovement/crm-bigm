@@ -9,8 +9,11 @@ import { eq } from "drizzle-orm";
 
 import { db, pool } from "@/lib/db/client";
 import { hashPassword } from "@/lib/auth/password";
+import { addDaysIso, startOfWeekIso, todayParis } from "@/lib/dates";
 import {
   actionPlans,
+  animatorPlanEntries,
+  animatorProfiles,
   auditCriteria,
   auditItems,
   contracts,
@@ -544,6 +547,57 @@ async function main() {
         status: "EN_COURS",
       });
       console.log("Plan d'action de démonstration créé (BM-001).");
+    }
+  }
+
+  // ── Fiche et planning de l'animateur de démonstration ───────────
+  {
+    const existingProfile = await db.query.animatorProfiles.findFirst({
+      where: eq(animatorProfiles.userId, animateur.id),
+    });
+    if (!existingProfile) {
+      await db.insert(animatorProfiles).values({
+        userId: animateur.id,
+        zone: "Auvergne-Rhône-Alpes",
+        theoreticalRoute: "Lyon Part-Dieu → Villeurbanne → (mensuel) Paris Bastille",
+        costPerKm: "0.450",
+        notes: "Animateur historique du réseau.",
+      });
+      console.log("Fiche animateur de démonstration créée.");
+    }
+
+    const existingEntry = await db.query.animatorPlanEntries.findFirst({
+      where: eq(animatorPlanEntries.animateurId, animateur.id),
+    });
+    if (!existingEntry && bm001 && bm003) {
+      const monday = startOfWeekIso(todayParis());
+      await db.insert(animatorPlanEntries).values([
+        {
+          animateurId: animateur.id,
+          date: monday,
+          period: "MATIN",
+          activity: "VISITE",
+          storeId: bm001.id,
+          kmEstimated: "12.0",
+        },
+        {
+          animateurId: animateur.id,
+          date: monday,
+          period: "APRES_MIDI",
+          activity: "REUNION",
+          label: "Point réseau hebdomadaire",
+        },
+        {
+          animateurId: animateur.id,
+          date: addDaysIso(monday, 2),
+          period: "JOURNEE",
+          activity: "AUDIT",
+          storeId: bm003.id,
+          kmEstimated: "480.0",
+          notes: "Aller-retour Paris (train).",
+        },
+      ]);
+      console.log("Planning de démonstration créé (semaine en cours).");
     }
   }
 

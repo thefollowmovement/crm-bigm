@@ -25,6 +25,15 @@ export function addMonthsIso(iso: string, months: number): string {
   return `${String(targetYear).padStart(4, "0")}-${String(normalizedMonth + 1).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
 }
 
+// Lundi de la semaine ISO contenant la date.
+export function startOfWeekIso(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const day = date.getUTCDay(); // 0 = dimanche
+  const delta = day === 0 ? -6 : 1 - day;
+  return addDaysIso(iso, delta);
+}
+
 // Ajoute (ou retire) des jours à une date ISO.
 export function addDaysIso(iso: string, days: number): string {
   const [y, m, d] = iso.split("-").map(Number);

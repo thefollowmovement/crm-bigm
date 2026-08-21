@@ -168,6 +168,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   // valeurs ajoutées EN FIN de tableau uniquement (ALTER TYPE … ADD VALUE)
   "VISITE",
   "PLAN_ACTION",
+  "PLANNING",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
@@ -214,6 +215,22 @@ export const actionPlanStatusEnum = pgEnum("action_plan_status", [
   "TERMINE",
   "VALIDE",
   "ANNULE",
+]);
+
+export const planPeriodEnum = pgEnum("plan_period", [
+  "MATIN",
+  "APRES_MIDI",
+  "JOURNEE",
+]);
+
+export const planActivityEnum = pgEnum("plan_activity", [
+  "VISITE",
+  "AUDIT",
+  "FORMATION",
+  "OUVERTURE",
+  "REUNION",
+  "TRAJET",
+  "AUTRE",
 ]);
 
 // ─────────────── AUTH & UTILISATEURS ───────────────
@@ -823,6 +840,59 @@ export const actionPlanComments = pgTable(
   (t) => [index("action_plan_comments_plan_idx").on(t.planId)]
 );
 
+// ─────────────── PLANNINGS DES ANIMATEURS ───────────────
+
+// Fiche animateur (cdc §7 : zone, itinéraire théorique, coût kilométrique).
+export const animatorProfiles = pgTable(
+  "animator_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    zone: text("zone"),
+    theoreticalRoute: text("theoretical_route"),
+    // €/km pour l'estimation de coût des tournées (string numeric)
+    costPerKm: numeric("cost_per_km", { precision: 6, scale: 3 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("animator_profiles_user_unique").on(t.userId)]
+);
+
+// Une entrée = (animateur, jour, créneau). JOURNEE est exclusif du reste
+// (règle vérifiée par le service).
+export const animatorPlanEntries = pgTable(
+  "animator_plan_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    animateurId: uuid("animateur_id")
+      .notNull()
+      .references(() => users.id),
+    date: date("date").notNull(),
+    period: planPeriodEnum("period").notNull(),
+    activity: planActivityEnum("activity").notNull(),
+    storeId: uuid("store_id").references(() => stores.id),
+    // libellé libre (réunion réseau, salon…)
+    label: text("label"),
+    kmEstimated: numeric("km_estimated", { precision: 6, scale: 1 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("animator_plan_entries_slot_unique").on(t.animateurId, t.date, t.period),
+    index("animator_plan_entries_animateur_date_idx").on(t.animateurId, t.date),
+  ]
+);
+
 // ─────────────── TICKETS INTER-PÔLES ───────────────
 
 export const tickets = pgTable(
@@ -1127,6 +1197,24 @@ export const actionPlanCommentsRelations = relations(
     author: one(users, {
       fields: [actionPlanComments.authorId],
       references: [users.id],
+    }),
+  })
+);
+
+export const animatorProfilesRelations = relations(animatorProfiles, ({ one }) => ({
+  user: one(users, { fields: [animatorProfiles.userId], references: [users.id] }),
+}));
+
+export const animatorPlanEntriesRelations = relations(
+  animatorPlanEntries,
+  ({ one }) => ({
+    animateur: one(users, {
+      fields: [animatorPlanEntries.animateurId],
+      references: [users.id],
+    }),
+    store: one(stores, {
+      fields: [animatorPlanEntries.storeId],
+      references: [stores.id],
     }),
   })
 );

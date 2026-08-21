@@ -74,6 +74,15 @@ describe("matrice de permissions", () => {
     expect(can({ role: "FRANCHISE" }, "actionplan:write")).toBe(false);
   });
 
+  it("le planning : lecture siège, écriture animation/direction, invisible au franchisé", () => {
+    for (const role of ROLES) {
+      expect(can({ role }, "planning:read")).toBe(role !== "FRANCHISE");
+      const writeExpected =
+        role === "ADMIN" || role === "DIRECTION" || role === "ANIMATION";
+      expect(can({ role }, "planning:write")).toBe(writeExpected);
+    }
+  });
+
   it("le référentiel produits est réservé à la compta et à la direction", () => {
     for (const role of ROLES) {
       const expected =
