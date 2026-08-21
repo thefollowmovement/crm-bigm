@@ -173,6 +173,14 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("les finances Big M CIE : compta et direction uniquement", () => {
+    for (const role of ROLES) {
+      const expected = ["ADMIN", "DIRECTION", "COMPTABILITE"].includes(role);
+      expect(can({ role }, "company-finance:read")).toBe(expected);
+      expect(can({ role }, "company-finance:write")).toBe(expected);
+    }
+  });
+
   it("seuls ADMIN et DIRECTION gèrent les utilisateurs et lisent l'audit", () => {
     for (const role of ROLES) {
       const expected = role === "ADMIN" || role === "DIRECTION";

@@ -36,6 +36,8 @@ import {
   prospects,
   resaleListings,
   commTasks,
+  companyBudgets,
+  companyFlows,
   invoices,
   partners,
   payments,
@@ -1096,6 +1098,53 @@ async function main() {
           },
         ]);
         console.log("Dépenses de démonstration créées (BM-003).");
+      }
+    }
+  }
+
+  // ── Flux & budget Big M CIE de démonstration ────────────────────
+  {
+    const comptaCie = await db.query.users.findFirst({
+      where: eq(users.email, "compta@bigm.fr"),
+    });
+    if (comptaCie) {
+      const existingFlow = await db.query.companyFlows.findFirst({
+        where: eq(companyFlows.label, "Redevances du réseau"),
+      });
+      if (!existingFlow) {
+        const monthStart = `${todayParis().slice(0, 7)}-01`;
+        await db.insert(companyFlows).values([
+          {
+            flowDate: monthStart,
+            category: "REDEVANCE",
+            amount: "4500.00",
+            label: "Redevances du réseau",
+            enteredById: comptaCie.id,
+          },
+          {
+            flowDate: monthStart,
+            category: "SALAIRES",
+            amount: "6200.00",
+            label: "Salaires siège",
+            enteredById: comptaCie.id,
+          },
+          {
+            flowDate: monthStart,
+            category: "LOGICIELS",
+            amount: "350.00",
+            label: "Abonnements SaaS",
+            enteredById: comptaCie.id,
+          },
+        ]);
+        const [year, month] = [
+          Number(todayParis().slice(0, 4)),
+          Number(todayParis().slice(5, 7)),
+        ];
+        await db.insert(companyBudgets).values([
+          { year, month, category: "REDEVANCE", amount: "5000.00" },
+          { year, month, category: "SALAIRES", amount: "6000.00" },
+        ]);
+        console.log("Flux et budgets Big M CIE de démonstration créés.");
       }
     }
   }

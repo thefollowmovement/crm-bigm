@@ -1668,6 +1668,75 @@ export const storeExpenses = pgTable(
   ]
 );
 
+// ─────────────── BIG M CIE : FLUX & BUDGETS (étape 25) ───────────────
+
+// 12 catégories du tableau financier de la tête de réseau (cdc §5).
+// Le sens (entrée/sortie) se DÉRIVE de la catégorie via la map pure
+// CATEGORY_DIRECTION du service — jamais stocké.
+export const companyFlowCategoryEnum = pgEnum("company_flow_category", [
+  // entrées
+  "DROIT_ENTREE",
+  "REDEVANCE",
+  "REDEVANCE_COMMUNICATION",
+  "PRESTATION",
+  "AUTRE_ENTREE",
+  // sorties
+  "PARTENAIRES",
+  "COMMUNICATION",
+  "SALAIRES",
+  "LOGICIELS",
+  "PRESTATAIRES",
+  "FRAIS_GENERAUX",
+  "AUTRE_SORTIE",
+]);
+
+export const companyFlows = pgTable(
+  "company_flows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    flowDate: date("flow_date").notNull(),
+    category: companyFlowCategoryEnum("category").notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    label: text("label"),
+    // rapprochement d'une facture réseau (redevances encaissées)
+    invoiceId: uuid("invoice_id").references(() => invoices.id),
+    // dépense liée à un partenaire / prestataire
+    partnerId: uuid("partner_id").references(() => partners.id),
+    enteredById: uuid("entered_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("company_flows_date_idx").on(t.flowDate),
+    index("company_flows_category_date_idx").on(t.category, t.flowDate),
+  ]
+);
+
+export const companyBudgets = pgTable(
+  "company_budgets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    year: integer("year").notNull(),
+    // 1 à 12 (gardé par le service)
+    month: integer("month").notNull(),
+    category: companyFlowCategoryEnum("category").notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("company_budgets_unique").on(t.year, t.month, t.category),
+  ]
+);
+
 // ─────────────── TICKETS INTER-PÔLES ───────────────
 
 export const tickets = pgTable(
@@ -2214,6 +2283,21 @@ export const premisesRelations = relations(premises, ({ one }) => ({
 
 export const resaleListingsRelations = relations(resaleListings, ({ one }) => ({
   store: one(stores, { fields: [resaleListings.storeId], references: [stores.id] }),
+}));
+
+export const companyFlowsRelations = relations(companyFlows, ({ one }) => ({
+  invoice: one(invoices, {
+    fields: [companyFlows.invoiceId],
+    references: [invoices.id],
+  }),
+  partner: one(partners, {
+    fields: [companyFlows.partnerId],
+    references: [partners.id],
+  }),
+  enteredBy: one(users, {
+    fields: [companyFlows.enteredById],
+    references: [users.id],
+  }),
 }));
 
 export const storeExpensesRelations = relations(storeExpenses, ({ one }) => ({

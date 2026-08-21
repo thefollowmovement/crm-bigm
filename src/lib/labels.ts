@@ -319,6 +319,21 @@ export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
   AUTRE: "Autre",
 };
 
+export const COMPANY_FLOW_CATEGORY_LABELS: Record<string, string> = {
+  DROIT_ENTREE: "Droits d'entrée",
+  REDEVANCE: "Redevances",
+  REDEVANCE_COMMUNICATION: "Redevances communication",
+  PRESTATION: "Prestations & formations",
+  AUTRE_ENTREE: "Autres facturations",
+  PARTENAIRES: "Partenaires",
+  COMMUNICATION: "Communication",
+  SALAIRES: "Salariés",
+  LOGICIELS: "Logiciels",
+  PRESTATAIRES: "Prestataires",
+  FRAIS_GENERAUX: "Frais généraux",
+  AUTRE_SORTIE: "Autres dépenses",
+};
+
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   CREATE: "Création",
   UPDATE: "Modification",

@@ -57,6 +57,8 @@ export type Permission =
   | "resale:write"
   | "branch:read"
   | "branch:write"
+  | "company-finance:read"
+  | "company-finance:write"
   | "user:manage"
   | "audit:read";
 
@@ -113,6 +115,8 @@ const ALL: readonly Permission[] = [
   "resale:write",
   "branch:read",
   "branch:write",
+  "company-finance:read",
+  "company-finance:write",
   "user:manage",
   "audit:read",
 ];
@@ -152,6 +156,9 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     // Rentabilité des succursales : compta + direction (pas l'animation).
     "branch:read",
     "branch:write",
+    // Tableau financier de la tête de réseau : invisible aux autres pôles.
+    "company-finance:read",
+    "company-finance:write",
   ]),
   RH: new Set([
     "store:read",
