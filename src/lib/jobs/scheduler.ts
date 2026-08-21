@@ -7,6 +7,7 @@ import { runAuditOverdueJob } from "@/lib/jobs/audit-overdue";
 import { runCommTaskOverdueJob } from "@/lib/jobs/comm-task-overdue";
 import { runContractExpiryJob } from "@/lib/jobs/contract-expiry";
 import { runInvoiceOverdueJob } from "@/lib/jobs/invoice-overdue";
+import { runOpeningLateJob } from "@/lib/jobs/opening-late";
 import { runRevenueDropJob } from "@/lib/jobs/revenue-drop";
 
 // Jobs planifiés in-app (une seule instance app en prod → pas de double
@@ -22,6 +23,7 @@ export const JOBS: Record<string, () => Promise<unknown>> = {
   "revenue-drop": () => runRevenueDropJob(),
   "audit-overdue": () => runAuditOverdueJob(),
   "comm-task-overdue": () => runCommTaskOverdueJob(),
+  "opening-late": () => runOpeningLateJob(),
 };
 
 export function startScheduler() {
@@ -49,9 +51,12 @@ export function startScheduler() {
   cron.schedule("50 6 * * *", () => void safeRun("comm-task-overdue"), {
     timezone: "Europe/Paris",
   });
+  cron.schedule("0 7 * * *", () => void safeRun("opening-late"), {
+    timezone: "Europe/Paris",
+  });
 
   console.log(
-    "[jobs] Planificateur démarré (06h00 contract-expiry, 06h15 invoice-overdue, 06h25 action-plan-overdue, 06h30 revenue-drop, 06h40 audit-overdue, 06h50 comm-task-overdue — Europe/Paris)."
+    "[jobs] Planificateur démarré (06h00 contract-expiry, 06h15 invoice-overdue, 06h25 action-plan-overdue, 06h30 revenue-drop, 06h40 audit-overdue, 06h50 comm-task-overdue, 07h00 opening-late — Europe/Paris)."
   );
 }
 

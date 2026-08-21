@@ -48,6 +48,9 @@ export type Permission =
   | "hr:write"
   | "self:clock"
   | "self:leave"
+  | "opening:read"
+  | "opening:write"
+  | "opening:checklist"
   | "user:manage"
   | "audit:read";
 
@@ -95,6 +98,9 @@ const ALL: readonly Permission[] = [
   "hr:write",
   "self:clock",
   "self:leave",
+  "opening:read",
+  "opening:write",
+  "opening:checklist",
   "user:manage",
   "audit:read",
 ];
@@ -129,6 +135,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "commtask:read",
     "commtask:request",
     "partner:read",
+    "opening:read",
+    "opening:checklist",
   ]),
   RH: new Set([
     "store:read",
@@ -149,6 +157,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "hr:write",
     "self:clock",
     "self:leave",
+    "opening:read",
+    "opening:checklist",
   ]),
   ANIMATION: new Set([
     "store:read",
@@ -174,6 +184,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "commtask:read",
     "commtask:request",
     "partner:read",
+    "opening:read",
+    "opening:checklist",
   ]),
   COMMUNICATION: new Set([
     "store:read",
@@ -191,6 +203,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "commtask:request",
     "partner:read",
     "partner:write",
+    "opening:read",
+    "opening:checklist",
   ]),
   DEVELOPPEMENT: new Set([
     "store:read",
@@ -211,6 +225,9 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "commtask:read",
     "commtask:request",
     "partner:read",
+    "opening:read",
+    "opening:write",
+    "opening:checklist",
   ]),
   FRANCHISE: new Set([
     "store:read",
@@ -225,6 +242,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "training:read",
     "commtask:read",
     "commtask:request",
+    "opening:read",
   ]),
   // Salarié d'une boutique : pointeuse et congés en self-service, rien d'autre
   // (cdc §12) — pas d'accès aux modules réseau.

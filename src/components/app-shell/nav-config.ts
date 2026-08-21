@@ -10,6 +10,7 @@ import {
   Handshake,
   IdCard,
   Megaphone,
+  Rocket,
   ShoppingCart,
   ChartLine,
   ClipboardCheck,
@@ -124,6 +125,17 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/ca", label: "Chiffre d'affaires", icon: ChartLine, permission: "revenue:read" },
       { href: "/achats", label: "Achats DPS", icon: ShoppingCart, permission: "purchase:read" },
       { href: "/foodcost", label: "Food Cost", icon: ChefHat, permission: "foodcost:read" },
+    ],
+  },
+  {
+    title: "Développement",
+    items: [
+      {
+        href: "/developpement/ouvertures",
+        label: "Ouvertures",
+        icon: Rocket,
+        permission: "opening:read",
+      },
     ],
   },
   {

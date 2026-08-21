@@ -176,6 +176,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "FORMATION",
   "COMMUNICATION",
   "RH",
+  "OUVERTURE",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
@@ -205,6 +206,7 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "COMM_TASK",
   "PARTNER",
   "EMPLOYEE",
+  "OPENING_STEP",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -1351,6 +1353,114 @@ export const clockEntries = pgTable(
   ]
 );
 
+// ─────────────── OUVERTURES DE FRANCHISE (étape 22) ───────────────
+
+// Les 8 jalons types du parcours d'ouverture (cdc §13), générés à la
+// création du projet dans cet ordre.
+export const openingStepTypeEnum = pgEnum("opening_step_type", [
+  "DIP",
+  "CONTRAT",
+  "TRAVAUX",
+  "FORMATION",
+  "COMMANDES",
+  "INSTALLATION",
+  "OUVERTURE",
+  "SUIVI_J30",
+]);
+
+export const openingStepStatusEnum = pgEnum("opening_step_status", [
+  "A_VENIR",
+  "EN_COURS",
+  "TERMINEE",
+  "BLOQUEE",
+]);
+
+export const openingProjectStatusEnum = pgEnum("opening_project_status", [
+  "EN_COURS",
+  "TERMINE",
+  "ABANDONNE",
+]);
+
+// « en retard » se dérive de dueDate < aujourd'hui — jamais stocké.
+export const checklistStatusEnum = pgEnum("checklist_status", [
+  "A_FAIRE",
+  "EN_ATTENTE",
+  "BLOQUE",
+  "TERMINE",
+]);
+
+export const openingProjects = pgTable(
+  "opening_projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // une boutique (type FRANCHISE, statut EN_PROJET à la création) = un projet
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id),
+    status: openingProjectStatusEnum("status").notNull().default("EN_COURS"),
+    targetOpeningDate: date("target_opening_date"),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("opening_projects_store_unique").on(t.storeId)]
+);
+
+export const openingSteps = pgTable(
+  "opening_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => openingProjects.id, { onDelete: "cascade" }),
+    step: openingStepTypeEnum("step").notNull(),
+    status: openingStepStatusEnum("status").notNull().default("A_VENIR"),
+    plannedDate: date("planned_date"),
+    doneDate: date("done_date"),
+    notes: text("notes"),
+    // marqueur du job opening-late (idempotence)
+    lateAlertSentAt: timestamp("late_alert_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("opening_steps_project_step_unique").on(t.projectId, t.step),
+    index("opening_steps_status_planned_idx").on(t.status, t.plannedDate),
+  ]
+);
+
+// Checklist collaborative : chaque pôle coche ses items (cdc §13).
+export const openingChecklistItems = pgTable(
+  "opening_checklist_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => openingProjects.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    pole: poleEnum("pole").notNull(),
+    assigneeId: uuid("assignee_id").references(() => users.id),
+    dueDate: date("due_date"),
+    status: checklistStatusEnum("status").notNull().default("A_FAIRE"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("opening_checklist_project_idx").on(t.projectId, t.pole)]
+);
+
 // ─────────────── TICKETS INTER-PÔLES ───────────────
 
 export const tickets = pgTable(
@@ -1851,3 +1961,34 @@ export const clockEntriesRelations = relations(clockEntries, ({ one }) => ({
     references: [employees.id],
   }),
 }));
+
+export const openingProjectsRelations = relations(openingProjects, ({ one, many }) => ({
+  store: one(stores, { fields: [openingProjects.storeId], references: [stores.id] }),
+  createdBy: one(users, {
+    fields: [openingProjects.createdById],
+    references: [users.id],
+  }),
+  steps: many(openingSteps),
+  checklistItems: many(openingChecklistItems),
+}));
+
+export const openingStepsRelations = relations(openingSteps, ({ one }) => ({
+  project: one(openingProjects, {
+    fields: [openingSteps.projectId],
+    references: [openingProjects.id],
+  }),
+}));
+
+export const openingChecklistItemsRelations = relations(
+  openingChecklistItems,
+  ({ one }) => ({
+    project: one(openingProjects, {
+      fields: [openingChecklistItems.projectId],
+      references: [openingProjects.id],
+    }),
+    assignee: one(users, {
+      fields: [openingChecklistItems.assigneeId],
+      references: [users.id],
+    }),
+  })
+);

@@ -11,6 +11,7 @@ import {
   STORE_TYPE_LABELS,
 } from "@/lib/labels";
 import { getStore } from "@/services/stores.service";
+import { getProjectForStore } from "@/services/openings.service";
 import { listStoreContracts } from "@/services/contracts.service";
 import { listExchanges } from "@/services/exchanges.service";
 import { isOverdue, listStoreInvoices } from "@/services/invoices.service";
@@ -73,6 +74,7 @@ export default async function FicheBoutiquePage({
   const dto = toStoreDTO(store, user);
   const canWrite = can(user, "store:write");
   const canAudit = can(user, "audit:read");
+  const openingProject = await getProjectForStore(user, store.id);
 
   const dateFormat = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" });
   const formatDate = (d: string | null) =>
@@ -89,6 +91,25 @@ export default async function FicheBoutiquePage({
           {STORE_STATUS_LABELS[dto.status]}
         </Badge>
       </div>
+
+      {openingProject && openingProject.status === "EN_COURS" ? (
+        <div
+          className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 text-sm"
+          data-testid="opening-banner"
+        >
+          <Badge variant="secondary">Ouverture en cours</Badge>
+          <span>
+            {openingProject.progress.done}/{openingProject.progress.total} jalons
+            terminés ({openingProject.progress.pct} %)
+          </span>
+          <Link
+            href={`/developpement/ouvertures/${openingProject.id}`}
+            className="font-medium underline-offset-2 hover:underline"
+          >
+            Voir le projet →
+          </Link>
+        </div>
+      ) : null}
 
       <Tabs defaultValue="infos">
         <TabsList className="flex-wrap">

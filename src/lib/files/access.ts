@@ -10,6 +10,7 @@ import {
   documentVersions,
   employees,
   exchangeMessages,
+  openingSteps,
   fileAttachments,
   reminders,
   storeVisits,
@@ -147,6 +148,16 @@ export async function canDownloadFile(
     }
     case "PARTNER": {
       if (!can(user, "partner:read")) return deny;
+      return { allowed: true, audit: false };
+    }
+    case "OPENING_STEP": {
+      // PJ des jalons d'ouverture (plans, devis…) : périmètre boutique.
+      if (!can(user, "opening:read")) return deny;
+      const step = await db.query.openingSteps.findFirst({
+        where: eq(openingSteps.id, attachment.entityId ?? ""),
+        with: { project: { columns: { storeId: true } } },
+      });
+      if (!step || !(await storeAllowed(user, step.project.storeId))) return deny;
       return { allowed: true, audit: false };
     }
     case "EMPLOYEE": {

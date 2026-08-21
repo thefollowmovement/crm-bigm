@@ -229,6 +229,37 @@ export const LEAVE_STATUS_LABELS: Record<string, string> = {
   ANNULEE: "Annulée",
 };
 
+export const OPENING_STEP_TYPE_LABELS: Record<string, string> = {
+  DIP: "Remise du DIP",
+  CONTRAT: "Signature du contrat",
+  TRAVAUX: "Travaux & aménagement",
+  FORMATION: "Formation initiale",
+  COMMANDES: "Commandes fournisseurs",
+  INSTALLATION: "Installation & tests",
+  OUVERTURE: "Ouverture",
+  SUIVI_J30: "Suivi J+30",
+};
+
+export const OPENING_STEP_STATUS_LABELS: Record<string, string> = {
+  A_VENIR: "À venir",
+  EN_COURS: "En cours",
+  TERMINEE: "Terminée",
+  BLOQUEE: "Bloquée",
+};
+
+export const OPENING_PROJECT_STATUS_LABELS: Record<string, string> = {
+  EN_COURS: "En cours",
+  TERMINE: "Terminé",
+  ABANDONNE: "Abandonné",
+};
+
+export const CHECKLIST_STATUS_LABELS: Record<string, string> = {
+  A_FAIRE: "À faire",
+  EN_ATTENTE: "En attente",
+  BLOQUE: "Bloqué",
+  TERMINE: "Terminé",
+};
+
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   CREATE: "Création",
   UPDATE: "Modification",

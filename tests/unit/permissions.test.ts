@@ -144,6 +144,17 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("les ouvertures : lecture réseau (franchisé scopé), écriture développement/direction, checklist siège", () => {
+    for (const role of ROLES) {
+      expect(can({ role }, "opening:read")).toBe(role !== "SALARIE");
+      const writeExpected = ["ADMIN", "DIRECTION", "DEVELOPPEMENT"].includes(role);
+      expect(can({ role }, "opening:write")).toBe(writeExpected);
+      expect(can({ role }, "opening:checklist")).toBe(
+        role !== "FRANCHISE" && role !== "SALARIE"
+      );
+    }
+  });
+
   it("seuls ADMIN et DIRECTION gèrent les utilisateurs et lisent l'audit", () => {
     for (const role of ROLES) {
       const expected = role === "ADMIN" || role === "DIRECTION";

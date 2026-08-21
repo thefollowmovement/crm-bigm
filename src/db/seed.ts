@@ -27,6 +27,9 @@ import {
   exchangeMessages,
   exchanges,
   franchisees,
+  openingChecklistItems,
+  openingProjects,
+  openingSteps,
   commTasks,
   invoices,
   partners,
@@ -229,6 +232,18 @@ async function main() {
       region: "Île-de-France",
       openingDate: "2021-09-01",
     },
+    {
+      code: "BM-004",
+      name: "Big M Grenoble",
+      type: "FRANCHISE" as const,
+      status: "EN_PROJET" as const,
+      franchiseeId: franchisee.id,
+      animateurId: animateur.id,
+      city: "Grenoble",
+      postalCode: "38000",
+      region: "Auvergne-Rhône-Alpes",
+      openingDate: "2027-03-01",
+    },
   ];
 
   for (const s of demoStores) {
@@ -239,7 +254,8 @@ async function main() {
       .values({ ...s, internalNotes: "Notes internes siège (démo)." })
       .returning();
     console.log(`Boutique créée : ${store.code} ${store.name}`);
-    if (s.type === "FRANCHISE") {
+    // Pas de contrat pour une boutique encore en projet (parcours DIP → contrat).
+    if (s.type === "FRANCHISE" && s.status !== "EN_PROJET") {
       await db.insert(contracts).values({
         storeId: store.id,
         franchiseeId: s.franchiseeId,
@@ -877,6 +893,67 @@ async function main() {
           endDate: "2026-12-31",
           salaryMonthly: "1950.00",
         });
+      }
+    }
+  }
+
+  // ── Projet d'ouverture de démonstration (BM-004, en projet) ─────
+  {
+    const bm004 = await db.query.stores.findFirst({
+      where: eq(stores.code, "BM-004"),
+    });
+    const devUser = await db.query.users.findFirst({
+      where: eq(users.email, "developpement@bigm.fr"),
+    });
+    if (bm004 && devUser) {
+      const existingProject = await db.query.openingProjects.findFirst({
+        where: eq(openingProjects.storeId, bm004.id),
+      });
+      if (!existingProject) {
+        const [project] = await db
+          .insert(openingProjects)
+          .values({
+            storeId: bm004.id,
+            createdById: devUser.id,
+            targetOpeningDate: "2027-03-01",
+            notes: "Emplacement signé, gros œuvre à planifier.",
+          })
+          .returning();
+        const stepTypes = [
+          "DIP",
+          "CONTRAT",
+          "TRAVAUX",
+          "FORMATION",
+          "COMMANDES",
+          "INSTALLATION",
+          "OUVERTURE",
+          "SUIVI_J30",
+        ] as const;
+        await db.insert(openingSteps).values(
+          stepTypes.map((step) => ({
+            projectId: project.id,
+            step,
+            ...(step === "DIP"
+              ? { status: "TERMINEE" as const, doneDate: "2026-06-15" }
+              : step === "CONTRAT"
+                ? { status: "EN_COURS" as const, plannedDate: "2026-10-30" }
+                : {}),
+          }))
+        );
+        await db.insert(openingChecklistItems).values([
+          {
+            projectId: project.id,
+            label: "Kit PLV d'ouverture",
+            pole: "COMMUNICATION",
+            dueDate: "2027-02-01",
+          },
+          {
+            projectId: project.id,
+            label: "Dossier bancaire complet",
+            pole: "COMPTABILITE",
+          },
+        ]);
+        console.log("Projet d'ouverture de démonstration créé (BM-004).");
       }
     }
   }
