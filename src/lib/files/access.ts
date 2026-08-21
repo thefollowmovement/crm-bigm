@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   actionPlans,
+  commTasks,
   contracts,
   documentVersions,
   exchangeMessages,
@@ -128,6 +129,24 @@ export async function canDownloadFile(
       });
       if (!training || !(await storeAllowed(user, training.storeId))) return deny;
       return { allowed: true, audit: true };
+    }
+    case "COMM_TASK": {
+      if (!can(user, "commtask:read")) return deny;
+      const task = await db.query.commTasks.findFirst({
+        where: eq(commTasks.id, attachment.entityId ?? ""),
+      });
+      if (!task) return deny;
+      if (user.role === "FRANCHISE") {
+        const allowed =
+          task.requesterId === user.id ||
+          (task.storeId !== null && (await storeAllowed(user, task.storeId)));
+        if (!allowed) return deny;
+      }
+      return { allowed: true, audit: false };
+    }
+    case "PARTNER": {
+      if (!can(user, "partner:read")) return deny;
+      return { allowed: true, audit: false };
     }
     case "FRANCHISEE": {
       if (user.role === "FRANCHISE") {

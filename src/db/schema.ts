@@ -171,6 +171,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "PLANNING",
   "ALERTE",
   "FORMATION",
+  "COMMUNICATION",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
@@ -197,6 +198,8 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "STORE_VISIT",
   "ACTION_PLAN",
   "TRAINING",
+  "COMM_TASK",
+  "PARTNER",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -847,6 +850,111 @@ export const actionPlanComments = pgTable(
   (t) => [index("action_plan_comments_plan_idx").on(t.planId)]
 );
 
+// ─────────────── COMMUNICATION & PARTENAIRES ───────────────
+
+export const commTaskTypeEnum = pgEnum("comm_task_type", [
+  "DEMANDE",
+  "CREATION",
+  "CAMPAGNE",
+  "VIDEO",
+  "RESEAUX_SOCIAUX",
+  "ADS",
+  "AUTRE",
+]);
+
+// Fiche partenaire / prestataire (cdc §11).
+export const partners = pgTable("partners", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name"),
+  phone: text("phone"),
+  email: text("email"),
+  // domaine d'intervention (print, vidéo, réseaux sociaux…)
+  domain: text("domain"),
+  tariffNotes: text("tariff_notes"),
+  // champ d'action
+  scopeNotes: text("scope_notes"),
+  // SENSIBLE : réservé aux détenteurs de partner:write (absent des DTO sinon)
+  internalNotes: text("internal_notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const partnerStores = pgTable(
+  "partner_stores",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    partnerId: uuid("partner_id")
+      .notNull()
+      .references(() => partners.id, { onDelete: "cascade" }),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("partner_stores_unique").on(t.partnerId, t.storeId)]
+);
+
+// Tâches du pôle communication (cdc §10) — même machine à états que les
+// tickets (statuts/priorités réutilisés).
+export const commTasks = pgTable(
+  "comm_tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // numéro court affiché "COM-000123"
+    number: integer("number").notNull().generatedAlwaysAsIdentity(),
+    type: commTaskTypeEnum("type").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    storeId: uuid("store_id").references(() => stores.id),
+    partnerId: uuid("partner_id").references(() => partners.id),
+    requesterId: uuid("requester_id")
+      .notNull()
+      .references(() => users.id),
+    assigneeId: uuid("assignee_id").references(() => users.id),
+    priority: ticketPriorityEnum("priority").notNull().default("NORMALE"),
+    status: ticketStatusEnum("status").notNull().default("NOUVEAU"),
+    dueDate: date("due_date"),
+    // date de publication / livraison (cdc §10)
+    publicationDate: date("publication_date"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    // marqueur du job de relance (idempotence)
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("comm_tasks_number_unique").on(t.number),
+    index("comm_tasks_assignee_status_idx").on(t.assigneeId, t.status),
+    index("comm_tasks_status_due_idx").on(t.status, t.dueDate),
+    index("comm_tasks_publication_idx").on(t.publicationDate),
+    index("comm_tasks_requester_idx").on(t.requesterId),
+  ]
+);
+
+export const commTaskComments = pgTable(
+  "comm_task_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => commTasks.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("comm_task_comments_task_idx").on(t.taskId)]
+);
+
 // ─────────────── FORMATIONS ───────────────
 
 export const trainingTypeEnum = pgEnum("training_type", [
@@ -1440,6 +1548,47 @@ export const depotsRelations = relations(depots, ({ many }) => ({
   stores: many(stores),
   purchases: many(dpsPurchases),
   ingredientPrices: many(ingredientPrices),
+}));
+
+export const partnersRelations = relations(partners, ({ many }) => ({
+  stores: many(partnerStores),
+  tasks: many(commTasks),
+}));
+
+export const partnerStoresRelations = relations(partnerStores, ({ one }) => ({
+  partner: one(partners, {
+    fields: [partnerStores.partnerId],
+    references: [partners.id],
+  }),
+  store: one(stores, { fields: [partnerStores.storeId], references: [stores.id] }),
+}));
+
+export const commTasksRelations = relations(commTasks, ({ one, many }) => ({
+  store: one(stores, { fields: [commTasks.storeId], references: [stores.id] }),
+  partner: one(partners, {
+    fields: [commTasks.partnerId],
+    references: [partners.id],
+  }),
+  requester: one(users, {
+    fields: [commTasks.requesterId],
+    references: [users.id],
+  }),
+  assignee: one(users, {
+    fields: [commTasks.assigneeId],
+    references: [users.id],
+  }),
+  comments: many(commTaskComments),
+}));
+
+export const commTaskCommentsRelations = relations(commTaskComments, ({ one }) => ({
+  task: one(commTasks, {
+    fields: [commTaskComments.taskId],
+    references: [commTasks.id],
+  }),
+  author: one(users, {
+    fields: [commTaskComments.authorId],
+    references: [users.id],
+  }),
 }));
 
 export const trainingsRelations = relations(trainings, ({ one, many }) => ({

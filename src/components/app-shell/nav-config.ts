@@ -5,6 +5,8 @@ import {
   CalendarDays,
   ChefHat,
   GraduationCap,
+  Handshake,
+  Megaphone,
   ShoppingCart,
   ChartLine,
   ClipboardCheck,
@@ -86,6 +88,23 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Formations",
         icon: GraduationCap,
         permission: "training:read",
+      },
+    ],
+  },
+  {
+    title: "Communication",
+    items: [
+      {
+        href: "/communication",
+        label: "Tâches communication",
+        icon: Megaphone,
+        permission: "commtask:read",
+      },
+      {
+        href: "/partenaires",
+        label: "Partenaires",
+        icon: Handshake,
+        permission: "partner:read",
       },
     ],
   },

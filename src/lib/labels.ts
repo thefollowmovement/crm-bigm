@@ -158,6 +158,16 @@ export const ACTION_PLAN_STATUS_LABELS: Record<string, string> = {
   ANNULE: "Annulé",
 };
 
+export const COMM_TASK_TYPE_LABELS: Record<string, string> = {
+  DEMANDE: "Demande boutique",
+  CREATION: "Création graphique",
+  CAMPAGNE: "Campagne",
+  VIDEO: "Vidéo",
+  RESEAUX_SOCIAUX: "Réseaux sociaux",
+  ADS: "Publicité (Ads)",
+  AUTRE: "Autre",
+};
+
 export const TRAINING_TYPE_LABELS: Record<string, string> = {
   INITIALE: "Formation initiale",
   CONTINUE: "Formation continue",

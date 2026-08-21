@@ -39,6 +39,11 @@ export type Permission =
   | "foodcost:write"
   | "training:read"
   | "training:write"
+  | "commtask:read"
+  | "commtask:write"
+  | "commtask:request"
+  | "partner:read"
+  | "partner:write"
   | "user:manage"
   | "audit:read";
 
@@ -77,6 +82,11 @@ const ALL: readonly Permission[] = [
   "foodcost:write",
   "training:read",
   "training:write",
+  "commtask:read",
+  "commtask:write",
+  "commtask:request",
+  "partner:read",
+  "partner:write",
   "user:manage",
   "audit:read",
 ];
@@ -108,6 +118,9 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "purchase:import",
     "foodcost:read",
     "training:read",
+    "commtask:read",
+    "commtask:request",
+    "partner:read",
   ]),
   RH: new Set([
     "store:read",
@@ -121,6 +134,9 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "planning:read",
     "training:read",
     "training:write",
+    "commtask:read",
+    "commtask:request",
+    "partner:read",
   ]),
   ANIMATION: new Set([
     "store:read",
@@ -143,6 +159,9 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "foodcost:read",
     "training:read",
     "training:write",
+    "commtask:read",
+    "commtask:request",
+    "partner:read",
   ]),
   COMMUNICATION: new Set([
     "store:read",
@@ -155,6 +174,11 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "actionplan:read",
     "planning:read",
     "training:read",
+    "commtask:read",
+    "commtask:write",
+    "commtask:request",
+    "partner:read",
+    "partner:write",
   ]),
   DEVELOPPEMENT: new Set([
     "store:read",
@@ -172,6 +196,9 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "actionplan:read",
     "planning:read",
     "training:read",
+    "commtask:read",
+    "commtask:request",
+    "partner:read",
   ]),
   FRANCHISE: new Set([
     "store:read",
@@ -184,6 +211,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "actionplan:read",
     "purchase:read",
     "training:read",
+    "commtask:read",
+    "commtask:request",
   ]),
 };
 

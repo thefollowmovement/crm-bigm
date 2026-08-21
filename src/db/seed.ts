@@ -26,7 +26,9 @@ import {
   exchangeMessages,
   exchanges,
   franchisees,
+  commTasks,
   invoices,
+  partners,
   payments,
   productFamilies,
   products,
@@ -779,6 +781,56 @@ async function main() {
         { trainingId: training.id, name: "Karim (équipier)" },
       ]);
       console.log("Formation de démonstration créée (BM-001).");
+    }
+  }
+
+  // ── Partenaire + tâche communication de démonstration ───────────
+  {
+    const existingPartner = await db.query.partners.findFirst({
+      where: eq(partners.companyName, "Studio Graphik"),
+    });
+    const partner =
+      existingPartner ??
+      (
+        await db
+          .insert(partners)
+          .values({
+            companyName: "Studio Graphik",
+            contactName: "Sophie Créa",
+            email: "contact@studiographik.fr",
+            domain: "Print & PLV",
+            tariffNotes: "Affiche A2 : 180 € HT · PLV comptoir : 90 € HT",
+            scopeNotes: "Supports print de tout le réseau.",
+            internalNotes: "Remise de 10 % négociée fin 2025 (confidentiel).",
+          })
+          .returning()
+      )[0];
+
+    const communicationUser = await db.query.users.findFirst({
+      where: eq(users.email, "communication@bigm.fr"),
+    });
+    if (bm001 && communicationUser) {
+      const existingTask = await db.query.commTasks.findFirst({
+        where: eq(commTasks.requesterId, communicationUser.id),
+      });
+      if (!existingTask) {
+        const nextWeek = new Date(Date.now() + 7 * 86_400_000)
+          .toISOString()
+          .slice(0, 10);
+        await db.insert(commTasks).values({
+          type: "CAMPAGNE",
+          title: "Campagne rentrée — affiches vitrine",
+          description: "Décliner la campagne nationale pour les vitrines du réseau.",
+          storeId: bm001.id,
+          partnerId: partner.id,
+          requesterId: communicationUser.id,
+          assigneeId: communicationUser.id,
+          priority: "HAUTE",
+          status: "EN_COURS",
+          publicationDate: nextWeek,
+        });
+        console.log("Tâche communication de démonstration créée.");
+      }
     }
   }
 
