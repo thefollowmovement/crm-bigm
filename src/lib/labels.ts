@@ -307,6 +307,18 @@ export const RESALE_STATUS_LABELS: Record<string, string> = {
   ANNULEE: "Annulée",
 };
 
+export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
+  LOYER: "Loyer",
+  SALAIRES: "Salaires",
+  CHARGES_SOCIALES: "Charges sociales",
+  FOURNISSEURS: "Fournisseurs",
+  ENERGIE: "Énergie",
+  MAINTENANCE: "Maintenance",
+  BANQUE: "Frais bancaires",
+  IMPOTS: "Impôts & taxes",
+  AUTRE: "Autre",
+};
+
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   CREATE: "Création",
   UPDATE: "Modification",

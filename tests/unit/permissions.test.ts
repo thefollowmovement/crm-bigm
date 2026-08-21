@@ -165,6 +165,14 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("la rentabilité des succursales : compta et direction, pas l'animation", () => {
+    for (const role of ROLES) {
+      const expected = ["ADMIN", "DIRECTION", "COMPTABILITE"].includes(role);
+      expect(can({ role }, "branch:read")).toBe(expected);
+      expect(can({ role }, "branch:write")).toBe(expected);
+    }
+  });
+
   it("seuls ADMIN et DIRECTION gèrent les utilisateurs et lisent l'audit", () => {
     for (const role of ROLES) {
       const expected = role === "ADMIN" || role === "DIRECTION";

@@ -25,6 +25,7 @@ import {
   MessagesSquare,
   Package,
   ShieldCheck,
+  Store,
   Ticket,
   UserPlus,
   Users,
@@ -61,6 +62,12 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/boutiques", label: "Boutiques", icon: Building2, permission: "store:read" },
       { href: "/franchises", label: "Franchisés", icon: Users, permission: "franchisee:read" },
+      {
+        href: "/succursales",
+        label: "Succursales",
+        icon: Store,
+        permission: "branch:read",
+      },
       { href: "/contrats", label: "Contrats", icon: FileText, permission: "contract:read" },
       {
         href: "/echanges",

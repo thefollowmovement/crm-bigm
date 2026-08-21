@@ -39,6 +39,7 @@ import { loadStoreFormOptions } from "../form-options";
 import { PlatformsEditor } from "./platforms-editor";
 import { StoreAnimationTab } from "./animation-tab";
 import { StorePurchasesTab } from "./purchases-tab";
+import { StoreRentabilityTab } from "./rentability-tab";
 
 export const metadata: Metadata = { title: "Fiche boutique" };
 
@@ -132,6 +133,9 @@ export default async function FicheBoutiquePage({
           ) : null}
           {can(user, "purchase:read") ? (
             <TabsTrigger value="achats">Achats</TabsTrigger>
+          ) : null}
+          {dto.type === "SUCCURSALE" && can(user, "branch:read") ? (
+            <TabsTrigger value="rentabilite">Rentabilité</TabsTrigger>
           ) : null}
           {canAudit ? <TabsTrigger value="historique">Historique</TabsTrigger> : null}
         </TabsList>
@@ -246,6 +250,12 @@ export default async function FicheBoutiquePage({
         {can(user, "purchase:read") ? (
           <TabsContent value="achats">
             <StorePurchasesTab user={user} storeId={store.id} />
+          </TabsContent>
+        ) : null}
+
+        {dto.type === "SUCCURSALE" && can(user, "branch:read") ? (
+          <TabsContent value="rentabilite">
+            <StoreRentabilityTab user={user} storeId={store.id} />
           </TabsContent>
         ) : null}
 

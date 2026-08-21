@@ -1626,6 +1626,48 @@ export const resaleListings = pgTable(
   (t) => [index("resale_listings_status_idx").on(t.status)]
 );
 
+// ─────────────── SUCCURSALES : DÉPENSES (étape 24) ───────────────
+
+export const expenseCategoryEnum = pgEnum("expense_category", [
+  "LOYER",
+  "SALAIRES",
+  "CHARGES_SOCIALES",
+  "FOURNISSEURS",
+  "ENERGIE",
+  "MAINTENANCE",
+  "BANQUE",
+  "IMPOTS",
+  "AUTRE",
+]);
+
+// Dépenses des boutiques en propre (type SUCCURSALE, gardé par le service).
+// Le P&L mensuel se DÉRIVE : CA − achats DPS − dépenses par catégorie.
+export const storeExpenses = pgTable(
+  "store_expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id),
+    expenseDate: date("expense_date").notNull(),
+    category: expenseCategoryEnum("category").notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    label: text("label"),
+    enteredById: uuid("entered_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("store_expenses_store_date_idx").on(t.storeId, t.expenseDate),
+    index("store_expenses_category_idx").on(t.category),
+  ]
+);
+
 // ─────────────── TICKETS INTER-PÔLES ───────────────
 
 export const tickets = pgTable(
@@ -2172,6 +2214,14 @@ export const premisesRelations = relations(premises, ({ one }) => ({
 
 export const resaleListingsRelations = relations(resaleListings, ({ one }) => ({
   store: one(stores, { fields: [resaleListings.storeId], references: [stores.id] }),
+}));
+
+export const storeExpensesRelations = relations(storeExpenses, ({ one }) => ({
+  store: one(stores, { fields: [storeExpenses.storeId], references: [stores.id] }),
+  enteredBy: one(users, {
+    fields: [storeExpenses.enteredById],
+    references: [users.id],
+  }),
 }));
 
 export const openingChecklistItemsRelations = relations(

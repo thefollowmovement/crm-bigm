@@ -44,6 +44,7 @@ import {
   productSales,
   reminders,
   revenueEntries,
+  storeExpenses,
   storeVisits,
   stores,
   trainingParticipants,
@@ -1061,6 +1062,40 @@ async function main() {
           notes: "Souhaite céder d'ici 12 mois (confidentiel).",
         });
         console.log("Cession de démonstration créée (BM-002).");
+      }
+    }
+  }
+
+  // ── Dépenses de la succursale BM-003 (rentabilité) ──────────────
+  {
+    const comptaSeed = await db.query.users.findFirst({
+      where: eq(users.email, "compta@bigm.fr"),
+    });
+    if (bm003 && comptaSeed) {
+      const existingExpense = await db.query.storeExpenses.findFirst({
+        where: eq(storeExpenses.storeId, bm003.id),
+      });
+      if (!existingExpense) {
+        const monthStart = `${todayParis().slice(0, 7)}-01`;
+        await db.insert(storeExpenses).values([
+          {
+            storeId: bm003.id,
+            expenseDate: monthStart,
+            category: "LOYER",
+            amount: "2400.00",
+            label: "Loyer mensuel",
+            enteredById: comptaSeed.id,
+          },
+          {
+            storeId: bm003.id,
+            expenseDate: monthStart,
+            category: "SALAIRES",
+            amount: "5200.00",
+            label: "Salaires équipe",
+            enteredById: comptaSeed.id,
+          },
+        ]);
+        console.log("Dépenses de démonstration créées (BM-003).");
       }
     }
   }
