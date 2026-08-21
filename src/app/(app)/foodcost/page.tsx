@@ -3,12 +3,15 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/current-user";
 import { can } from "@/lib/authz/permissions";
 import { formatEUR } from "@/lib/money";
+import { todayParis } from "@/lib/dates";
+import { formatMonthFr } from "@/lib/analytics";
 import {
   getApplicablePrices,
   getFoodCostBoard,
   listIngredients,
   listRecipes,
 } from "@/services/foodcost.service";
+import { getMaterialVariance } from "@/services/material-variance.service";
 import { listDepots } from "@/services/purchases.service";
 import { listProducts } from "@/services/products.service";
 import { AccessDenied } from "@/components/access-denied";
@@ -55,14 +58,18 @@ export default async function FoodCostPage() {
   if (!can(user, "foodcost:read")) return <AccessDenied />;
 
   const canWrite = can(user, "foodcost:write");
-  const [ingredients, depots, prices, recipes, products, board] = await Promise.all([
-    listIngredients(user, { includeInactive: true }),
-    listDepots(user),
-    getApplicablePrices(user),
-    listRecipes(user),
-    listProducts(user),
-    getFoodCostBoard(user),
-  ]);
+  const today = todayParis();
+  const [year, month] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
+  const [ingredients, depots, prices, recipes, products, board, variance] =
+    await Promise.all([
+      listIngredients(user, { includeInactive: true }),
+      listDepots(user),
+      getApplicablePrices(user),
+      listRecipes(user),
+      listProducts(user),
+      getFoodCostBoard(user),
+      getMaterialVariance(user, year, month),
+    ]);
 
   const withRecipe = new Set(recipes.map((r) => r.productId));
   const productsWithoutRecipe = products.filter((p) => !withRecipe.has(p.id));
@@ -101,7 +108,75 @@ export default async function FoodCostPage() {
           <TabsTrigger value="synthese" data-testid="tab-synthese">
             Synthèse
           </TabsTrigger>
+          <TabsTrigger value="ecart" data-testid="tab-ecart">
+            Écart matière
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="ecart" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                Écart matière — {formatMonthFr(today.slice(0, 7))}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Consommation théorique (ventes produits × recettes, au tarif du
+                dépôt de la boutique) comparée aux achats DPS réels.
+              </p>
+              {variance.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aucune boutique évaluable (dépôt, ventes produits et recettes
+                  requis).
+                </p>
+              ) : (
+                <Table data-testid="variance-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Boutique</TableHead>
+                      <TableHead>Théorique</TableHead>
+                      <TableHead>Achats réels</TableHead>
+                      <TableHead>Écart</TableHead>
+                      <TableHead>Écart %</TableHead>
+                      <TableHead>Produits non valorisés</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {variance.map((row) => (
+                      <TableRow key={row.store.id}>
+                        <TableCell className="font-medium">
+                          {row.store.code} — {row.store.name}
+                        </TableCell>
+                        <TableCell>{formatEUR(row.theoretical)}</TableCell>
+                        <TableCell>{formatEUR(row.actual)}</TableCell>
+                        <TableCell
+                          className={
+                            row.variance.startsWith("-")
+                              ? "text-muted-foreground"
+                              : "font-medium text-destructive"
+                          }
+                        >
+                          {formatEUR(row.variance)}
+                        </TableCell>
+                        <TableCell>
+                          {row.variancePct === null
+                            ? "—"
+                            : `${String(row.variancePct).replace(".", ",")} %`}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {row.missingProducts.length > 0
+                            ? row.missingProducts.join(", ")
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="ingredients" className="mt-4">
           <div className="rounded-xl border bg-card">

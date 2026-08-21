@@ -181,11 +181,12 @@ describe("matrice de permissions", () => {
     }
   });
 
-  it("seuls ADMIN et DIRECTION gèrent les utilisateurs et lisent l'audit", () => {
+  it("seuls ADMIN et DIRECTION gèrent les utilisateurs, l'audit et le cockpit", () => {
     for (const role of ROLES) {
       const expected = role === "ADMIN" || role === "DIRECTION";
       expect(can({ role }, "user:manage")).toBe(expected);
       expect(can({ role }, "audit:read")).toBe(expected);
+      expect(can({ role }, "direction:cockpit")).toBe(expected);
     }
   });
 });

@@ -59,6 +59,7 @@ export type Permission =
   | "branch:write"
   | "company-finance:read"
   | "company-finance:write"
+  | "direction:cockpit"
   | "user:manage"
   | "audit:read";
 
@@ -117,6 +118,7 @@ const ALL: readonly Permission[] = [
   "branch:write",
   "company-finance:read",
   "company-finance:write",
+  "direction:cockpit",
   "user:manage",
   "audit:read",
 ];

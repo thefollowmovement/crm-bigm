@@ -19,6 +19,7 @@ import {
   Contact,
   FileText,
   FolderOpen,
+  Gauge,
   Landmark,
   LayoutDashboard,
   ListChecks,
@@ -201,6 +202,12 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Direction",
     items: [
+      {
+        href: "/direction/cockpit",
+        label: "Cockpit",
+        icon: Gauge,
+        permission: "direction:cockpit",
+      },
       {
         href: "/direction/finances-cie",
         label: "Finances Big M CIE",

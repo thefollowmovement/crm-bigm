@@ -8,7 +8,14 @@ import {
   animatorPlanEntries,
   auditCriteria,
   auditItems,
+  contracts,
+  dpsPurchases,
   invoices,
+  openingProjects,
+  openingSteps,
+  payments,
+  prospects,
+  resaleListings,
   revenueEntries,
   storeVisits,
   stores,
@@ -24,6 +31,7 @@ import type { SessionUser } from "@/lib/auth/session";
 import { percentChange } from "@/lib/analytics";
 import { addDaysIso, addMonthsIso, startOfWeekIso, todayParis } from "@/lib/dates";
 import { auditMaxDays, isAuditOverdue } from "@/lib/jobs/audit-overdue";
+import { getMaterialVariance } from "@/services/material-variance.service";
 
 // Tableaux de bord multi-niveaux (cdc §18) : chaque bloc n'existe dans le
 // payload QUE si le rôle y a droit (jamais « masqué en CSS »).
@@ -372,4 +380,199 @@ async function countAuditsOverdue(today: string, region?: string): Promise<numbe
   return openStores.filter((s) =>
     isAuditOverdue(lastByStore.get(s.id) ?? null, today, maxDays)
   ).length;
+}
+
+// ── Cockpit Direction (cdc §18/§19) ──────────────────────────────
+// Tous les indicateurs réseau sur une page — réservé à la direction
+// (permission direction:cockpit), tout en Promise.all.
+
+export async function getDirectionCockpit(actor: SessionUser) {
+  assertCan(actor, "direction:cockpit");
+  const today = todayParis();
+  const month = today.slice(0, 7);
+  const monthN1 = addMonthsIso(today, -12).slice(0, 7);
+  const year = today.slice(0, 4);
+  const prevMonthIso = addMonthsIso(`${month}-01`, -1);
+  const prevMonth = prevMonthIso.slice(0, 7);
+  const in180Days = addDaysIso(today, 180);
+
+  const royaltyTypes = ["REDEVANCE", "REDEVANCE_COMMUNICATION"] as const;
+
+  const [
+    revenueMonth,
+    revenueMonthN1,
+    purchasesMonth,
+    royaltiesInvoiced,
+    royaltiesCollected,
+    overdueInvoices,
+    storeRevenues,
+    latePlans,
+    openTickets,
+    openings,
+    lateOpeningSteps,
+    expiringContracts,
+    activeResales,
+    activeProspects,
+    variance,
+    auditsOverdue,
+  ] = await Promise.all([
+    sumRevenue([
+      gte(revenueEntries.date, monthBounds(month).from),
+      lte(revenueEntries.date, monthBounds(month).to),
+    ]),
+    sumRevenue([
+      gte(revenueEntries.date, monthBounds(monthN1).from),
+      lte(revenueEntries.date, monthBounds(monthN1).to),
+    ]),
+    db
+      .select({
+        total: sql<string>`COALESCE(SUM(${dpsPurchases.amount}), 0)::numeric(12,2)::text`,
+      })
+      .from(dpsPurchases)
+      .where(
+        and(
+          gte(dpsPurchases.date, monthBounds(month).from),
+          lte(dpsPurchases.date, monthBounds(month).to)
+        )
+      ),
+    db
+      .select({
+        total: sql<string>`COALESCE(SUM(${invoices.amountTTC}), 0)::numeric(12,2)::text`,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(invoices)
+      .where(
+        and(
+          inArray(invoices.type, [...royaltyTypes]),
+          sql`${invoices.status} <> 'ANNULEE'`,
+          gte(invoices.issuedAt, `${year}-01-01`)
+        )
+      ),
+    db
+      .select({
+        total: sql<string>`COALESCE(SUM(${payments.amount}), 0)::numeric(12,2)::text`,
+      })
+      .from(payments)
+      .innerJoin(invoices, eq(payments.invoiceId, invoices.id))
+      .where(
+        and(
+          inArray(invoices.type, [...royaltyTypes]),
+          gte(invoices.issuedAt, `${year}-01-01`)
+        )
+      ),
+    db
+      .select({
+        count: sql<number>`COUNT(*)::int`,
+        total: sql<string>`COALESCE(SUM(${invoices.amountTTC}), 0)::numeric(12,2)::text`,
+      })
+      .from(invoices)
+      .where(
+        and(
+          inArray(invoices.status, ["EMISE", "PARTIELLEMENT_PAYEE"]),
+          lt(invoices.dueDate, today)
+        )
+      ),
+    db
+      .select({
+        storeId: revenueEntries.storeId,
+        code: stores.code,
+        name: stores.name,
+        total: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::numeric(12,2)::text`,
+      })
+      .from(revenueEntries)
+      .innerJoin(stores, eq(revenueEntries.storeId, stores.id))
+      .where(
+        and(
+          gte(revenueEntries.date, monthBounds(month).from),
+          lte(revenueEntries.date, monthBounds(month).to)
+        )
+      )
+      .groupBy(revenueEntries.storeId, stores.code, stores.name)
+      .orderBy(desc(sql`SUM(${revenueEntries.grossAmount})`)),
+    db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(actionPlans)
+      .where(
+        and(
+          inArray(actionPlans.status, ["A_FAIRE", "EN_COURS"]),
+          lt(actionPlans.dueDate, today)
+        )
+      ),
+    db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(tickets)
+      .where(inArray(tickets.status, ["NOUVEAU", "AFFECTE", "EN_COURS", "EN_ATTENTE"])),
+    db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(openingProjects)
+      .where(eq(openingProjects.status, "EN_COURS")),
+    db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(openingSteps)
+      .innerJoin(openingProjects, eq(openingSteps.projectId, openingProjects.id))
+      .where(
+        and(
+          eq(openingProjects.status, "EN_COURS"),
+          sql`${openingSteps.status} <> 'TERMINEE'`,
+          lt(openingSteps.plannedDate, today)
+        )
+      ),
+    db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(contracts)
+      .where(
+        and(
+          eq(contracts.status, "ACTIF"),
+          isNotNull(contracts.endDate),
+          gte(contracts.endDate, today),
+          lte(contracts.endDate, in180Days)
+        )
+      ),
+    db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(resaleListings)
+      .where(eq(resaleListings.status, "ACTIVE")),
+    db
+      .select({
+        count: sql<number>`COUNT(*)::int`,
+        due: sql<number>`COUNT(*) FILTER (WHERE ${prospects.nextFollowUpDate} <= ${today})::int`,
+      })
+      .from(prospects)
+      .where(sql`${prospects.status} <> 'ABANDONNE'`),
+    getMaterialVariance(
+      actor,
+      Number(prevMonthIso.slice(0, 4)),
+      Number(prevMonthIso.slice(5, 7))
+    ),
+    countAuditsOverdue(today),
+  ]);
+
+  return {
+    month,
+    revenue: {
+      current: revenueMonth,
+      previousYear: revenueMonthN1,
+      deltaPct: percentChange(revenueMonth, revenueMonthN1),
+    },
+    purchasesMonth: purchasesMonth[0].total,
+    royalties: {
+      invoiced: royaltiesInvoiced[0].total,
+      invoicedCount: royaltiesInvoiced[0].count,
+      collected: royaltiesCollected[0].total,
+    },
+    overdueInvoices: overdueInvoices[0],
+    topStores: storeRevenues.slice(0, 3),
+    flopStores: [...storeRevenues].reverse().slice(0, 3),
+    latePlans: latePlans[0].count,
+    openTickets: openTickets[0].count,
+    openings: {
+      active: openings[0].count,
+      lateSteps: lateOpeningSteps[0].count,
+    },
+    expiringContracts: expiringContracts[0].count,
+    activeResales: activeResales[0].count,
+    prospects: activeProspects[0],
+    materialVariance: { month: prevMonth, rows: variance.slice(0, 5) },
+    auditsOverdue,
+  };
 }
