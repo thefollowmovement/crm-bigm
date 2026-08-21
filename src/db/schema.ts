@@ -571,6 +571,8 @@ export const revenueEntries = pgTable(
     grossAmount: numeric("gross_amount", { precision: 12, scale: 2 }).notNull(),
     // net (après commission) — canaux de livraison
     netAmount: numeric("net_amount", { precision: 12, scale: 2 }),
+    // nombre de commandes du jour sur ce canal (panier moyen dérivé en SQL)
+    orderCount: integer("order_count"),
     source: revenueSourceEnum("source").notNull().default("SAISIE"),
     enteredById: uuid("entered_by_id")
       .notNull()
@@ -590,6 +592,83 @@ export const revenueEntries = pgTable(
     ),
     index("revenue_entries_store_date_idx").on(t.storeId, t.date),
     index("revenue_entries_date_idx").on(t.date),
+  ]
+);
+
+// ─────────────── PRODUITS & VENTES ───────────────
+
+export const productFamilies = pgTable(
+  "product_families",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    displayOrder: integer("display_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("product_families_name_unique").on(t.name)]
+);
+
+export const products = pgTable(
+  "products",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // clé métier des imports CSV, ex. "BURGER-XL"
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    familyId: uuid("family_id")
+      .notNull()
+      .references(() => productFamilies.id),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("products_code_unique").on(t.code),
+    index("products_family_idx").on(t.familyId),
+  ]
+);
+
+export const productSales = pgTable(
+  "product_sales",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id),
+    date: date("date").notNull(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id),
+    quantity: integer("quantity").notNull(),
+    // CA du produit sur la journée (facultatif dans les exports caisse)
+    amount: numeric("amount", { precision: 12, scale: 2 }),
+    source: revenueSourceEnum("source").notNull().default("SAISIE"),
+    enteredById: uuid("entered_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // idempotence de l'import CSV (upsert)
+    uniqueIndex("product_sales_store_date_product_unique").on(
+      t.storeId,
+      t.date,
+      t.productId
+    ),
+    index("product_sales_store_date_idx").on(t.storeId, t.date),
+    index("product_sales_product_date_idx").on(t.productId, t.date),
   ]
 );
 
@@ -817,6 +896,30 @@ export const revenueEntriesRelations = relations(revenueEntries, ({ one }) => ({
   store: one(stores, { fields: [revenueEntries.storeId], references: [stores.id] }),
   enteredBy: one(users, {
     fields: [revenueEntries.enteredById],
+    references: [users.id],
+  }),
+}));
+
+export const productFamiliesRelations = relations(productFamilies, ({ many }) => ({
+  products: many(products),
+}));
+
+export const productsRelations = relations(products, ({ one, many }) => ({
+  family: one(productFamilies, {
+    fields: [products.familyId],
+    references: [productFamilies.id],
+  }),
+  sales: many(productSales),
+}));
+
+export const productSalesRelations = relations(productSales, ({ one }) => ({
+  store: one(stores, { fields: [productSales.storeId], references: [stores.id] }),
+  product: one(products, {
+    fields: [productSales.productId],
+    references: [products.id],
+  }),
+  enteredBy: one(users, {
+    fields: [productSales.enteredById],
     references: [users.id],
   }),
 }));

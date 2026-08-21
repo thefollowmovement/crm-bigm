@@ -90,6 +90,44 @@ export function TimeSeriesChart({
   );
 }
 
+const COUNT_FORMAT = new Intl.NumberFormat("fr-FR");
+
+export type BreakdownPoint = { label: string; value: number };
+
+// Répartition en barres d'une grandeur entière (quantités par famille…).
+export function BreakdownChart({
+  data,
+  valueLabel,
+  height = 280,
+  testId,
+}: {
+  data: BreakdownPoint[];
+  valueLabel: string;
+  height?: number;
+  testId?: string;
+}) {
+  return (
+    <div data-testid={testId} style={{ width: "100%", height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
+          <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="label" tick={AXIS_STYLE} tickMargin={8} />
+          <YAxis
+            tick={AXIS_STYLE}
+            tickFormatter={(v: number) => COUNT_FORMAT.format(v)}
+            width={70}
+            allowDecimals={false}
+          />
+          <Tooltip
+            formatter={(value) => [COUNT_FORMAT.format(value as number), valueLabel]}
+          />
+          <Bar dataKey="value" name={valueLabel} fill={BRAND} radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export type ComparisonPoint = { label: string; current: string; previous: string };
 
 // Barres groupées N vs N-1 (une paire par mois).

@@ -13,6 +13,10 @@ import {
   listRegions,
   type SeriesGranularity,
 } from "@/services/revenue-analytics.service";
+import {
+  getFamilyBreakdown,
+  getTopProducts,
+} from "@/services/product-sales.service";
 import { listStores } from "@/services/stores.service";
 import { AccessDenied } from "@/components/access-denied";
 import { Badge } from "@/components/ui/badge";
@@ -26,10 +30,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ComparisonBarChart, TimeSeriesChart } from "@/components/charts/charts";
+import {
+  BreakdownChart,
+  ComparisonBarChart,
+  TimeSeriesChart,
+} from "@/components/charts/charts";
 
 import { CaFilters, CsvImportCard, RevenueEntryDialog } from "./ca-components";
 import { AnalyticsFilters } from "./analytics-filters";
+import { ProductCsvImportCard } from "./product-sales-components";
 
 export const metadata: Metadata = { title: "Chiffre d'affaires" };
 
@@ -89,7 +98,7 @@ export default async function CaPage({
 
   const vue =
     typeof params.vue === "string" &&
-    ["mois", "evolution", "comparaison"].includes(params.vue)
+    ["mois", "evolution", "comparaison", "produits"].includes(params.vue)
       ? params.vue
       : "mois";
 
@@ -116,12 +125,16 @@ export default async function CaPage({
         ? addDaysIso(today, -7 * 12)
         : `${addMonthsIso(today, -11).slice(0, 7)}-01`;
 
-  const [monthData, summary, series, comparison] = await Promise.all([
-    getStoreMonth(user, storeId, month),
-    getNetworkSummary(user, { from: `${month}-01`, to: `${month}-31` }),
-    getSeries(user, { granularity, from: seriesFrom, to: today, ...scope.filter }),
-    getYearComparison(user, { year: annee, ...scope.filter }),
-  ]);
+  const monthPeriod = { from: `${month}-01`, to: `${month}-31` };
+  const [monthData, summary, series, comparison, topProducts, familyBreakdown] =
+    await Promise.all([
+      getStoreMonth(user, storeId, month),
+      getNetworkSummary(user, monthPeriod),
+      getSeries(user, { granularity, from: seriesFrom, to: today, ...scope.filter }),
+      getYearComparison(user, { year: annee, ...scope.filter }),
+      getTopProducts(user, monthPeriod),
+      getFamilyBreakdown(user, monthPeriod),
+    ]);
 
   const seriesPoints = series.map((p) => ({
     label:
@@ -164,6 +177,9 @@ export default async function CaPage({
           </TabsTrigger>
           <TabsTrigger value="comparaison" data-testid="tab-comparaison">
             N vs N-1
+          </TabsTrigger>
+          <TabsTrigger value="produits" data-testid="tab-produits">
+            Produits &amp; familles
           </TabsTrigger>
         </TabsList>
 
@@ -267,6 +283,70 @@ export default async function CaPage({
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="produits" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Meilleures ventes — {month}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topProducts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aucune vente produit sur la période. Importez un fichier CSV
+                  ci-dessous ou vérifiez le référentiel produits.
+                </p>
+              ) : (
+                <Table data-testid="top-products">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produit</TableHead>
+                      <TableHead>Famille</TableHead>
+                      <TableHead className="text-right">Quantité</TableHead>
+                      <TableHead className="text-right">CA</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topProducts.map((row) => (
+                      <TableRow key={row.productId}>
+                        <TableCell className="font-medium">
+                          {row.name}{" "}
+                          <span className="text-xs text-muted-foreground">
+                            ({row.code})
+                          </span>
+                        </TableCell>
+                        <TableCell>{row.familyName}</TableCell>
+                        <TableCell className="text-right">{row.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          {row.amount === "0" ? "—" : formatEUR(row.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {familyBreakdown.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Répartition par famille — {month}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BreakdownChart
+                  data={familyBreakdown.map((f) => ({
+                    label: f.familyName,
+                    value: f.quantity,
+                  }))}
+                  valueLabel="Quantité vendue"
+                  testId="family-breakdown"
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {canImport ? <ProductCsvImportCard /> : null}
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -305,7 +385,18 @@ function MonthTab({
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {monthData.averageBasket !== null ? (
+            <p className="text-sm" data-testid="average-basket">
+              Panier moyen :{" "}
+              <span className="font-semibold">
+                {formatEUR(monthData.averageBasket)}
+              </span>{" "}
+              <span className="text-muted-foreground">
+                ({monthData.orderTotal} commande{monthData.orderTotal > 1 ? "s" : ""})
+              </span>
+            </p>
+          ) : null}
           {monthData.totals.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Aucune donnée pour ce mois.

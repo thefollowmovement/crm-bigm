@@ -23,6 +23,7 @@ export type Permission =
   | "revenue:read"
   | "revenue:write"
   | "revenue:import"
+  | "product:manage"
   | "ticket:read"
   | "ticket:write"
   | "user:manage"
@@ -47,6 +48,7 @@ const ALL: readonly Permission[] = [
   "revenue:read",
   "revenue:write",
   "revenue:import",
+  "product:manage",
   "ticket:read",
   "ticket:write",
   "user:manage",
@@ -69,6 +71,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "revenue:read",
     "revenue:write",
     "revenue:import",
+    "product:manage",
     "ticket:read",
     "ticket:write",
   ]),

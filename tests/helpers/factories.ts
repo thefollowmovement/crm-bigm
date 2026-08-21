@@ -5,6 +5,9 @@ import {
   contracts,
   franchisees,
   invoices,
+  productFamilies,
+  products,
+  productSales,
   revenueEntries,
   stores,
   users,
@@ -112,6 +115,57 @@ export async function createRevenueEntry(
     })
     .returning();
   return entry;
+}
+
+type FamilyOverrides = Partial<typeof productFamilies.$inferInsert>;
+
+export async function createTestFamily(overrides: FamilyOverrides = {}) {
+  const n = nextId();
+  const [family] = await db
+    .insert(productFamilies)
+    .values({ name: `Famille ${n}`, ...overrides })
+    .returning();
+  return family;
+}
+
+type ProductOverrides = Partial<typeof products.$inferInsert>;
+
+export async function createTestProduct(overrides: ProductOverrides = {}) {
+  const n = nextId();
+  const familyId = overrides.familyId ?? (await createTestFamily()).id;
+  const [product] = await db
+    .insert(products)
+    .values({
+      code: `PROD-T${String(n).padStart(3, "0")}`,
+      name: `Produit Test ${n}`,
+      ...overrides,
+      familyId,
+    })
+    .returning();
+  return product;
+}
+
+type ProductSaleOverrides = Partial<typeof productSales.$inferInsert>;
+
+export async function createTestProductSale(
+  storeId: string,
+  productId: string,
+  overrides: ProductSaleOverrides = {}
+) {
+  const enteredById = overrides.enteredById ?? (await createTestUser()).id;
+  const [sale] = await db
+    .insert(productSales)
+    .values({
+      storeId,
+      productId,
+      date: "2026-08-01",
+      quantity: 10,
+      source: "SAISIE",
+      ...overrides,
+      enteredById,
+    })
+    .returning();
+  return sale;
 }
 
 type InvoiceOverrides = Partial<typeof invoices.$inferInsert>;

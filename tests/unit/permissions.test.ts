@@ -47,17 +47,26 @@ describe("matrice de permissions", () => {
     }
   );
 
-  it("la comptabilité gère les finances et l'import de CA", () => {
+  it("la comptabilité gère les finances, l'import de CA et le référentiel produits", () => {
     for (const perm of [
       "finance:read",
       "finance:write",
       "revenue:read",
       "revenue:write",
       "revenue:import",
+      "product:manage",
     ] as Permission[]) {
       expect(can({ role: "COMPTABILITE" }, perm)).toBe(true);
     }
     expect(can({ role: "COMPTABILITE" }, "user:manage")).toBe(false);
+  });
+
+  it("le référentiel produits est réservé à la compta et à la direction", () => {
+    for (const role of ROLES) {
+      const expected =
+        role === "ADMIN" || role === "DIRECTION" || role === "COMPTABILITE";
+      expect(can({ role }, "product:manage")).toBe(expected);
+    }
   });
 
   it("le franchisé peut lire ses données et saisir son CA, sans import ni finances", () => {

@@ -7,6 +7,7 @@ import {
   FolderOpen,
   LayoutDashboard,
   MessagesSquare,
+  Package,
   ShieldCheck,
   Ticket,
   Users,
@@ -68,6 +69,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Utilisateurs",
         icon: Users,
         permission: "user:manage",
+      },
+      {
+        href: "/admin/produits",
+        label: "Produits & familles",
+        icon: Package,
+        permission: "product:manage",
       },
       {
         href: "/admin/audit",

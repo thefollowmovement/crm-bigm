@@ -171,6 +171,15 @@ export function RevenueEntryDialog({
               <input type="hidden" name="netAmount" value="" />
             )}
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="revenue-orders">Nb commandes (facultatif)</Label>
+            <Input
+              id="revenue-orders"
+              name="orderCount"
+              inputMode="numeric"
+              placeholder="ex. 120"
+            />
+          </div>
           {channel === "AUTRE" ? (
             <div className="space-y-1.5">
               <Label htmlFor="revenue-channel-label">Libellé du canal</Label>

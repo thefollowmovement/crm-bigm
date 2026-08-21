@@ -91,6 +91,7 @@ describe("saisie du chiffre d'affaires", () => {
         channelLabel: null,
         grossAmount: "500.00",
         netAmount: null,
+        orderCount: null,
       })
     ).rejects.toThrow(ForbiddenError);
 
@@ -102,6 +103,7 @@ describe("saisie du chiffre d'affaires", () => {
         channelLabel: null,
         grossAmount: "500.00",
         netAmount: null,
+        orderCount: null,
       })
     ).rejects.toThrow(ForbiddenError);
   });
@@ -122,6 +124,7 @@ describe("saisie du chiffre d'affaires", () => {
         channelLabel: null,
         grossAmount: gross,
         netAmount: null,
+        orderCount: null,
       });
     }
 
@@ -150,6 +153,7 @@ describe("import CSV", () => {
         channelLabel: null,
         grossAmount: "100.00",
         netAmount: null,
+        orderCount: null,
       },
       {
         storeCode: "BM-IMP",
@@ -158,6 +162,7 @@ describe("import CSV", () => {
         channelLabel: null,
         grossAmount: "80.00",
         netAmount: "70.00",
+        orderCount: 42,
       },
       {
         storeCode: "BM-INCONNU",
@@ -166,6 +171,7 @@ describe("import CSV", () => {
         channelLabel: null,
         grossAmount: "50.00",
         netAmount: null,
+        orderCount: null,
       },
     ];
 
@@ -215,6 +221,7 @@ describe("import CSV", () => {
         channelLabel: null,
         grossAmount: "300.00",
         netAmount: null,
+        orderCount: null,
       },
       {
         storeCode: "BM-S2",
@@ -223,6 +230,7 @@ describe("import CSV", () => {
         channelLabel: null,
         grossAmount: "100.00",
         netAmount: null,
+        orderCount: null,
       },
     ]);
 

@@ -62,6 +62,26 @@ describe("parseRevenueCsv", () => {
     expect(rows[2]).toMatchObject({ channel: "EMPORTE", grossAmount: "300.00" });
   });
 
+  it("lit la colonne facultative nb_commandes et reste rétro-compatible sans elle", () => {
+    const withOrders =
+      "boutique;date;canal;montant_brut;nb_commandes\n" +
+      "BM-001;21/08/2026;Sur place;1 234,56;1 118\n" +
+      "BM-001;21/08/2026;Uber Eats;500,00;\n" +
+      "BM-001;21/08/2026;Deliveroo;100,00;douze\n";
+    const parsed = parseRevenueCsv(withOrders);
+    expect(parsed.rows).toHaveLength(2);
+    expect(parsed.rows[0].orderCount).toBe(1118);
+    expect(parsed.rows[1].orderCount).toBeNull();
+    expect(parsed.errors).toHaveLength(1);
+    expect(parsed.errors[0].message).toContain("Nombre de commandes");
+
+    const without =
+      "boutique;date;canal;montant_brut\nBM-001;21/08/2026;Sur place;100,00\n";
+    const legacy = parseRevenueCsv(without);
+    expect(legacy.errors).toEqual([]);
+    expect(legacy.rows[0].orderCount).toBeNull();
+  });
+
   it("accepte le séparateur virgule et les valeurs d'enum", () => {
     const csv =
       "boutique,date,canal,montant_brut\n" +

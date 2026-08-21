@@ -19,6 +19,8 @@ export type ParsedRevenueRow = {
   channelLabel: string | null;
   grossAmount: string; // "1234.56"
   netAmount: string | null;
+  // nombre de commandes (colonne facultative des exports caisse)
+  orderCount: number | null;
 };
 
 export type ParseError = { line: number; message: string };
@@ -40,6 +42,13 @@ const HEADER_ALIASES: Record<string, string[]> = {
   channel: ["canal", "channel"],
   gross: ["montant_brut", "montant brut", "brut", "montant", "ca_brut", "ca brut", "ca"],
   net: ["montant_net", "montant net", "net", "ca_net", "ca net"],
+  orders: [
+    "nb_commandes",
+    "nb commandes",
+    "commandes",
+    "nombre_commandes",
+    "nombre de commandes",
+  ],
 };
 
 const CHANNEL_ALIASES: Record<string, RevenueChannel> = {
@@ -71,6 +80,14 @@ export function parseFrenchAmount(raw: string): string | null {
   const [int, dec = ""] = dotted.replace("-", "").split(".");
   const sign = dotted.startsWith("-") ? "-" : "";
   return `${sign}${int}.${dec.padEnd(2, "0")}`;
+}
+
+// "1 234" / "1234" → 1234 (entier positif ou nul) ; null si illisible.
+export function parseFrenchInteger(raw: string): number | null {
+  const cleaned = raw.replace(/[\s  ]/g, "");
+  if (!/^\d+$/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  return Number.isSafeInteger(value) ? value : null;
 }
 
 // "21/08/2026" ou "2026-08-21" → ISO ; null si invalide.
@@ -198,6 +215,18 @@ export function parseRevenueCsv(text: string): ParseResult {
       }
     }
 
+    let orderCount: number | null = null;
+    if (columns.orders !== undefined && get("orders") !== "") {
+      orderCount = parseFrenchInteger(get("orders"));
+      if (orderCount === null) {
+        errors.push({
+          line,
+          message: `Nombre de commandes illisible : « ${get("orders")} ».`,
+        });
+        return;
+      }
+    }
+
     rows.push({
       storeCode,
       date,
@@ -205,6 +234,7 @@ export function parseRevenueCsv(text: string): ParseResult {
       channelLabel: channel === "AUTRE" ? channelRaw : null,
       grossAmount,
       netAmount,
+      orderCount,
     });
   });
 

@@ -16,6 +16,9 @@ import {
   franchisees,
   invoices,
   payments,
+  productFamilies,
+  products,
+  productSales,
   reminders,
   revenueEntries,
   stores,
@@ -375,22 +378,97 @@ async function main() {
     if (!existingRevenue) {
       const month = new Date().toISOString().slice(0, 7);
       await db.insert(revenueEntries).values(
-        [
-          [`${month}-01`, "SUR_PLACE", "1850.50", null],
-          [`${month}-01`, "UBER_EATS", "620.00", "545.60"],
-          [`${month}-02`, "SUR_PLACE", "2104.00", null],
-          [`${month}-02`, "EMPORTE", "410.30", null],
-        ].map(([date, channel, gross, net]) => ({
+        (
+          [
+            [`${month}-01`, "SUR_PLACE", "1850.50", null, 118],
+            [`${month}-01`, "UBER_EATS", "620.00", "545.60", 31],
+            [`${month}-02`, "SUR_PLACE", "2104.00", null, 131],
+            [`${month}-02`, "EMPORTE", "410.30", null, null],
+          ] as const
+        ).map(([date, channel, gross, net, orders]) => ({
           storeId: bm003.id,
-          date: date as string,
-          channel: channel as "SUR_PLACE" | "UBER_EATS" | "EMPORTE",
-          grossAmount: gross as string,
+          date,
+          channel,
+          grossAmount: gross,
           netAmount: net,
+          orderCount: orders,
           source: "SAISIE" as const,
           enteredById: comptaUser.id,
         }))
       );
       console.log("CA de démonstration créé (BM-003).");
+    }
+  }
+
+  // ── Référentiel produits + ventes de démonstration (BM-003) ─────
+  if (bm003 && comptaUser) {
+    const demoFamilies = [
+      { name: "Burgers", displayOrder: 1 },
+      { name: "Boissons", displayOrder: 2 },
+      { name: "Desserts", displayOrder: 3 },
+    ];
+    const familyIds = new Map<string, string>();
+    for (const f of demoFamilies) {
+      const existing = await db.query.productFamilies.findFirst({
+        where: eq(productFamilies.name, f.name),
+      });
+      const row =
+        existing ??
+        (await db.insert(productFamilies).values(f).returning())[0];
+      familyIds.set(f.name, row.id);
+    }
+
+    const demoProducts = [
+      { code: "BURGER-CLASSIC", name: "Burger Classic", family: "Burgers" },
+      { code: "BURGER-XL", name: "Burger XL", family: "Burgers" },
+      { code: "BOISSON-33", name: "Boisson 33cl", family: "Boissons" },
+      { code: "DESSERT-CHOCO", name: "Moelleux chocolat", family: "Desserts" },
+    ];
+    const productIds = new Map<string, string>();
+    for (const p of demoProducts) {
+      const existing = await db.query.products.findFirst({
+        where: eq(products.code, p.code),
+      });
+      const row =
+        existing ??
+        (
+          await db
+            .insert(products)
+            .values({
+              code: p.code,
+              name: p.name,
+              familyId: familyIds.get(p.family)!,
+            })
+            .returning()
+        )[0];
+      productIds.set(p.code, row.id);
+    }
+
+    const existingSale = await db.query.productSales.findFirst({
+      where: eq(productSales.storeId, bm003.id),
+    });
+    if (!existingSale) {
+      const month = new Date().toISOString().slice(0, 7);
+      await db.insert(productSales).values(
+        (
+          [
+            [`${month}-01`, "BURGER-CLASSIC", 64, "576.00"],
+            [`${month}-01`, "BURGER-XL", 38, "455.60"],
+            [`${month}-01`, "BOISSON-33", 92, "230.00"],
+            [`${month}-02`, "BURGER-CLASSIC", 71, "639.00"],
+            [`${month}-02`, "DESSERT-CHOCO", 24, "108.00"],
+          ] as const
+        ).map(([date, code, quantity, amount]) => ({
+          storeId: bm003.id,
+          date,
+          productId: productIds.get(code)!,
+          quantity,
+          amount,
+          source: "SAISIE" as const,
+          enteredById: comptaUser.id,
+        }))
+      );
+      console.log("Ventes produits de démonstration créées (BM-003).");
     }
   }
 

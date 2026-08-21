@@ -23,6 +23,7 @@ export type RevenueEntryInput = {
   channelLabel: string | null;
   grossAmount: string;
   netAmount: string | null;
+  orderCount?: number | null;
 };
 
 // Saisie manuelle : crée ou ÉCRASE la ligne (boutique, date, canal) — c'est le
@@ -42,6 +43,7 @@ export async function upsertEntry(actor: SessionUser, input: RevenueEntryInput) 
     return auditedUpdate({ id: actor.id }, revenueEntries, existing.id, {
       grossAmount: input.grossAmount,
       netAmount: input.netAmount,
+      orderCount: input.orderCount ?? null,
       channelLabel: input.channelLabel,
       source: "SAISIE",
       enteredById: actor.id,
@@ -49,6 +51,7 @@ export async function upsertEntry(actor: SessionUser, input: RevenueEntryInput) 
   }
   return auditedInsert({ id: actor.id }, revenueEntries, {
     ...input,
+    orderCount: input.orderCount ?? null,
     source: "SAISIE",
     enteredById: actor.id,
   });
@@ -107,6 +110,7 @@ export async function importRows(
           channelLabel: row.channelLabel,
           grossAmount: row.grossAmount,
           netAmount: row.netAmount,
+          orderCount: row.orderCount,
           source: "IMPORT_CSV" as const,
           enteredById: actor.id,
         }))
@@ -116,6 +120,7 @@ export async function importRows(
         set: {
           grossAmount: sql`excluded.gross_amount`,
           netAmount: sql`excluded.net_amount`,
+          orderCount: sql`excluded.order_count`,
           channelLabel: sql`excluded.channel_label`,
           source: sql`excluded.source`,
           enteredById: sql`excluded.entered_by_id`,
@@ -188,6 +193,15 @@ export async function getStoreMonth(
     db
       .select({
         gross: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::text`,
+        orders: sql<number>`COALESCE(SUM(${revenueEntries.orderCount}), 0)::int`,
+        // panier moyen = CA des lignes renseignées / nb de commandes — dérivé
+        // en SQL, sur les seules lignes où le nb de commandes est connu.
+        averageBasket: sql<string | null>`
+          CASE WHEN COALESCE(SUM(${revenueEntries.orderCount}), 0) > 0 THEN
+            (COALESCE(SUM(${revenueEntries.grossAmount})
+               FILTER (WHERE ${revenueEntries.orderCount} IS NOT NULL), 0)
+             / SUM(${revenueEntries.orderCount}))::numeric(12,2)::text
+          ELSE NULL END`,
       })
       .from(revenueEntries)
       .where(
@@ -199,7 +213,13 @@ export async function getStoreMonth(
       ),
   ]);
 
-  return { entries, totals, grandTotal: grand.gross };
+  return {
+    entries,
+    totals,
+    grandTotal: grand.gross,
+    orderTotal: grand.orders,
+    averageBasket: grand.averageBasket,
+  };
 }
 
 // Comparatif réseau : total brut par boutique sur une période.

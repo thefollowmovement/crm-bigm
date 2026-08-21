@@ -36,6 +36,11 @@ export const upsertEntryAction = safeFormAction(
       channelLabel: z.string().trim().nullable(),
       grossAmount: amountString,
       netAmount: amountString.nullable(),
+      orderCount: z.coerce
+        .number()
+        .int("Nombre de commandes invalide")
+        .min(0, "Nombre de commandes invalide")
+        .nullable(),
     }),
     prepare: (formData) => ({
       storeId: formData.get("storeId"),
@@ -44,6 +49,7 @@ export const upsertEntryAction = safeFormAction(
       channelLabel: nullable(formData.get("channelLabel")),
       grossAmount: formData.get("grossAmount"),
       netAmount: nullable(formData.get("netAmount")),
+      orderCount: nullable(formData.get("orderCount")),
     }),
   },
   async (input, actor) => {
@@ -105,6 +111,7 @@ export const confirmImportAction = safeFormAction(
           channelLabel: z.string().nullable(),
           grossAmount: z.string().regex(/^-?\d+\.\d{2}$/),
           netAmount: z.string().regex(/^-?\d+\.\d{2}$/).nullable(),
+          orderCount: z.number().int().min(0).nullable(),
         })
       ),
     }),
