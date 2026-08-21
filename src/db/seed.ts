@@ -35,6 +35,8 @@ import {
   revenueEntries,
   storeVisits,
   stores,
+  trainingParticipants,
+  trainings,
   users,
   type roleEnum,
 } from "@/db/schema";
@@ -750,6 +752,33 @@ async function main() {
         ]);
         console.log("Recette Food Cost de démonstration créée (Burger Classic).");
       }
+    }
+  }
+
+  // ── Formation de démonstration (BM-001) ─────────────────────────
+  if (bm001) {
+    const existingTraining = await db.query.trainings.findFirst({
+      where: eq(trainings.storeId, bm001.id),
+    });
+    if (!existingTraining) {
+      const [training] = await db
+        .insert(trainings)
+        .values({
+          storeId: bm001.id,
+          franchiseeId: bm001.franchiseeId,
+          trainerId: animateur.id,
+          type: "HYGIENE",
+          status: "REALISEE",
+          trainingDate: new Date().toISOString().slice(0, 10),
+          report:
+            "Rappel des règles HACCP et du protocole de nettoyage. Équipe attentive, points acquis.",
+        })
+        .returning();
+      await db.insert(trainingParticipants).values([
+        { trainingId: training.id, name: "Farid Franchisé" },
+        { trainingId: training.id, name: "Karim (équipier)" },
+      ]);
+      console.log("Formation de démonstration créée (BM-001).");
     }
   }
 

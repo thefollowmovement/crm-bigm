@@ -15,8 +15,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { FranchiseeForm } from "../franchisee-form";
+import { listSignedDocsForFranchisee } from "@/services/trainings.service";
+import type { SessionUser } from "@/lib/auth/session";
+import { formatDateFr } from "@/lib/dates";
+import { TRAINING_TYPE_LABELS } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Fiche franchisé" };
+
+// Documents signés en formation, rattachés automatiquement (cdc §9).
+async function SignedTrainingDocs({
+  user,
+  franchiseeId,
+}: {
+  user: SessionUser;
+  franchiseeId: string;
+}) {
+  const docs = await listSignedDocsForFranchisee(user, franchiseeId);
+  if (docs.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Documents signés (formations)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-1 text-sm" data-testid="signed-training-docs">
+          {docs.map((doc) => (
+            <li key={doc.fileId}>
+              <a
+                href={`/api/files/${doc.fileId}`}
+                className="font-medium underline-offset-2 hover:underline"
+              >
+                {doc.originalName}
+              </a>{" "}
+              <span className="text-muted-foreground">
+                — {TRAINING_TYPE_LABELS[doc.trainingType]} du{" "}
+                {formatDateFr(doc.trainingDate)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
 
 function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -140,6 +181,10 @@ export default async function FicheFranchisePage({
                 </ul>
               </CardContent>
             </Card>
+          ) : null}
+
+          {can(user, "training:read") ? (
+            <SignedTrainingDocs user={user} franchiseeId={franchisee.id} />
           ) : null}
 
           {canWrite ? (

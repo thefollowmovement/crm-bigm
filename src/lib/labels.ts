@@ -158,6 +158,27 @@ export const ACTION_PLAN_STATUS_LABELS: Record<string, string> = {
   ANNULE: "Annulé",
 };
 
+export const TRAINING_TYPE_LABELS: Record<string, string> = {
+  INITIALE: "Formation initiale",
+  CONTINUE: "Formation continue",
+  OUVERTURE: "Ouverture",
+  NOUVEAU_PRODUIT: "Nouveau produit",
+  HYGIENE: "Hygiène",
+  AUTRE: "Autre",
+};
+
+export const TRAINING_STATUS_LABELS: Record<string, string> = {
+  PLANIFIEE: "Planifiée",
+  REALISEE: "Réalisée",
+  VALIDEE: "Validée",
+  ANNULEE: "Annulée",
+};
+
+export const TRAINING_DOC_KIND_LABELS: Record<string, string> = {
+  REMIS: "Document remis",
+  SIGNE: "Document signé",
+};
+
 export const PLAN_PERIOD_LABELS: Record<string, string> = {
   MATIN: "Matin",
   APRES_MIDI: "Après-midi",

@@ -170,6 +170,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "PLAN_ACTION",
   "PLANNING",
   "ALERTE",
+  "FORMATION",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
@@ -195,6 +196,7 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   // valeurs ajoutées EN FIN de tableau uniquement (ALTER TYPE … ADD VALUE)
   "STORE_VISIT",
   "ACTION_PLAN",
+  "TRAINING",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -845,6 +847,94 @@ export const actionPlanComments = pgTable(
   (t) => [index("action_plan_comments_plan_idx").on(t.planId)]
 );
 
+// ─────────────── FORMATIONS ───────────────
+
+export const trainingTypeEnum = pgEnum("training_type", [
+  "INITIALE",
+  "CONTINUE",
+  "OUVERTURE",
+  "NOUVEAU_PRODUIT",
+  "HYGIENE",
+  "AUTRE",
+]);
+
+export const trainingStatusEnum = pgEnum("training_status", [
+  "PLANIFIEE",
+  "REALISEE",
+  "VALIDEE",
+  "ANNULEE",
+]);
+
+export const trainingDocKindEnum = pgEnum("training_doc_kind", ["REMIS", "SIGNE"]);
+
+export const trainings = pgTable(
+  "trainings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => stores.id),
+    // franchisé concerné (rattachement automatique des documents signés)
+    franchiseeId: uuid("franchisee_id").references(() => franchisees.id),
+    trainerId: uuid("trainer_id")
+      .notNull()
+      .references(() => users.id),
+    type: trainingTypeEnum("type").notNull(),
+    status: trainingStatusEnum("status").notNull().default("PLANIFIEE"),
+    trainingDate: date("training_date").notNull(),
+    // compte rendu (obligatoire pour passer à RÉALISÉE)
+    report: text("report"),
+    notes: text("notes"),
+    validatedById: uuid("validated_by_id").references(() => users.id),
+    validatedAt: timestamp("validated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("trainings_store_date_idx").on(t.storeId, t.trainingDate),
+    index("trainings_trainer_idx").on(t.trainerId),
+    index("trainings_franchisee_idx").on(t.franchiseeId),
+  ]
+);
+
+// Participants en texte libre : les salariés des franchisés ne sont pas en base.
+export const trainingParticipants = pgTable(
+  "training_participants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainingId: uuid("training_id")
+      .notNull()
+      .references(() => trainings.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("training_participants_training_idx").on(t.trainingId)]
+);
+
+// Documents remis / signés — le « rattachement automatique » aux fiches
+// boutique et franchisé est une lecture via trainings.storeId/franchiseeId.
+export const trainingDocuments = pgTable(
+  "training_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainingId: uuid("training_id")
+      .notNull()
+      .references(() => trainings.id, { onDelete: "cascade" }),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => fileAttachments.id),
+    kind: trainingDocKindEnum("kind").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("training_documents_file_unique").on(t.fileId),
+    index("training_documents_training_idx").on(t.trainingId),
+  ]
+);
+
 // ─────────────── FOOD COST ───────────────
 
 // Unité de base d'un ingrédient : l'UI saisit en g/ml et convertit, la base
@@ -1350,6 +1440,42 @@ export const depotsRelations = relations(depots, ({ many }) => ({
   stores: many(stores),
   purchases: many(dpsPurchases),
   ingredientPrices: many(ingredientPrices),
+}));
+
+export const trainingsRelations = relations(trainings, ({ one, many }) => ({
+  store: one(stores, { fields: [trainings.storeId], references: [stores.id] }),
+  franchisee: one(franchisees, {
+    fields: [trainings.franchiseeId],
+    references: [franchisees.id],
+  }),
+  trainer: one(users, { fields: [trainings.trainerId], references: [users.id] }),
+  validatedBy: one(users, {
+    fields: [trainings.validatedById],
+    references: [users.id],
+  }),
+  participants: many(trainingParticipants),
+  documents: many(trainingDocuments),
+}));
+
+export const trainingParticipantsRelations = relations(
+  trainingParticipants,
+  ({ one }) => ({
+    training: one(trainings, {
+      fields: [trainingParticipants.trainingId],
+      references: [trainings.id],
+    }),
+  })
+);
+
+export const trainingDocumentsRelations = relations(trainingDocuments, ({ one }) => ({
+  training: one(trainings, {
+    fields: [trainingDocuments.trainingId],
+    references: [trainings.id],
+  }),
+  file: one(fileAttachments, {
+    fields: [trainingDocuments.fileId],
+    references: [fileAttachments.id],
+  }),
 }));
 
 export const ingredientsRelations = relations(ingredients, ({ many }) => ({

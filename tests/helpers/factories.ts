@@ -12,9 +12,11 @@ import {
   productFamilies,
   products,
   productSales,
+  fileAttachments,
   revenueEntries,
   storeVisits,
   stores,
+  trainings,
   users,
 } from "@/db/schema";
 
@@ -257,6 +259,48 @@ export async function createTestPurchase(
     })
     .returning();
   return purchase;
+}
+
+type TrainingOverrides = Partial<typeof trainings.$inferInsert>;
+
+export async function createTestTraining(
+  storeId: string,
+  overrides: TrainingOverrides = {}
+) {
+  const trainerId = overrides.trainerId ?? (await createTestUser()).id;
+  const [training] = await db
+    .insert(trainings)
+    .values({
+      storeId,
+      type: "CONTINUE",
+      trainingDate: "2026-08-01",
+      ...overrides,
+      trainerId,
+    })
+    .returning();
+  return training;
+}
+
+type FileOverrides = Partial<typeof fileAttachments.$inferInsert>;
+
+// Fichier « fantôme » (métadonnées seules, sans écriture disque) pour tester
+// les rattachements ; ne pas l'utiliser pour tester le téléchargement réel.
+export async function createTestFile(overrides: FileOverrides = {}) {
+  const n = nextId();
+  const uploadedById = overrides.uploadedById ?? (await createTestUser()).id;
+  const [file] = await db
+    .insert(fileAttachments)
+    .values({
+      originalName: `document-${n}.pdf`,
+      mimeType: "application/pdf",
+      sizeBytes: 1234,
+      sha256: `sha-test-${n}`,
+      storagePath: `test/${n}.pdf`,
+      ...overrides,
+      uploadedById,
+    })
+    .returning();
+  return file;
 }
 
 type InvoiceOverrides = Partial<typeof invoices.$inferInsert>;

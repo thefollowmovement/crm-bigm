@@ -93,6 +93,22 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("les formations : lecture pour tous (franchisé scopé), écriture animation/RH/direction", () => {
+    for (const role of ROLES) {
+      expect(can({ role }, "training:read")).toBe(true);
+      const writeExpected = ["ADMIN", "DIRECTION", "ANIMATION", "RH"].includes(role);
+      expect(can({ role }, "training:write")).toBe(writeExpected);
+    }
+  });
+
+  it("le Food Cost est invisible du franchisé, modifiable par la seule direction", () => {
+    for (const role of ROLES) {
+      const readExpected = ["ADMIN", "DIRECTION", "COMPTABILITE", "ANIMATION"].includes(role);
+      expect(can({ role }, "foodcost:read")).toBe(readExpected);
+      expect(can({ role }, "foodcost:write")).toBe(role === "ADMIN" || role === "DIRECTION");
+    }
+  });
+
   it("le référentiel produits est réservé à la compta et à la direction", () => {
     for (const role of ROLES) {
       const expected =

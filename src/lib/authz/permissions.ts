@@ -37,6 +37,8 @@ export type Permission =
   | "purchase:import"
   | "foodcost:read"
   | "foodcost:write"
+  | "training:read"
+  | "training:write"
   | "user:manage"
   | "audit:read";
 
@@ -73,6 +75,8 @@ const ALL: readonly Permission[] = [
   "purchase:import",
   "foodcost:read",
   "foodcost:write",
+  "training:read",
+  "training:write",
   "user:manage",
   "audit:read",
 ];
@@ -103,6 +107,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "purchase:write",
     "purchase:import",
     "foodcost:read",
+    "training:read",
   ]),
   RH: new Set([
     "store:read",
@@ -114,6 +119,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "visit:read",
     "actionplan:read",
     "planning:read",
+    "training:read",
+    "training:write",
   ]),
   ANIMATION: new Set([
     "store:read",
@@ -134,6 +141,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "planning:write",
     "purchase:read",
     "foodcost:read",
+    "training:read",
+    "training:write",
   ]),
   COMMUNICATION: new Set([
     "store:read",
@@ -145,6 +154,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "visit:read",
     "actionplan:read",
     "planning:read",
+    "training:read",
   ]),
   DEVELOPPEMENT: new Set([
     "store:read",
@@ -161,6 +171,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "visit:read",
     "actionplan:read",
     "planning:read",
+    "training:read",
   ]),
   FRANCHISE: new Set([
     "store:read",
@@ -172,6 +183,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "revenue:write",
     "actionplan:read",
     "purchase:read",
+    "training:read",
   ]),
 };
 

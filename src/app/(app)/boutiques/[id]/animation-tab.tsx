@@ -18,6 +18,8 @@ import {
   isPlanLate,
   listPlans,
 } from "@/services/action-plans.service";
+import { listTrainings } from "@/services/trainings.service";
+import { TRAINING_STATUS_LABELS, TRAINING_TYPE_LABELS } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -34,7 +36,7 @@ export async function StoreAnimationTab({
   const today = todayParis();
   const canSeeVisits = can(user, "visit:read");
 
-  const [visits, trends, plans] = await Promise.all([
+  const [visits, trends, plans, trainings] = await Promise.all([
     canSeeVisits ? listVisits(user, { storeId }) : Promise.resolve([]),
     canSeeVisits
       ? getAuditTrends(user, {
@@ -44,6 +46,7 @@ export async function StoreAnimationTab({
         })
       : Promise.resolve([]),
     listPlans(user, { storeId }),
+    listTrainings(user, { storeId }),
   ]);
 
   const openPlans = plans.filter(
@@ -104,6 +107,38 @@ export async function StoreAnimationTab({
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Formations</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {trainings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune formation.</p>
+          ) : (
+            <ul className="space-y-2 text-sm" data-testid="store-trainings">
+              {trainings.slice(0, 5).map((training) => (
+                <li key={training.id} className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/animation/formations/${training.id}`}
+                    className="font-medium underline-offset-2 hover:underline"
+                  >
+                    {formatDateFr(training.trainingDate)} —{" "}
+                    {TRAINING_TYPE_LABELS[training.type]}
+                  </Link>
+                  <Badge variant="secondary">
+                    {TRAINING_STATUS_LABELS[training.status]}
+                  </Badge>
+                  <span className="text-muted-foreground">
+                    {training.participants.length} participant
+                    {training.participants.length > 1 ? "s" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

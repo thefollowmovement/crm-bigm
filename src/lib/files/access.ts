@@ -13,6 +13,7 @@ import {
   storeVisits,
   ticketComments,
   tickets,
+  trainings,
 } from "@/db/schema";
 import type { SessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz/permissions";
@@ -117,6 +118,16 @@ export async function canDownloadFile(
       });
       if (!plan || !(await storeAllowed(user, plan.storeId))) return deny;
       return { allowed: true, audit: false };
+    }
+    case "TRAINING": {
+      // Documents de formation : lisibles selon le périmètre boutique
+      // (les documents signés d'un franchisé lui sont accessibles).
+      if (!can(user, "training:read")) return deny;
+      const training = await db.query.trainings.findFirst({
+        where: eq(trainings.id, attachment.entityId ?? ""),
+      });
+      if (!training || !(await storeAllowed(user, training.storeId))) return deny;
+      return { allowed: true, audit: true };
     }
     case "FRANCHISEE": {
       if (user.role === "FRANCHISE") {

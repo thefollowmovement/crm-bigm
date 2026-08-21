@@ -50,6 +50,13 @@
       "when": 1787347564839,
       "tag": "0006_lonely_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787348291278,
+      "tag": "0007_wonderful_toad",
+      "breakpoints": true
     }
   ]
 }
