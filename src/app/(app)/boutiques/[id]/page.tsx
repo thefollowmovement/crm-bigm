@@ -12,6 +12,10 @@ import {
 } from "@/lib/labels";
 import { getStore } from "@/services/stores.service";
 import { listStoreContracts } from "@/services/contracts.service";
+import { listExchanges } from "@/services/exchanges.service";
+import { EXCHANGE_STATUS_LABELS, EXCHANGE_TYPE_LABELS } from "@/lib/labels";
+import { exchangeStatusVariant } from "@/app/(app)/echanges/status-variant";
+import { NewExchangeDialog } from "@/app/(app)/echanges/new-exchange-dialog";
 import { formatDateFr } from "@/lib/dates";
 import { CONTRACT_STATUS_LABELS, CONTRACT_TYPE_LABELS } from "@/lib/labels";
 import { CreateContractDialog } from "@/app/(app)/contrats/contract-form";
@@ -84,9 +88,9 @@ export default async function FicheBoutiquePage({
           {can(user, "contract:read") ? (
             <TabsTrigger value="contrats">Contrats</TabsTrigger>
           ) : null}
-          <TabsTrigger value="echanges" disabled title="Disponible à l'étape Échanges">
-            Échanges
-          </TabsTrigger>
+          {can(user, "exchange:read") ? (
+            <TabsTrigger value="echanges">Échanges</TabsTrigger>
+          ) : null}
           <TabsTrigger value="finances" disabled title="Disponible à l'étape Finances">
             Finances
           </TabsTrigger>
@@ -175,6 +179,16 @@ export default async function FicheBoutiquePage({
           </TabsContent>
         ) : null}
 
+        {can(user, "exchange:read") ? (
+          <TabsContent value="echanges">
+            <StoreExchangesTab
+              user={user}
+              store={{ id: store.id, code: store.code, name: store.name }}
+              canWrite={can(user, "exchange:write")}
+            />
+          </TabsContent>
+        ) : null}
+
         <TabsContent value="plateformes">
           <PlatformsEditor
             storeId={store.id}
@@ -244,6 +258,62 @@ async function StoreContractsTab({
               ) : null}
               <span className="ml-auto text-muted-foreground">
                 {formatDateFr(contract.startDate)} → {formatDateFr(contract.endDate)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+async function StoreExchangesTab({
+  user,
+  store,
+  canWrite,
+}: {
+  user: Awaited<ReturnType<typeof requireUser>>;
+  store: { id: string; code: string; name: string };
+  canWrite: boolean;
+}) {
+  const rows = await listExchanges(user, { storeId: store.id });
+  const dateFormat = new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "short",
+    timeZone: "Europe/Paris",
+  });
+  return (
+    <div className="space-y-4">
+      {canWrite ? (
+        <div className="flex justify-end">
+          <NewExchangeDialog stores={[store]} />
+        </div>
+      ) : null}
+      {rows.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          Aucun échange pour cette boutique.
+        </p>
+      ) : (
+        <ul className="space-y-2" data-testid="store-exchanges">
+          {rows.map((exchange) => (
+            <li
+              key={exchange.id}
+              className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 text-sm"
+            >
+              <Link
+                href={`/echanges/${exchange.id}`}
+                className="font-medium text-brand hover:underline"
+              >
+                {exchange.subject}
+              </Link>
+              <Badge variant="secondary">{EXCHANGE_TYPE_LABELS[exchange.type]}</Badge>
+              <Badge variant={exchangeStatusVariant(exchange.status)}>
+                {EXCHANGE_STATUS_LABELS[exchange.status]}
+              </Badge>
+              <span className="ml-auto text-muted-foreground">
+                {exchange.messageCount} message{exchange.messageCount > 1 ? "s" : ""}
+                {exchange.lastMessageAt
+                  ? ` — dernier le ${dateFormat.format(exchange.lastMessageAt)}`
+                  : ""}
               </span>
             </li>
           ))}
