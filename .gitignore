@@ -46,6 +46,11 @@ next-env.d.ts
 .uploads
 .uploads-e2e
 
+# sauvegardes locales de la base
+.backups
+.backups-e2e
+.backups-test
+
 # playwright
 playwright-report
 test-results

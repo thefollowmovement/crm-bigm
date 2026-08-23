@@ -6,6 +6,7 @@
 // - horodatages : timestamptz
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   date,
   index,
@@ -302,6 +303,51 @@ export const sessions = pgTable(
   },
   (t) => [index("sessions_user_idx").on(t.userId)]
 );
+
+// ─────────────── SAUVEGARDES DE LA BASE (étape 33) ───────────────
+
+export const backupKindEnum = pgEnum("backup_kind", ["MANUEL", "PLANIFIE"]);
+export const backupStatusEnum = pgEnum("backup_status", [
+  "EN_COURS",
+  "OK",
+  "ERREUR",
+]);
+export const backupRemoteStatusEnum = pgEnum("backup_remote_status", [
+  "ENVOYE",
+  "ERREUR",
+]);
+
+// Une ligne par pg_dump (fichier `filename` dans BACKUP_DIR). L'envoi FTP
+// optionnel est tracé séparément : un échec distant n'invalide pas la
+// sauvegarde locale.
+export const backups = pgTable(
+  "backups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    filename: text("filename").notNull(),
+    kind: backupKindEnum("kind").notNull(),
+    status: backupStatusEnum("status").notNull().default("EN_COURS"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    error: text("error"),
+    remoteStatus: backupRemoteStatusEnum("remote_status"),
+    remoteError: text("remote_error"),
+    // null = job planifié
+    createdById: uuid("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("backups_filename_unique").on(t.filename)]
+);
+
+export const backupsRelations = relations(backups, ({ one }) => ({
+  createdBy: one(users, {
+    fields: [backups.createdById],
+    references: [users.id],
+  }),
+}));
 
 // ─────────────── DROITS D'ACCÈS DYNAMIQUES (étape 30) ───────────────
 

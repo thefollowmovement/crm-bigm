@@ -25,8 +25,10 @@ services:
       # L'hôte de la base est le service compose, quoi que dise le .env
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       UPLOAD_DIR: /data/uploads
+      BACKUP_DIR: /data/backups
     volumes:
       - uploads_data:/data/uploads
+      - backups_data:/data/backups
     depends_on:
       db:
         condition: service_healthy
@@ -50,5 +52,6 @@ services:
 volumes:
   pg_data:
   uploads_data:
+  backups_data:
   caddy_data:
   caddy_config:

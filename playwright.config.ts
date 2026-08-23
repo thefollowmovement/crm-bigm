@@ -43,6 +43,7 @@ export default defineConfig({
         env: {
           DATABASE_URL: E2E_DATABASE_URL,
           UPLOAD_DIR: "./.uploads-e2e",
+          BACKUP_DIR: "./.backups-e2e",
           SESSION_SECRET: "e2e-secret",
           SESSION_DURATION_DAYS: "14",
           MAX_UPLOAD_MB: "25",

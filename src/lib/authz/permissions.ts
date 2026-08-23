@@ -68,6 +68,7 @@ export type Permission =
   | "user:manage"
   | "user:impersonate"
   | "permission:manage"
+  | "backup:manage"
   | "audit:read";
 
 export type Role = SessionUser["role"];
@@ -134,6 +135,8 @@ const ALL: readonly Permission[] = [
   "vault:read",
   "vault:write",
   "user:manage",
+  // Sauvegardes de la base : déclenchement manuel, téléchargement, purge.
+  "backup:manage",
   "audit:read",
 ];
 

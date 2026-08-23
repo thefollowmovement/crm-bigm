@@ -22,7 +22,7 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 
 RUN addgroup -S app && adduser -S app -G app \
-  && apk add --no-cache wget
+  && apk add --no-cache wget postgresql16-client
 
 # Serveur Next standalone (node_modules tracés inclus)
 COPY --from=builder /app/.next/standalone ./
@@ -37,7 +37,7 @@ COPY --from=builder /app/scripts/create-admin.mjs ./scripts/create-admin.mjs
 COPY docker/entrypoint.sh ./entrypoint.sh
 
 RUN chmod +x entrypoint.sh \
-  && mkdir -p /data/uploads \
+  && mkdir -p /data/uploads /data/backups \
   && chown -R app:app /data /app
 
 USER app

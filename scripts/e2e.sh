@@ -30,6 +30,6 @@ if [ -f src/db/seed.ts ]; then
     npx tsx src/db/seed.ts
 fi
 
-rm -rf ./.uploads-e2e
+rm -rf ./.uploads-e2e ./.backups-e2e
 npm run build
 npx playwright test "$@"

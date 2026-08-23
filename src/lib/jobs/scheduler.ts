@@ -6,6 +6,7 @@ import { runActionPlanOverdueJob } from "@/lib/jobs/action-plan-overdue";
 import { runAuditOverdueJob } from "@/lib/jobs/audit-overdue";
 import { runCommTaskOverdueJob } from "@/lib/jobs/comm-task-overdue";
 import { runContractExpiryJob } from "@/lib/jobs/contract-expiry";
+import { runDbBackupJob } from "@/lib/jobs/db-backup";
 import { runInvoiceOverdueJob } from "@/lib/jobs/invoice-overdue";
 import { runOpeningLateJob } from "@/lib/jobs/opening-late";
 import { runProspectFollowupJob } from "@/lib/jobs/prospect-followup";
@@ -19,6 +20,7 @@ import { runRevenueDropJob } from "@/lib/jobs/revenue-drop";
 const globalScheduler = globalThis as unknown as { crmJobsStarted?: boolean };
 
 export const JOBS: Record<string, () => Promise<unknown>> = {
+  "db-backup": () => runDbBackupJob(),
   "contract-expiry": () => runContractExpiryJob(),
   "invoice-overdue": () => runInvoiceOverdueJob(),
   "action-plan-overdue": () => runActionPlanOverdueJob(),
@@ -37,6 +39,9 @@ export function startScheduler() {
   if (globalScheduler.crmJobsStarted) return;
   globalScheduler.crmJobsStarted = true;
 
+  cron.schedule("30 5 * * *", () => void safeRun("db-backup"), {
+    timezone: "Europe/Paris",
+  });
   cron.schedule("0 6 * * *", () => void safeRun("contract-expiry"), {
     timezone: "Europe/Paris",
   });
@@ -66,7 +71,7 @@ export function startScheduler() {
   });
 
   console.log(
-    "[jobs] Planificateur démarré (06h00 contract-expiry, 06h15 invoice-overdue, 06h25 action-plan-overdue, 06h30 revenue-drop, 06h40 audit-overdue, 06h50 comm-task-overdue, 07h00 opening-late, 07h10 prospect-followup, 07h20 purchase-anomaly — Europe/Paris)."
+    "[jobs] Planificateur démarré (05h30 db-backup, 06h00 contract-expiry, 06h15 invoice-overdue, 06h25 action-plan-overdue, 06h30 revenue-drop, 06h40 audit-overdue, 06h50 comm-task-overdue, 07h00 opening-late, 07h10 prospect-followup, 07h20 purchase-anomaly — Europe/Paris)."
   );
 }
 

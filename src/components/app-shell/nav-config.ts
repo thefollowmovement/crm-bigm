@@ -8,6 +8,7 @@ import {
   CalendarOff,
   ChefHat,
   Clock,
+  DatabaseBackup,
   GraduationCap,
   Handshake,
   IdCard,
@@ -258,6 +259,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Coffre-fort",
         icon: KeyRound,
         permission: "vault:read",
+      },
+      {
+        href: "/admin/sauvegardes",
+        label: "Sauvegardes",
+        icon: DatabaseBackup,
+        permission: "backup:manage",
       },
       {
         href: "/admin/audit",
