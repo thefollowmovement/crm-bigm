@@ -346,6 +346,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "contract:write": "Contrats — modifier",
   "document:read": "Documents — consulter",
   "document:write": "Documents — publier",
+  "document:folder": "Documents — gérer les dossiers",
   "exchange:read": "Échanges franchisés — consulter",
   "exchange:write": "Échanges franchisés — participer",
   "finance:read": "Factures & impayés — consulter",

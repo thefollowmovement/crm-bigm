@@ -16,6 +16,7 @@ export type Permission =
   | "contract:write"
   | "document:read"
   | "document:write"
+  | "document:folder"
   | "exchange:read"
   | "exchange:write"
   | "finance:read"
@@ -81,6 +82,9 @@ const ALL: readonly Permission[] = [
   "contract:write",
   "document:read",
   "document:write",
+  // Création/gestion des dossiers de la bibliothèque : direction par défaut,
+  // délégable à d'autres rôles via /admin/permissions (étape 30).
+  "document:folder",
   "exchange:read",
   "exchange:write",
   "finance:read",

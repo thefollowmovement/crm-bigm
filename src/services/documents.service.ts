@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { documentVersions, documents } from "@/db/schema";
-import { auditedInsert, auditedUpdate } from "@/lib/db/audited";
+import { documentFolders, documentVersions, documents } from "@/db/schema";
+import { auditedDelete, auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import { assertCan, ForbiddenError } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
 import { saveUpload } from "@/lib/files/storage";
@@ -25,12 +25,22 @@ export function isDocumentVisible(doc: Pick<DocumentRow, "visibleToRoles">, role
 
 export async function listDocuments(
   actor: SessionUser,
-  filters: { category?: DocumentRow["category"]; includeArchived?: boolean } = {}
+  filters: {
+    category?: DocumentRow["category"];
+    includeArchived?: boolean;
+    // undefined = tous les dossiers ; null = racine ; id = ce dossier.
+    folderId?: string | null;
+  } = {}
 ) {
   assertCan(actor, "document:read");
   const conditions = [
     filters.category ? eq(documents.category, filters.category) : undefined,
     filters.includeArchived ? undefined : eq(documents.isArchived, false),
+    filters.folderId === undefined
+      ? undefined
+      : filters.folderId === null
+        ? isNull(documents.folderId)
+        : eq(documents.folderId, filters.folderId),
   ].filter((c): c is NonNullable<typeof c> => c !== undefined);
 
   const rows = await db.query.documents.findMany({
@@ -75,16 +85,19 @@ export async function createDocument(
     visibleToRoles: Role[];
     effectiveDate: string | null;
     changeNote: string | null;
+    folderId?: string | null;
     file: File;
   }
 ) {
   assertCan(actor, "document:write");
+  if (input.folderId) await assertFolderExists(input.folderId);
   const file = await saveUpload(actor, input.file);
   const doc = await auditedInsert({ id: actor.id }, documents, {
     title: input.title,
     category: input.category,
     notes: input.notes,
     visibleToRoles: input.visibleToRoles,
+    folderId: input.folderId ?? null,
   });
   const version = await auditedInsert({ id: actor.id }, documentVersions, {
     documentId: doc.id,
@@ -125,6 +138,91 @@ export async function addDocumentVersion(
   return auditedUpdate({ id: actor.id }, documents, documentId, {
     currentVersionId: version.id,
   });
+}
+
+// ── Dossiers de classement (étape 32) ────────────────────────────
+
+async function assertFolderExists(folderId: string) {
+  const folder = await db.query.documentFolders.findFirst({
+    where: eq(documentFolders.id, folderId),
+  });
+  if (!folder) throw new Error("Dossier introuvable.");
+  return folder;
+}
+
+async function assertNameFree(name: string, parentId: string | null) {
+  const dup = await db.query.documentFolders.findFirst({
+    where: and(
+      eq(documentFolders.name, name),
+      parentId === null
+        ? isNull(documentFolders.parentId)
+        : eq(documentFolders.parentId, parentId)
+    ),
+  });
+  if (dup) throw new Error("Un dossier de ce nom existe déjà à cet endroit.");
+}
+
+// Les dossiers sont une structure de classement : visibles de quiconque lit la
+// bibliothèque (les documents, eux, restent filtrés par rôle).
+export async function listFolders(actor: SessionUser) {
+  assertCan(actor, "document:read");
+  return db.query.documentFolders.findMany({
+    orderBy: [asc(documentFolders.name)],
+  });
+}
+
+export async function createFolder(
+  actor: SessionUser,
+  input: { name: string; parentId: string | null }
+) {
+  assertCan(actor, "document:folder");
+  if (input.parentId) await assertFolderExists(input.parentId);
+  await assertNameFree(input.name, input.parentId);
+  return auditedInsert({ id: actor.id }, documentFolders, {
+    name: input.name,
+    parentId: input.parentId,
+    createdById: actor.id,
+  });
+}
+
+export async function renameFolder(
+  actor: SessionUser,
+  folderId: string,
+  name: string
+) {
+  assertCan(actor, "document:folder");
+  const folder = await assertFolderExists(folderId);
+  if (folder.name !== name) await assertNameFree(name, folder.parentId);
+  return auditedUpdate({ id: actor.id }, documentFolders, folderId, { name });
+}
+
+// Suppression uniquement à vide : ni sous-dossier, ni document (pas de
+// suppression en cascade silencieuse dans une bibliothèque de référence).
+export async function deleteFolder(actor: SessionUser, folderId: string) {
+  assertCan(actor, "document:folder");
+  await assertFolderExists(folderId);
+  const [child, doc] = await Promise.all([
+    db.query.documentFolders.findFirst({
+      where: eq(documentFolders.parentId, folderId),
+    }),
+    db.query.documents.findFirst({ where: eq(documents.folderId, folderId) }),
+  ]);
+  if (child || doc) {
+    throw new Error(
+      "Le dossier n'est pas vide : déplacez d'abord son contenu."
+    );
+  }
+  await auditedDelete({ id: actor.id }, documentFolders, folderId);
+}
+
+export async function moveDocument(
+  actor: SessionUser,
+  documentId: string,
+  folderId: string | null
+) {
+  assertCan(actor, "document:write");
+  if (folderId) await assertFolderExists(folderId);
+  return auditedUpdate({ id: actor.id }, documents, documentId, { folderId });
 }
 
 export async function updateDocumentMeta(

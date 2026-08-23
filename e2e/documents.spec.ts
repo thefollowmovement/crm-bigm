@@ -54,6 +54,72 @@ test("cycle documentaire : création, téléchargement, v2 applicable", async ({
   await anonymous.close();
 });
 
+test("dossiers : classement, navigation, déplacement, suppression à vide", async ({
+  page,
+}) => {
+  await login(page, ACCOUNTS.direction);
+  await page.goto("/documents");
+
+  // Création d'un dossier à la racine.
+  await page.getByTestId("new-folder-button").click();
+  await page.getByTestId("folder-name-input").fill("Juridique 2026");
+  await page.getByTestId("folder-submit").click();
+  await expect(page.getByText("Dossier « Juridique 2026 » créé.")).toBeVisible();
+  await page.getByTestId("folder-Juridique 2026").click();
+  await expect(page.getByTestId("folder-breadcrumb")).toContainText("Juridique 2026");
+
+  // Un document créé ICI est rangé dans le dossier (absent de la racine).
+  await page.getByTestId("new-document-button").click();
+  await page.getByLabel("Titre").fill("Bail type 2026");
+  await page.getByLabel("Fichier").setInputFiles({
+    name: "bail-type.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfBuffer,
+  });
+  await page.getByRole("button", { name: "Ajouter le document" }).click();
+  await expect(page.getByText("Document « Bail type 2026 » ajouté.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Bail type 2026" })).toBeVisible();
+
+  await page.goto("/documents");
+  await expect(page.getByRole("link", { name: "Bail type 2026" })).toHaveCount(0);
+
+  // Impossible de supprimer un dossier non vide.
+  await page.getByTestId("folder-Juridique 2026").click();
+  await page.getByTestId("folder-delete-button").click();
+  await expect(page.getByText(/n'est pas vide/)).toBeVisible();
+
+  // Déplacement du document vers la racine depuis sa fiche.
+  await page.getByRole("link", { name: "Bail type 2026" }).click();
+  await page.getByTestId("move-select").click();
+  await page.getByRole("option", { name: "Racine de la bibliothèque" }).click();
+  await page.getByTestId("move-submit").click();
+  await expect(page.getByText("Document déplacé.")).toBeVisible();
+
+  // Renommage puis suppression du dossier (désormais vide).
+  await page.goto("/documents");
+  await page.getByTestId("folder-Juridique 2026").click();
+  await page.getByTestId("folder-rename-button").click();
+  await page.getByTestId("folder-rename-input").fill("Juridique (archives)");
+  await page.getByTestId("folder-rename-submit").click();
+  await expect(page.getByText("Dossier renommé.")).toBeVisible();
+  await page.getByTestId("folder-delete-button").click();
+  // Le dossier supprimé n'existe plus : la vue retombe à la racine, où le
+  // document déplacé est bien présent.
+  await expect(page.getByRole("link", { name: "Bail type 2026" })).toBeVisible();
+  await expect(page.getByTestId("folder-Juridique (archives)")).toHaveCount(0);
+});
+
+test("la création de dossiers est refusée sans la permission document:folder", async ({
+  page,
+}) => {
+  // La communication publie des documents mais ne gère pas les dossiers
+  // (droit délégable via /admin/permissions).
+  await login(page, ACCOUNTS.communication);
+  await page.goto("/documents");
+  await expect(page.getByTestId("new-document-button")).toBeVisible();
+  await expect(page.getByTestId("new-folder-button")).toHaveCount(0);
+});
+
 test("un fichier d'un type interdit est refusé", async ({ page }) => {
   await login(page, ACCOUNTS.admin);
   await page.goto("/documents");

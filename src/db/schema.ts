@@ -481,6 +481,35 @@ export const fileAttachments = pgTable(
 
 // ─────────────── BIBLIOTHÈQUE DOCUMENTAIRE ───────────────
 
+// Dossiers de classement (étape 32) : arborescence libre (parentId), création
+// réservée à la permission document:folder (pilotable via /admin/permissions).
+export const documentFolders = pgTable(
+  "document_folders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    parentId: uuid("parent_id").references(
+      (): AnyPgColumn => documentFolders.id
+    ),
+    createdById: uuid("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // Unicité du nom au même niveau (racine et sous-dossiers séparés,
+    // NULL n'étant jamais égal à NULL dans un index unique classique).
+    uniqueIndex("document_folders_root_name_unique")
+      .on(t.name)
+      .where(sql`parent_id is null`),
+    uniqueIndex("document_folders_parent_name_unique")
+      .on(t.parentId, t.name)
+      .where(sql`parent_id is not null`),
+  ]
+);
+
 export const documents = pgTable(
   "documents",
   {
@@ -490,6 +519,10 @@ export const documents = pgTable(
     notes: text("notes"),
     // vide = visible de tous les rôles siège
     visibleToRoles: roleEnum("visible_to_roles").array().notNull().default([]),
+    // null = racine de la bibliothèque
+    folderId: uuid("folder_id").references(() => documentFolders.id, {
+      onDelete: "set null",
+    }),
     isArchived: boolean("is_archived").notNull().default(false),
     currentVersionId: uuid("current_version_id").references(
       (): AnyPgColumn => documentVersions.id
@@ -1999,7 +2032,24 @@ export const documentsRelations = relations(documents, ({ one, many }) => ({
     relationName: "currentVersion",
   }),
   versions: many(documentVersions, { relationName: "versions" }),
+  folder: one(documentFolders, {
+    fields: [documents.folderId],
+    references: [documentFolders.id],
+  }),
 }));
+
+export const documentFoldersRelations = relations(
+  documentFolders,
+  ({ one, many }) => ({
+    parent: one(documentFolders, {
+      fields: [documentFolders.parentId],
+      references: [documentFolders.id],
+      relationName: "folderTree",
+    }),
+    children: many(documentFolders, { relationName: "folderTree" }),
+    documents: many(documents),
+  })
+);
 
 export const documentVersionsRelations = relations(documentVersions, ({ one }) => ({
   document: one(documents, {

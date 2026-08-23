@@ -43,6 +43,19 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("les dossiers documentaires : direction par défaut (délégable via overrides)", () => {
+    for (const role of ROLES) {
+      const expected = role === "ADMIN" || role === "DIRECTION";
+      expect(can({ role }, "document:folder")).toBe(expected);
+    }
+    expect(
+      can(
+        { role: "COMMUNICATION", permissionOverrides: { "document:folder": true } },
+        "document:folder"
+      )
+    ).toBe(true);
+  });
+
   it("écarts dynamiques : retrait, octroi, retour au défaut, ADMIN immunisé", () => {
     // Retrait d'une permission que la matrice accorde.
     expect(

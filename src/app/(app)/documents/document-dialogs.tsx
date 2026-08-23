@@ -60,7 +60,13 @@ export function CategoryFilter({ current }: { current?: string }) {
   );
 }
 
-export function CreateDocumentDialog() {
+export function CreateDocumentDialog({
+  folders,
+  defaultFolderId,
+}: {
+  folders: { id: string; label: string }[];
+  defaultFolderId: string | null;
+}) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     createDocumentAction,
@@ -104,6 +110,22 @@ export function CreateDocumentDialog() {
                 {Object.entries(DOCUMENT_CATEGORY_LABELS).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Dossier</Label>
+            <Select name="folderId" defaultValue={defaultFolderId ?? "none"}>
+              <SelectTrigger data-testid="document-folder-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Racine de la bibliothèque</SelectItem>
+                {folders.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.label}
                   </SelectItem>
                 ))}
               </SelectContent>

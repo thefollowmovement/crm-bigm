@@ -5,7 +5,7 @@ import { Download } from "lucide-react";
 import { requireUser } from "@/lib/auth/current-user";
 import { can } from "@/lib/authz/permissions";
 import { DOCUMENT_CATEGORY_LABELS, ROLE_LABELS } from "@/lib/labels";
-import { getDocument } from "@/services/documents.service";
+import { getDocument, listFolders } from "@/services/documents.service";
 import { ForbiddenError } from "@/lib/authz/guards";
 import { AccessDenied } from "@/components/access-denied";
 import { EntityHistory } from "@/components/entity-history";
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/table";
 
 import { AddVersionDialog } from "../document-dialogs";
+import { MoveDocumentSelect } from "../folder-dialogs";
+import { folderPathLabels } from "../folder-path";
 import { ArchiveButton } from "./archive-button";
 
 export const metadata: Metadata = { title: "Document" };
@@ -47,6 +49,7 @@ export default async function DocumentDetailPage({
 
   const canWrite = can(user, "document:write");
   const canAudit = can(user, "audit:read");
+  const folders = canWrite ? await listFolders(user) : [];
   const dateFormat = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short" });
 
   return (
@@ -77,7 +80,7 @@ export default async function DocumentDetailPage({
             <CardHeader>
               <CardTitle>Informations</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
+            <CardContent className="space-y-3 text-sm">
               {doc.notes ? <p>{doc.notes}</p> : null}
               <p className="text-muted-foreground">
                 Visibilité :{" "}
@@ -85,6 +88,13 @@ export default async function DocumentDetailPage({
                   ? "tout le siège"
                   : doc.visibleToRoles.map((r) => ROLE_LABELS[r] ?? r).join(", ")}
               </p>
+              {canWrite ? (
+                <MoveDocumentSelect
+                  documentId={doc.id}
+                  currentFolderId={doc.folderId}
+                  folders={folderPathLabels(folders)}
+                />
+              ) : null}
             </CardContent>
           </Card>
 
