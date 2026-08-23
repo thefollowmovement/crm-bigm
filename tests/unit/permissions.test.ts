@@ -37,6 +37,43 @@ describe("matrice de permissions", () => {
     }
   });
 
+  it("la gestion des droits d'accès est réservée au seul ADMIN", () => {
+    for (const role of ROLES) {
+      expect(can({ role }, "permission:manage")).toBe(role === "ADMIN");
+    }
+  });
+
+  it("écarts dynamiques : retrait, octroi, retour au défaut, ADMIN immunisé", () => {
+    // Retrait d'une permission que la matrice accorde.
+    expect(
+      can(
+        { role: "ANIMATION", permissionOverrides: { "visit:write": false } },
+        "visit:write"
+      )
+    ).toBe(false);
+    // Octroi d'une permission que la matrice refuse.
+    expect(
+      can(
+        { role: "COMMUNICATION", permissionOverrides: { "finance:read": true } },
+        "finance:read"
+      )
+    ).toBe(true);
+    // Sans écart pour cette permission : la matrice par défaut s'applique.
+    expect(
+      can(
+        { role: "COMMUNICATION", permissionOverrides: { "finance:read": true } },
+        "finance:write"
+      )
+    ).toBe(false);
+    // Le rôle ADMIN n'est jamais restreint par un écart.
+    expect(
+      can(
+        { role: "ADMIN", permissionOverrides: { "user:manage": false } },
+        "user:manage"
+      )
+    ).toBe(true);
+  });
+
   // Exigence du cahier des charges : « certaines informations doivent être
   // totalement invisibles aux utilisateurs non autorisés ».
   it.each([

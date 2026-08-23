@@ -29,6 +29,7 @@ import {
   MessagesSquare,
   Package,
   ShieldCheck,
+  SlidersHorizontal,
   Store,
   Ticket,
   UserCog,
@@ -233,6 +234,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Utilisateurs",
         icon: Users,
         permission: "user:manage",
+      },
+      {
+        href: "/admin/permissions",
+        label: "Droits d'accès",
+        icon: SlidersHorizontal,
+        permission: "permission:manage",
       },
       {
         href: "/admin/produits",

@@ -66,6 +66,7 @@ export type Permission =
   | "vault:write"
   | "user:manage"
   | "user:impersonate"
+  | "permission:manage"
   | "audit:read";
 
 export type Role = SessionUser["role"];
@@ -132,10 +133,18 @@ const ALL: readonly Permission[] = [
   "audit:read",
 ];
 
+// Toutes les permissions existantes (matrice + réservées ADMIN) — sert à
+// valider les écrans d'administration des droits.
+export const ALL_PERMISSIONS: readonly Permission[] = [
+  ...ALL,
+  "user:impersonate",
+  "permission:manage",
+];
+
 export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
-  // L'usurpation d'identité (« se connecter en tant que ») est volontairement
-  // hors de ALL : réservée au seul ADMIN, jamais héritée par la DIRECTION.
-  ADMIN: new Set([...ALL, "user:impersonate"]),
+  // L'usurpation d'identité et la gestion des droits sont volontairement hors
+  // de ALL : réservées au seul ADMIN, jamais héritées par la DIRECTION.
+  ADMIN: new Set(ALL_PERMISSIONS),
   DIRECTION: new Set(ALL),
   COMPTABILITE: new Set([
     "store:read",
@@ -294,6 +303,19 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   SALARIE: new Set(["self:clock", "self:leave"]),
 };
 
-export function can(user: Pick<SessionUser, "role">, permission: Permission): boolean {
-  return PERMISSIONS[user.role].has(permission);
+// Écarts dynamiques posés par l'admin (/admin/permissions, étape 30) :
+// permission → accordée/retirée pour le rôle de l'utilisateur. Chargés dans la
+// session par validateSessionToken ; la matrice statique reste la valeur par
+// défaut. Le rôle ADMIN est immunisé (aucun verrouillage possible).
+export type PermissionOverrideMap = Partial<Record<Permission, boolean>>;
+
+export function can(
+  user: Pick<SessionUser, "role"> & {
+    permissionOverrides?: PermissionOverrideMap;
+  },
+  permission: Permission
+): boolean {
+  const base = PERMISSIONS[user.role].has(permission);
+  if (user.role === "ADMIN") return base;
+  return user.permissionOverrides?.[permission] ?? base;
 }

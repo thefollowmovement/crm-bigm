@@ -5,7 +5,12 @@ import { cookies } from "next/headers";
 import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { sessions, users } from "@/db/schema";
+import {
+  permissionOverrides as permissionOverridesTable,
+  sessions,
+  users,
+} from "@/db/schema";
+import type { PermissionOverrideMap } from "@/lib/authz/permissions";
 
 export const SESSION_COOKIE = "session";
 
@@ -55,6 +60,8 @@ export type SessionUser = {
   // Id de l'admin réellement connecté quand la session est une usurpation
   // « se connecter en tant que » (étape 28). Absent sinon.
   impersonatorUserId?: string | null;
+  // Écarts de droits posés à chaud pour le rôle (étape 30) — voir can().
+  permissionOverrides?: PermissionOverrideMap;
 };
 
 export async function validateSessionToken(
@@ -90,7 +97,21 @@ export async function validateSessionToken(
     pole: user.pole,
     franchiseeId: user.franchiseeId,
     impersonatorUserId: row.impersonatorUserId ?? null,
+    permissionOverrides: await loadPermissionOverrides(user.role),
   };
+}
+
+// Écarts de droits du rôle (étape 30). ADMIN est immunisé : pas de requête.
+async function loadPermissionOverrides(
+  role: (typeof users.$inferSelect)["role"]
+): Promise<PermissionOverrideMap | undefined> {
+  if (role === "ADMIN") return undefined;
+  const rows = await db.query.permissionOverrides.findMany({
+    where: eq(permissionOverridesTable.role, role),
+    columns: { permission: true, allowed: true },
+  });
+  if (rows.length === 0) return undefined;
+  return Object.fromEntries(rows.map((r) => [r.permission, r.allowed]));
 }
 
 export async function invalidateSessionToken(token: string) {

@@ -303,6 +303,32 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_idx").on(t.userId)]
 );
 
+// ─────────────── DROITS D'ACCÈS DYNAMIQUES (étape 30) ───────────────
+
+// Écarts par rapport à la matrice statique de src/lib/authz/permissions.ts :
+// une ligne = « pour CE rôle, CETTE permission vaut allowed » (accordée ou
+// retirée à chaud par l'admin). Le rôle ADMIN n'est jamais restreint.
+export const permissionOverrides = pgTable(
+  "permission_overrides",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    role: roleEnum("role").notNull(),
+    permission: text("permission").notNull(),
+    allowed: boolean("allowed").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("permission_overrides_role_permission_unique").on(
+      t.role,
+      t.permission
+    ),
+  ]
+);
+
 // ─────────────── BOUTIQUES & FRANCHISÉS ───────────────
 
 export const franchisees = pgTable("franchisees", {
