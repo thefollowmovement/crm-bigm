@@ -137,9 +137,33 @@ coffre-fort (`/admin/coffre`, AES-256-GCM `lib/vault/crypto.ts`, clé env
 à l'unité auditée `REVEAL`, `encrypted` dans SENSITIVE_FIELDS d'audited.ts).
 9 jobs cron (06h00→07h20).
 
-**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5).** Reste hors périmètre :
-la « V2 » (pôle 15 « Modules complémentaires » du cdc §24 : HACCP, litiges,
-assurances, maintenance, parc matériel, notes plateformes…) — nouveau devis.
+**AMÉLIORATIONS POST-V1 LIVRÉES** (commits « Étape 28 » à « Étape 33 »,
+demandes client hors feuille de route initiale) : `/mon-compte` (chaque
+utilisateur change e-mail/mot de passe/téléphone, mdp actuel exigé, autres
+appareils déconnectés) + « Se connecter en tant que » (`user:impersonate`
+ADMIN SEUL — hors ALL —, session usurpée avec `impersonatorUserId`, bannière
+de retour, audit IMPERSONATE) · boutiques : photo (pièce jointe STORE_PHOTO
+unique servie via `/api/files/[id]`, vignette en liste) + latitude/longitude
+et carte/lien OpenStreetMap · droits d'accès dynamiques (`/admin/permissions`,
+table `permissionOverrides` = écarts seuls, chargés dans la session par
+`validateSessionToken`, appliqués par `can()`, ADMIN immunisé,
+`permission:manage` ADMIN seul) · tickets confiés à une personne précise
+(tous collaborateurs internes actifs, affectation dès la création → statut
+AFFECTE + notification) · dossiers documentaires (`documentFolders`
+arborescents, `documents.folderId`, suppression à vide uniquement, permission
+`document:folder` direction par défaut et délégable via /admin/permissions) ·
+sauvegardes BDD (`/admin/sauvegardes`, `backups.service` = pg_dump -Fc dans
+`BACKUP_DIR`, job `db-backup` 05h30 + rétention `BACKUP_RETENTION_DAYS` sur
+les planifiées, envoi FTP/FTPS optionnel `BACKUP_FTP_*` via basic-ftp,
+téléchargement audité `/api/backups/[id]`, permission `backup:manage`,
+pg_dump ajouté à l'image Docker + volume `backups_data` ; Google Drive =
+client de synchro pointé sur BACKUP_DIR, documenté dans l'UI). 10 jobs cron
+(05h30→07h20).
+
+**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-33).**
+Reste hors périmètre : la « V2 » (pôle 15 « Modules complémentaires » du cdc
+§24 : HACCP, litiges, assurances, maintenance, parc matériel, notes
+plateformes…) — nouveau devis.
 
 **Process par étape (non négociable)** : implémenter (nouvelle table = ajout
 dans `src/db/schema.ts` + `npm run db:generate`, jamais de SQL à la main) →
@@ -164,4 +188,5 @@ dans `src/db/schema.ts` + `npm run db:generate`, jamais de SQL à la main) →
 - Comptes seed démo (`SEED_DEMO=true`) : `admin@bigm.fr` (mdp du .env) ;
   `direction@ / compta@ / animateur@ / communication@ / rh@ / developpement@ /
   franchise@ / salarie@bigm.fr`, mdp commun `Test1234!` ; `inactif@bigm.fr`
-  désactivé.
+  désactivé ; `profil@bigm.fr` réservé au parcours e2e « Mon compte » (son
+  e-mail/mdp changent en test — ne pas l'utiliser ailleurs).

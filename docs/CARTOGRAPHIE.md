@@ -2,17 +2,18 @@
 
 > Document de référence : où est chaque module, qui y a droit, comment tout
 > s'articule. Complète le `CLAUDE.md` (état du projet + process de dev).
-> Mise à jour : fin de la feuille de route client (phases 0 à 5, étapes 1 à 27).
+> Mise à jour : feuille de route client (phases 0 à 5, étapes 1 à 27)
+> + améliorations post-V1 (étapes 28 à 33).
 
 ## Vue d'ensemble
 
 - **Stack** : Next.js 15 (App Router, TypeScript strict) · PostgreSQL 16 ·
   Drizzle ORM · Tailwind v4 · composants shadcn maison · recharts (graphiques).
-- **Volumétrie** : 59 tables · 47 enums · 15 migrations · 35 services ·
-  57 pages · 59 permissions · 9 rôles · 9 jobs cron · 135 tests unitaires ·
-  69 parcours e2e Playwright.
+- **Volumétrie** : 62 tables · 50 enums · 20 migrations · 38 services ·
+  60 pages · 63 permissions · 9 rôles · 10 jobs cron · 146 tests unitaires ·
+  82 parcours e2e Playwright.
 - **Branche de travail** : `claude/crm-interne-plan-docker-s3neyk`
-  (commits « Étape 1 » à « Étape 27 », un commit par étape, gate complet vert
+  (commits « Étape 1 » à « Étape 33 », un commit par étape, gate complet vert
   avant chacun).
 
 ## Architecture en couches (règles non négociables du CLAUDE.md)
@@ -29,12 +30,15 @@ Services (src/services/*.service.ts)   SEULE couche qui écrit en base
 Drizzle (src/db/schema.ts)      PostgreSQL — migrations générées, jamais de SQL manuel
 ```
 
-Transverses : `src/lib/authz/permissions.ts` (matrice unique `can(user, perm)`) ·
-`accessibleStoreIds`/`assertStoreAccess` (scoping du rôle FRANCHISE) ·
-`src/lib/money.ts` (centimes entiers, jamais de float) · `src/lib/foodcost.ts`
-(10^-8 € en BigInt) · `src/lib/dates.ts` (jours civils Europe/Paris) ·
-`src/lib/files/` (fichiers servis uniquement via `/api/files/[id]`) ·
-`src/lib/vault/crypto.ts` (AES-256-GCM, clé env `VAULT_KEY`).
+Transverses : `src/lib/authz/permissions.ts` (matrice unique `can(user, perm)`
++ écarts dynamiques `permissionOverrides` chargés dans la session — ADMIN
+immunisé) · `accessibleStoreIds`/`assertStoreAccess` (scoping du rôle
+FRANCHISE) · `src/lib/money.ts` (centimes entiers, jamais de float) ·
+`src/lib/foodcost.ts` (10^-8 € en BigInt) · `src/lib/dates.ts` (jours civils
+Europe/Paris) · `src/lib/files/` (fichiers servis uniquement via
+`/api/files/[id]`) · `src/lib/vault/crypto.ts` (AES-256-GCM, clé env
+`VAULT_KEY`) · `src/lib/backup/` (pg_dump quotidien + manuel, rétention,
+envoi FTP optionnel).
 
 ## Cartographie fonctionnelle (navigation → pages → accès)
 
@@ -44,11 +48,12 @@ Transverses : `src/lib/authz/permissions.ts` (matrice unique `can(user, perm)`) 
 | `/` | tous | Dashboard par rôle : boutique (franchisé), animateur, réseau+régions (siège), espace salarié. `data-testid="dashboard-title"` obligatoire partout. |
 | `/notifications` | tous | Cloche de notifications (dedupeKey anti-doublons). |
 | `/mon-espace` | SALARIE (+ADMIN/DIRECTION) | Pointeuse Début/Pause/Reprise/Fin, feuille de temps, demandes de congés. |
+| `/mon-compte` | tous | Coordonnées (téléphone), changement d'e-mail et de mot de passe (mdp actuel exigé, autres appareils déconnectés). |
 
 ### Réseau
 | Page | Permission | Contenu |
 |---|---|---|
-| `/boutiques` (+fiche à onglets) | `store:read` | Fiche : infos, plateformes, contrats, échanges, finances, CA, animation, achats, rentabilité (succursales), historique + bandeau ouverture. |
+| `/boutiques` (+fiche à onglets) | `store:read` | Photo (vignette en liste) + carte/lien OpenStreetMap (GPS). Fiche : infos, plateformes, contrats, échanges, finances, CA, animation, achats, rentabilité (succursales), historique + bandeau ouverture. |
 | `/franchises` (+fiche) | `franchisee:read` | Fiche franchisé, docs signés de formation. |
 | `/succursales` (+P&L) | `branch:read` (compta+dir) | Rentabilité mensuelle CA − achats DPS − dépenses. |
 | `/contrats` | `contract:read` | Contrats + alerte échéance J-180. |
@@ -100,9 +105,11 @@ Transverses : `src/lib/authz/permissions.ts` (matrice unique `can(user, perm)`) 
 ### Organisation & Administration
 | Page | Permission | Contenu |
 |---|---|---|
-| `/tickets` | `ticket:read` | Tickets inter-pôles « T-… ». |
-| `/documents` | `document:read` | Bibliothèque versionnée, visibilité par rôle. |
-| `/admin/utilisateurs` | `user:manage` | Comptes + rôles. |
+| `/tickets` | `ticket:read` | Tickets inter-pôles « T-… », confiés à une personne précise (tous pôles) dès la création ou après. |
+| `/documents` | `document:read` | Bibliothèque versionnée, visibilité par rôle, dossiers de classement (création `document:folder`, délégable). |
+| `/admin/utilisateurs` | `user:manage` | Comptes + rôles + « Se connecter en tant que » (ADMIN seul, audité). |
+| `/admin/permissions` | `permission:manage` (ADMIN seul) | Matrice des droits modifiable à chaud par rôle (écarts stockés, ADMIN immunisé). |
+| `/admin/sauvegardes` | `backup:manage` | Sauvegardes pg_dump : quotidienne 05h30 + manuelle, téléchargement audité, rétention, envoi FTP optionnel. |
 | `/admin/produits` | `product:manage` | Référentiel produits/familles. |
 | `/admin/logiciels` | `software:read` (siège) / write dir | Registre des logiciels + personnes autorisées. |
 | `/admin/coffre` | `vault:read` (admin+dir SEULS) | Secrets AES-256-GCM, révélation à l'unité auditée REVEAL. |
@@ -110,19 +117,26 @@ Transverses : `src/lib/authz/permissions.ts` (matrice unique `can(user, perm)`) 
 
 ## Rôles (9)
 
-ADMIN et DIRECTION : tout. COMPTABILITE : finances, CA, achats, food cost,
-produits, succursales, Big M CIE. ANIMATION : visites, plans, planning,
-formations. COMMUNICATION : tâches com + partenaires (écriture). RH : dossiers
-salariés + congés + formations. DEVELOPPEMENT : boutiques/franchisés/contrats
-(écriture), ouvertures, prospection, cessions. FRANCHISE : scopé à SES
-boutiques (CA, contrats, docs partagés, plans d'action, achats, formations,
-demandes com, son projet d'ouverture). SALARIE : `self:clock` + `self:leave`
-uniquement (pointeuse + congés).
+ADMIN et DIRECTION : tout — sauf « se connecter en tant que »
+(`user:impersonate`) et la gestion des droits (`permission:manage`), réservés
+au SEUL ADMIN. COMPTABILITE : finances, CA, achats, food cost, produits,
+succursales, Big M CIE. ANIMATION : visites, plans, planning, formations.
+COMMUNICATION : tâches com + partenaires (écriture). RH : dossiers salariés +
+congés + formations. DEVELOPPEMENT : boutiques/franchisés/contrats (écriture),
+ouvertures, prospection, cessions. FRANCHISE : scopé à SES boutiques (CA,
+contrats, docs partagés, plans d'action, achats, formations, demandes com,
+son projet d'ouverture). SALARIE : `self:clock` + `self:leave` uniquement
+(pointeuse + congés).
 
-## Données (59 tables, par domaine)
+Ces droits par défaut sont modifiables À CHAUD par l'admin via
+`/admin/permissions` (table `permissionOverrides` : seuls les écarts sont
+stockés ; le rôle ADMIN n'est jamais restreint).
+
+## Données (62 tables, par domaine)
 
 - **Socle** : users, sessions, franchisees, stores, storePlatforms, contracts,
-  documents, documentVersions, fileAttachments, notifications, auditLogs.
+  documents, documentVersions, documentFolders, fileAttachments,
+  notifications, auditLogs, permissionOverrides, backups.
 - **Échanges & tickets** : exchanges, exchangeMessages, tickets, ticketComments.
 - **Finances réseau** : invoices, payments, reminders.
 - **CA & ventes** : revenueEntries (orderCount), productFamilies, products,
@@ -143,10 +157,11 @@ uniquement (pointeuse + congés).
 Dérivés jamais stockés : statuts « en retard », note % d'audit, panier moyen,
 P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
 
-## Jobs cron (9, Europe/Paris, rejouables via POST /api/admin/jobs/run)
+## Jobs cron (10, Europe/Paris, rejouables via POST /api/admin/jobs/run)
 
 | Heure | Job | Rôle |
 |---|---|---|
+| 05h30 | db-backup | Sauvegarde pg_dump + rétention + envoi FTP optionnel |
 | 06h00 | contract-expiry | Échéances de contrats J-180 |
 | 06h15 | invoice-overdue | Factures impayées |
 | 06h25 | action-plan-overdue | Plans d'action en retard |
@@ -164,6 +179,10 @@ P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
 - ✅ **Phase 3 (Métier spécialisé)** — étapes 17 à 21.
 - ✅ **Phase 4 (Croissance réseau)** — étapes 22 à 24.
 - ✅ **Phase 5 (Enrichissement)** — étapes 25 à 27.
+- ✅ **Améliorations post-V1** — étapes 28 à 33 : mon compte + connexion
+  « en tant que » · photo & GPS des boutiques · droits d'accès modifiables à
+  chaud · tickets confiés à une personne · dossiers documentaires ·
+  sauvegardes BDD (quotidienne/manuelle/FTP).
 - ⬜ **V2 (hors périmètre — nouveau devis)** : HACCP/hygiène, contrôles
   officiels, litiges, assurances/sinistres, maintenance/travaux, parc
   matériel, fournisseurs/ruptures, notes Google/Uber Eats/Deliveroo,
