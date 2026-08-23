@@ -11,7 +11,11 @@ import {
   TICKET_PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
 } from "@/lib/labels";
-import { getTicket, isTicketLate, listPoleMembers } from "@/services/tickets.service";
+import {
+  getTicket,
+  isTicketLate,
+  listAssignableUsers,
+} from "@/services/tickets.service";
 import { AccessDenied } from "@/components/access-denied";
 import { EntityHistory } from "@/components/entity-history";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +39,9 @@ export default async function TicketDetailPage({
   const ticket = await getTicket(user, id);
   if (!ticket) notFound();
 
-  const members = await listPoleMembers(user, ticket.toPole);
+  // Tout collaborateur interne actif peut être désigné responsable, pas
+  // uniquement les membres du pôle destinataire.
+  const members = await listAssignableUsers(user);
   const number = `T-${String(ticket.number).padStart(6, "0")}`;
   const late = isTicketLate(ticket, todayParis());
   const canWrite = can(user, "ticket:write");
@@ -138,7 +144,9 @@ export default async function TicketDetailPage({
                   ticketId={ticket.id}
                   members={members.map((m) => ({
                     id: m.id,
-                    label: `${m.firstName} ${m.lastName}`,
+                    label: `${m.firstName} ${m.lastName}${
+                      m.pole ? ` · ${POLE_LABELS[m.pole]}` : ""
+                    }`,
                   }))}
                   currentAssigneeId={ticket.assigneeId}
                 />

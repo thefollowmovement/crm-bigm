@@ -8,6 +8,7 @@ import {
   assignTicket,
   createTicket,
   getTicket,
+  listAssignableUsers,
   listTickets,
   transitionTicket,
 } from "@/services/tickets.service";
@@ -157,5 +158,55 @@ describe("tickets inter-pôles", () => {
     expect(await listTickets(compta, { view: "mine" })).toHaveLength(1);
     expect(await listTickets(compta, { view: "pole" })).toHaveLength(2);
     expect(await listTickets(direction, { view: "all" })).toHaveLength(2);
+  });
+
+  it("création avec responsable désigné : naît AFFECTE, le responsable est notifié", async () => {
+    const rh = asSession(await createTestUser({ role: "RH", pole: "RH" }));
+    const animateur = await createTestUser({ role: "ANIMATION", pole: "ANIMATION" });
+    const inactif = await createTestUser({ role: "ANIMATION", isActive: false });
+
+    await expect(
+      createTicket(rh, { ...baseInput, assigneeId: inactif.id })
+    ).rejects.toThrow(/invalide/);
+
+    // Le responsable peut être HORS du pôle destinataire.
+    const ticket = await createTicket(rh, {
+      ...baseInput,
+      toPole: "COMMUNICATION",
+      assigneeId: animateur.id,
+    });
+    expect(ticket.status).toBe("AFFECTE");
+    expect(ticket.assigneeId).toBe(animateur.id);
+
+    const notified = await db.query.notifications.findMany({
+      where: (n, { eq: whereEq }) => whereEq(n.userId, animateur.id),
+    });
+    expect(notified.some((n) => n.title.includes("affecté à vous"))).toBe(true);
+
+    // Le ticket apparaît dans « mes tickets » du responsable.
+    const mine = await listTickets(asSession(animateur), { view: "mine" });
+    expect(mine.map((t) => t.id)).toContain(ticket.id);
+  });
+
+  it("listAssignableUsers : internes actifs uniquement, tous pôles confondus", async () => {
+    const rh = asSession(await createTestUser({ role: "RH", pole: "RH" }));
+    await createTestUser({ role: "ANIMATION", pole: "ANIMATION" });
+    await createTestUser({ role: "FRANCHISE" });
+    await createTestUser({ role: "SALARIE" });
+    await createTestUser({ role: "COMMUNICATION", isActive: false });
+
+    const assignables = await listAssignableUsers(rh);
+    // rh + animateur — jamais les franchisés, salariés ni comptes désactivés.
+    expect(assignables).toHaveLength(2);
+
+    // Réaffectation d'un ticket vers un collaborateur d'un AUTRE pôle.
+    const ticket = await createTicket(rh, baseInput); // RH → RH
+    const communication = await createTestUser({
+      role: "COMMUNICATION",
+      pole: "COMMUNICATION",
+    });
+    const updated = await assignTicket(rh, ticket.id, communication.id);
+    expect(updated.assigneeId).toBe(communication.id);
+    expect(updated.status).toBe("AFFECTE");
   });
 });

@@ -101,8 +101,10 @@ export function TicketFilters({
 
 export function CreateTicketDialog({
   stores,
+  assignables,
 }: {
   stores: { id: string; label: string }[];
+  assignables: { id: string; label: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
@@ -191,6 +193,22 @@ export function CreateTicketDialog({
             <div className="space-y-1.5">
               <Label htmlFor="ticket-due">Échéance</Label>
               <Input id="ticket-due" name="dueDate" type="date" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Confier à (optionnel)</Label>
+              <Select name="assigneeId" defaultValue="none">
+                <SelectTrigger data-testid="ticket-assignee">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Le pôle destinataire choisira</SelectItem>
+                  {assignables.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="space-y-1.5">

@@ -9,7 +9,11 @@ import {
   TICKET_PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
 } from "@/lib/labels";
-import { isTicketLate, listTickets } from "@/services/tickets.service";
+import {
+  isTicketLate,
+  listAssignableUsers,
+  listTickets,
+} from "@/services/tickets.service";
 import { listStores } from "@/services/stores.service";
 import { AccessDenied } from "@/components/access-denied";
 import { Badge } from "@/components/ui/badge";
@@ -68,9 +72,10 @@ export default async function TicketsPage({
   const status = STATUS_VALUES.find((s) => s === params.statut);
   const priority = PRIORITY_VALUES.find((p) => p === params.priorite);
 
-  const [rows, stores] = await Promise.all([
+  const [rows, stores, assignables] = await Promise.all([
     listTickets(user, { view, status, priority }),
     listStores(user),
+    listAssignableUsers(user),
   ]);
   const today = todayParis();
 
@@ -85,6 +90,10 @@ export default async function TicketsPage({
         </div>
         <CreateTicketDialog
           stores={stores.map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` }))}
+          assignables={assignables.map((a) => ({
+            id: a.id,
+            label: `${a.firstName} ${a.lastName}${a.pole ? ` · ${POLE_LABELS[a.pole]}` : ""}`,
+          }))}
         />
       </div>
 

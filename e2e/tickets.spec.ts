@@ -52,6 +52,40 @@ test("cycle de vie complet d'un ticket entre deux pôles", async ({ page }) => {
   await expect(page.getByTestId("ticket-status")).toHaveText("Validé");
 });
 
+test("un ticket confié à une personne précise naît affecté et la notifie", async ({
+  page,
+}) => {
+  // La RH crée un ticket vers la communication, confié directement à
+  // l'animateur — l'assignation n'est plus limitée au pôle destinataire.
+  await login(page, ACCOUNTS.rh);
+  await page.goto("/tickets");
+  await page.getByTestId("new-ticket-button").click();
+  await page.getByLabel("Objet").fill("Affiche recrutement saisonnier");
+  await page
+    .getByLabel("Description")
+    .fill("Merci de préparer l'affiche, Antoine a les photos.");
+  await page.getByTestId("ticket-topole").click();
+  await page.getByRole("option", { name: "Communication" }).click();
+  await page.getByTestId("ticket-assignee").click();
+  await page.getByRole("option", { name: "Antoine Animateur" }).click();
+  await page.getByRole("button", { name: "Créer le ticket" }).click();
+  await expect(page.getByText(/Ticket T-\d+ créé\./)).toBeVisible();
+
+  // Le ticket est directement « Affecté » au bon responsable.
+  const row = page.locator("tr", { hasText: "Affiche recrutement saisonnier" });
+  await expect(row.getByText("Affecté", { exact: true })).toBeVisible();
+  await expect(row.getByText("Antoine Animateur")).toBeVisible();
+
+  // L'animateur retrouve le ticket dans « Mes tickets » et est notifié.
+  await login(page, ACCOUNTS.animateur);
+  await page.goto("/tickets?vue=mine");
+  await expect(
+    page.getByRole("link", { name: "Affiche recrutement saisonnier" })
+  ).toBeVisible();
+  await page.goto("/notifications");
+  await expect(page.getByText(/affecté à vous/).first()).toBeVisible();
+});
+
 test("un ticket avec échéance passée est marqué en retard", async ({ page }) => {
   await login(page, ACCOUNTS.direction);
   await page.goto("/tickets");

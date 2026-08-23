@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, notInArray, or, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { fileAttachments, ticketComments, tickets, users } from "@/db/schema";
@@ -121,12 +121,17 @@ export async function getTicket(actor: SessionUser, ticketId: string) {
   return { ...ticket, attachments };
 }
 
-// Utilisateurs actifs d'un pôle (pour l'assignation).
-export async function listPoleMembers(actor: SessionUser, pole: Pole) {
+// Collaborateurs internes actifs (tous pôles confondus) : un ticket peut être
+// confié à une personne précise, pas seulement au pôle destinataire.
+export async function listAssignableUsers(actor: SessionUser) {
   assertCan(actor, "ticket:read");
   return db.query.users.findMany({
-    where: and(eq(users.pole, pole), eq(users.isActive, true)),
-    columns: { id: true, firstName: true, lastName: true },
+    where: and(
+      eq(users.isActive, true),
+      notInArray(users.role, ["FRANCHISE", "SALARIE"])
+    ),
+    columns: { id: true, firstName: true, lastName: true, pole: true },
+    orderBy: [asc(users.lastName), asc(users.firstName)],
   });
 }
 
@@ -156,11 +161,23 @@ export async function createTicket(
     storeId: string | null;
     priority: TicketRow["priority"];
     dueDate: string | null;
+    // Responsable désigné dès la création (optionnel) : le ticket naît AFFECTE.
+    assigneeId?: string | null;
     files: File[];
   }
 ) {
   assertCan(actor, "ticket:write");
   const fromPole = actor.pole ?? "DIRECTION";
+
+  let assigneeId: string | null = null;
+  if (input.assigneeId) {
+    const assignee = await db.query.users.findFirst({
+      where: eq(users.id, input.assigneeId),
+    });
+    if (!assignee || !assignee.isActive) throw new Error("Responsable invalide.");
+    assigneeId = assignee.id;
+  }
+
   const ticket = await auditedInsert({ id: actor.id }, tickets, {
     title: input.title,
     description: input.description,
@@ -170,15 +187,26 @@ export async function createTicket(
     priority: input.priority,
     dueDate: input.dueDate,
     requesterId: actor.id,
+    assigneeId,
+    status: assigneeId ? "AFFECTE" : "NOUVEAU",
   });
   for (const file of input.files) {
     await saveUpload(actor, file, { entityType: "TICKET", entityId: ticket.id });
   }
+  const number = `T-${String(ticket.number).padStart(6, "0")}`;
   await notifyPole(input.toPole, actor.id, {
-    title: `Nouveau ticket T-${String(ticket.number).padStart(6, "0")} : ${input.title}`,
+    title: `Nouveau ticket ${number} : ${input.title}`,
     body: `De ${actor.firstName} ${actor.lastName} (${fromPole})`,
     link: `/tickets/${ticket.id}`,
   });
+  if (assigneeId && assigneeId !== actor.id) {
+    await notify([assigneeId], {
+      type: "TICKET",
+      title: `Ticket ${number} affecté à vous`,
+      body: input.title,
+      link: `/tickets/${ticket.id}`,
+    });
+  }
   return ticket;
 }
 

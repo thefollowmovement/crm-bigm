@@ -50,6 +50,7 @@ export const createTicketAction = safeFormAction(
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide")
         .nullable(),
+      assigneeId: z.string().uuid().nullable(),
       files: filesField,
     }),
     prepare: (formData) => ({
@@ -59,6 +60,7 @@ export const createTicketAction = safeFormAction(
       storeId: nullable(formData.get("storeId")),
       priority: formData.get("priority"),
       dueDate: nullable(formData.get("dueDate")),
+      assigneeId: nullable(formData.get("assigneeId")),
       files: extractFiles(formData),
     }),
   },
