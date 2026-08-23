@@ -23,11 +23,17 @@ describe("matrice de permissions", () => {
     }
   });
 
-  it("ADMIN et DIRECTION ont toutes les permissions", () => {
+  it("ADMIN et DIRECTION ont toutes les permissions métier", () => {
     for (const role of ["ADMIN", "DIRECTION"] as const) {
-      for (const perm of PERMISSIONS.ADMIN) {
+      for (const perm of PERMISSIONS.DIRECTION) {
         expect(can({ role }, perm)).toBe(true);
       }
+    }
+  });
+
+  it("l'usurpation « se connecter en tant que » est réservée au seul ADMIN", () => {
+    for (const role of ROLES) {
+      expect(can({ role }, "user:impersonate")).toBe(role === "ADMIN");
     }
   });
 

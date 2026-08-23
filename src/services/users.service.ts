@@ -5,6 +5,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { users } from "@/db/schema";
 import { auditedInsert, auditedUpdate } from "@/lib/db/audited";
+import { logAuditEvent } from "@/lib/audit/log";
 import { hashPassword } from "@/lib/auth/password";
 import { invalidateAllUserSessions, type SessionUser } from "@/lib/auth/session";
 import { assertCan } from "@/lib/authz/guards";
@@ -82,6 +83,51 @@ export async function setUserActive(
     await invalidateAllUserSessions(userId);
   }
   return updated;
+}
+
+// Prépare une connexion « en tant que » (étape 28) : vérifie le droit et la
+// cible, journalise l'événement IMPERSONATE, et retourne la cible. La création
+// de session + cookie reste dans l'action (infrastructure auth).
+export async function startImpersonation(actor: SessionUser, targetUserId: string) {
+  assertCan(actor, "user:impersonate");
+  if (actor.id === targetUserId) {
+    throw new Error("Vous êtes déjà connecté avec ce compte.");
+  }
+  if (actor.impersonatorUserId) {
+    throw new Error(
+      "Vous êtes déjà connecté en tant qu'un autre utilisateur : revenez d'abord à votre compte."
+    );
+  }
+  const target = await db.query.users.findFirst({
+    where: eq(users.id, targetUserId),
+    columns: { passwordHash: false },
+  });
+  if (!target) throw new Error("Utilisateur introuvable.");
+  if (!target.isActive) {
+    throw new Error("Impossible de se connecter en tant qu'un compte désactivé.");
+  }
+  await logAuditEvent({
+    userId: actor.id,
+    action: "IMPERSONATE",
+    tableName: "users",
+    recordId: target.id,
+    snapshot: { phase: "DEBUT", email: target.email },
+  });
+  return target;
+}
+
+// Journalise la fin d'une usurpation (retour au compte admin).
+export async function logImpersonationEnd(
+  impersonatorId: string,
+  targetUserId: string
+) {
+  await logAuditEvent({
+    userId: impersonatorId,
+    action: "IMPERSONATE",
+    tableName: "users",
+    recordId: targetUserId,
+    snapshot: { phase: "FIN" },
+  });
 }
 
 export async function resetUserPassword(

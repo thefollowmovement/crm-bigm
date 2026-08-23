@@ -344,4 +344,5 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   DOWNLOAD: "Téléchargement",
   IMPORT: "Import",
   REVEAL: "Révélation de secret",
+  IMPERSONATE: "Connexion en tant que",
 };

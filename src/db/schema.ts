@@ -192,6 +192,8 @@ export const auditActionEnum = pgEnum("audit_action", [
   // valeurs ajoutées EN FIN de tableau uniquement (ALTER TYPE … ADD VALUE)
   // REVEAL : révélation d'un secret du coffre-fort (étape 27)
   "REVEAL",
+  // IMPERSONATE : connexion « en tant que » par un administrateur (étape 28)
+  "IMPERSONATE",
 ]);
 
 export const attachmentEntityEnum = pgEnum("attachment_entity", [
@@ -262,6 +264,7 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
+    phone: text("phone"),
     role: roleEnum("role").notNull(),
     pole: poleEnum("pole"),
     franchiseeId: uuid("franchisee_id").references(() => franchisees.id),
@@ -290,6 +293,10 @@ export const sessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     ip: text("ip"),
     userAgent: text("user_agent"),
+    // Renseigné quand un admin est connecté « en tant que » userId (étape 28).
+    impersonatorUserId: uuid("impersonator_user_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
   },
   (t) => [index("sessions_user_idx").on(t.userId)]
 );

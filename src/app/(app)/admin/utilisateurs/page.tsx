@@ -46,6 +46,7 @@ export default async function UtilisateursPage() {
         }))}
         franchisees={allFranchisees}
         currentUserId={user.id}
+        canImpersonate={can(user, "user:impersonate")}
       />
     </div>
   );

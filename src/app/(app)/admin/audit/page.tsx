@@ -31,6 +31,8 @@ const ACTION_VALUES = [
   "LOGOUT",
   "DOWNLOAD",
   "IMPORT",
+  "REVEAL",
+  "IMPERSONATE",
 ] as const;
 
 function actionBadgeVariant(action: string) {

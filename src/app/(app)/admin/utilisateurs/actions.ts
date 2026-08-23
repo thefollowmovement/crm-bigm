@@ -1,13 +1,26 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { db } from "@/lib/db/client";
+import { users } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current-user";
 import {
+  SESSION_COOKIE,
+  createSession,
+  invalidateSessionToken,
+  setSessionCookie,
+} from "@/lib/auth/session";
+import {
   createUser,
+  logImpersonationEnd,
   resetUserPassword,
   setUserActive,
+  startImpersonation,
   updateUser,
 } from "@/services/users.service";
 
@@ -137,6 +150,67 @@ export async function setUserActiveAction(
     success:
       parsed.data.isActive === "true" ? "Compte réactivé." : "Compte désactivé.",
   };
+}
+
+// Connexion « en tant que » : remplace la session courante par une session
+// au nom de la cible, en mémorisant l'admin d'origine (bannière + retour).
+export async function impersonateAction(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const actor = await requireUser();
+  const parsed = z.object({ userId: z.string().uuid() }).safeParse({
+    userId: formData.get("userId"),
+  });
+  if (!parsed.success) return { error: "Saisie invalide" };
+
+  let targetId: string;
+  try {
+    const target = await startImpersonation(actor, parsed.data.userId);
+    targetId = target.id;
+  } catch (e) {
+    return { error: errorMessage(e) };
+  }
+
+  const store = await cookies();
+  const currentToken = store.get(SESSION_COOKIE)?.value;
+  if (currentToken) await invalidateSessionToken(currentToken);
+  const h = await headers();
+  const { token, expiresAt } = await createSession(targetId, {
+    ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    userAgent: h.get("user-agent"),
+    impersonatorUserId: actor.id,
+  });
+  await setSessionCookie(token, expiresAt);
+  redirect("/");
+}
+
+// Fin d'usurpation : détruit la session usurpée et reconnecte l'admin.
+export async function exitImpersonationAction() {
+  const user = await requireUser();
+  if (!user.impersonatorUserId) redirect("/");
+
+  const impersonator = await db.query.users.findFirst({
+    where: eq(users.id, user.impersonatorUserId),
+    columns: { id: true, isActive: true },
+  });
+
+  const store = await cookies();
+  const currentToken = store.get(SESSION_COOKIE)?.value;
+  if (currentToken) await invalidateSessionToken(currentToken);
+
+  if (!impersonator || !impersonator.isActive) {
+    // L'admin d'origine n'existe plus : retour à l'écran de connexion.
+    redirect("/connexion");
+  }
+  const h = await headers();
+  const { token, expiresAt } = await createSession(impersonator.id, {
+    ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    userAgent: h.get("user-agent"),
+  });
+  await setSessionCookie(token, expiresAt);
+  await logImpersonationEnd(impersonator.id, user.id);
+  redirect("/admin/utilisateurs");
 }
 
 export async function resetPasswordAction(

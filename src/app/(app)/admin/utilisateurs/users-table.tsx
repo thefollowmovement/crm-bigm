@@ -1,7 +1,14 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { KeyRound, Pencil, Plus, UserRoundX, UserRoundCheck } from "lucide-react";
+import {
+  KeyRound,
+  LogIn,
+  Pencil,
+  Plus,
+  UserRoundX,
+  UserRoundCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +42,7 @@ import { POLE_LABELS, ROLE_LABELS } from "@/lib/labels";
 
 import {
   createUserAction,
+  impersonateAction,
   resetPasswordAction,
   setUserActiveAction,
   updateUserAction,
@@ -276,6 +284,29 @@ function ResetPasswordDialog({ user }: { user: UserRow }) {
   );
 }
 
+// « Se connecter en tant que » : bascule la session sur le compte choisi
+// (bannière de retour dans le layout). En cas de succès l'action redirige.
+function ImpersonateButton({ user }: { user: UserRow }) {
+  const [state, formAction, pending] = useActionState(impersonateAction, {});
+  useActionToast(state);
+
+  return (
+    <form action={formAction} className="inline">
+      <input type="hidden" name="userId" value={user.id} />
+      <Button
+        variant="ghost"
+        size="icon"
+        type="submit"
+        disabled={pending}
+        title={`Se connecter en tant que ${user.firstName} ${user.lastName}`}
+        data-testid={`impersonate-${user.email}`}
+      >
+        <LogIn />
+      </Button>
+    </form>
+  );
+}
+
 function ToggleActiveButton({
   user,
   disabled,
@@ -308,10 +339,12 @@ export function UsersTable({
   users,
   franchisees,
   currentUserId,
+  canImpersonate,
 }: {
   users: UserRow[];
   franchisees: FranchiseeOption[];
   currentUserId: string;
+  canImpersonate: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -356,6 +389,9 @@ export function UsersTable({
                   )}
                 </TableCell>
                 <TableCell className="text-right">
+                  {canImpersonate && u.isActive && u.id !== currentUserId ? (
+                    <ImpersonateButton user={u} />
+                  ) : null}
                   <EditUserDialog user={u} franchisees={franchisees} />
                   <ResetPasswordDialog user={u} />
                   <ToggleActiveButton user={u} disabled={u.id === currentUserId} />

@@ -65,6 +65,7 @@ export type Permission =
   | "vault:read"
   | "vault:write"
   | "user:manage"
+  | "user:impersonate"
   | "audit:read";
 
 export type Role = SessionUser["role"];
@@ -132,7 +133,9 @@ const ALL: readonly Permission[] = [
 ];
 
 export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
-  ADMIN: new Set(ALL),
+  // L'usurpation d'identité (« se connecter en tant que ») est volontairement
+  // hors de ALL : réservée au seul ADMIN, jamais héritée par la DIRECTION.
+  ADMIN: new Set([...ALL, "user:impersonate"]),
   DIRECTION: new Set(ALL),
   COMPTABILITE: new Set([
     "store:read",

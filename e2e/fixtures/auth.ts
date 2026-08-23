@@ -12,6 +12,8 @@ export const ACCOUNTS = {
   franchise: { email: "franchise@bigm.fr", password: "Test1234!" },
   salarie: { email: "salarie@bigm.fr", password: "Test1234!" },
   inactif: { email: "inactif@bigm.fr", password: "Test1234!" },
+  // Réservé au parcours « Mon compte » : e-mail/mot de passe modifiés en test.
+  profil: { email: "profil@bigm.fr", password: "Test1234!" },
 } as const;
 
 export async function login(

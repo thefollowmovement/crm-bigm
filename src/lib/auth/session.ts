@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { sessions, users } from "@/db/schema";
@@ -25,7 +25,11 @@ export function generateToken(): string {
 
 export async function createSession(
   userId: string,
-  meta: { ip?: string | null; userAgent?: string | null } = {}
+  meta: {
+    ip?: string | null;
+    userAgent?: string | null;
+    impersonatorUserId?: string | null;
+  } = {}
 ) {
   const token = generateToken();
   const expiresAt = new Date(Date.now() + durationMs());
@@ -35,6 +39,7 @@ export async function createSession(
     expiresAt,
     ip: meta.ip ?? null,
     userAgent: meta.userAgent ?? null,
+    impersonatorUserId: meta.impersonatorUserId ?? null,
   });
   return { token, expiresAt };
 }
@@ -47,6 +52,9 @@ export type SessionUser = {
   role: (typeof users.$inferSelect)["role"];
   pole: (typeof users.$inferSelect)["pole"];
   franchiseeId: string | null;
+  // Id de l'admin réellement connecté quand la session est une usurpation
+  // « se connecter en tant que » (étape 28). Absent sinon.
+  impersonatorUserId?: string | null;
 };
 
 export async function validateSessionToken(
@@ -81,6 +89,7 @@ export async function validateSessionToken(
     role: user.role,
     pole: user.pole,
     franchiseeId: user.franchiseeId,
+    impersonatorUserId: row.impersonatorUserId ?? null,
   };
 }
 
@@ -90,6 +99,18 @@ export async function invalidateSessionToken(token: string) {
 
 export async function invalidateAllUserSessions(userId: string) {
   await db.delete(sessions).where(eq(sessions.userId, userId));
+}
+
+// Déconnecte tous les appareils SAUF la session donnée (id = hash du token) :
+// utilisé au changement de mot de passe pour garder l'utilisateur connecté ici.
+export async function invalidateOtherUserSessions(
+  userId: string,
+  keepSessionId: string | null
+) {
+  const byUser = eq(sessions.userId, userId);
+  await db
+    .delete(sessions)
+    .where(keepSessionId ? and(byUser, ne(sessions.id, keepSessionId)) : byUser);
 }
 
 export async function setSessionCookie(token: string, expiresAt: Date) {

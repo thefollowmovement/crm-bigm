@@ -161,6 +161,17 @@ async function main() {
     pole: "DEVELOPPEMENT",
   });
 
+  // Compte « bac à sable » du parcours Mon compte (e2e) : son e-mail et son
+  // mot de passe peuvent être modifiés par les tests sans impacter les autres.
+  await upsertUser({
+    email: "profil@bigm.fr",
+    password: demoPassword,
+    firstName: "Paule",
+    lastName: "Profil",
+    role: "ANIMATION",
+    pole: "ANIMATION",
+  });
+
   // Compte désactivé pour les tests e2e
   const inactive = await upsertUser({
     email: "inactif@bigm.fr",
