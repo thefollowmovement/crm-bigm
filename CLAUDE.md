@@ -62,6 +62,9 @@ PostgreSQL 16 + **Drizzle ORM** + Tailwind v4 + composants shadcn maison (`src/c
 
 ## État du projet (source de vérité pour reprendre le dev, même sans contexte)
 
+> Cartographie complète de l'application (pages, permissions, tables, jobs,
+> rôles) : `docs/CARTOGRAPHIE.md`.
+
 **V1 LIVRÉE** (backlog « Phase 0 Socle + Phase 1 Cœur d'usage » du cahier des
 charges, cf. commits « Étape 1 » à « Étape 11 ») : auth sessions DB + admin
 utilisateurs · RBAC (matrice `authz/permissions.ts`, rôle FRANCHISE scopé à ses
