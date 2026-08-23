@@ -166,6 +166,13 @@ export async function canDownloadFile(
       if (!can(user, "development:read")) return deny;
       return { allowed: true, audit: false };
     }
+    case "STORE_PHOTO": {
+      // Photo de la fiche boutique : visible de qui voit la boutique
+      // (franchisé scopé à ses boutiques) ; pas d'audit (affichée en liste).
+      if (!can(user, "store:read")) return deny;
+      if (!(await storeAllowed(user, attachment.entityId))) return deny;
+      return { allowed: true, audit: false };
+    }
     case "EMPLOYEE": {
       // Dossier RH : RH/direction, ou le salarié lui-même (compte lié).
       const employee = await db.query.employees.findFirst({

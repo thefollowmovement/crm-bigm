@@ -36,12 +36,52 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { StoreForm } from "../store-form";
 import { loadStoreFormOptions } from "../form-options";
+import { StorePhotoCard } from "./photo-card";
 import { PlatformsEditor } from "./platforms-editor";
 import { StoreAnimationTab } from "./animation-tab";
 import { StorePurchasesTab } from "./purchases-tab";
 import { StoreRentabilityTab } from "./rentability-tab";
 
 export const metadata: Metadata = { title: "Fiche boutique" };
+
+// Carte OpenStreetMap embarquée (chargée par le navigateur, aucun appel
+// réseau au build) + lien vers la carte complète.
+function StoreMap({ latitude, longitude }: { latitude: string; longitude: string }) {
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  const d = 0.005;
+  const bbox = `${lon - d},${lat - d},${lon + d},${lat + d}`;
+  const embed = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
+    bbox
+  )}&layer=mapnik&marker=${lat},${lon}`;
+  const link = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
+
+  return (
+    <div className="space-y-2">
+      <iframe
+        src={embed}
+        title="Carte OpenStreetMap"
+        className="h-48 w-full rounded-lg border"
+        loading="lazy"
+        data-testid="osm-map"
+      />
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">
+          {latitude}, {longitude}
+        </span>
+        <a
+          href={link}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-brand underline-offset-2 hover:underline"
+          data-testid="osm-link"
+        >
+          Voir sur OpenStreetMap →
+        </a>
+      </div>
+    </div>
+  );
+}
 
 function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -141,6 +181,37 @@ export default async function FicheBoutiquePage({
         </TabsList>
 
         <TabsContent value="infos" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Photo</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StorePhotoCard
+                  storeId={store.id}
+                  photoFileId={store.photoFileId}
+                  storeName={dto.name}
+                  canWrite={canWrite}
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Localisation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {dto.latitude && dto.longitude ? (
+                  <StoreMap latitude={dto.latitude} longitude={dto.longitude} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Coordonnées GPS non renseignées
+                    {canWrite ? " — ajoutez-les dans le formulaire ci-dessous." : "."}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle>Informations</CardTitle>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ImageOff, Plus } from "lucide-react";
 
 import { requireUser } from "@/lib/auth/current-user";
 import { can } from "@/lib/authz/permissions";
@@ -84,6 +84,7 @@ export default async function BoutiquesPage({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-20">Photo</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Nom</TableHead>
               <TableHead>Type</TableHead>
@@ -96,13 +97,31 @@ export default async function BoutiquesPage({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                   Aucune boutique.
                 </TableCell>
               </TableRow>
             ) : (
               rows.map((store) => (
                 <TableRow key={store.id} data-testid={`store-row-${store.code}`}>
+                  <TableCell>
+                    {store.photoFileId ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`/api/files/${store.photoFileId}`}
+                        alt={`Photo de ${store.name}`}
+                        className="h-10 w-14 rounded-md border object-cover"
+                        data-testid={`store-photo-thumb-${store.code}`}
+                      />
+                    ) : (
+                      <div
+                        className="flex h-10 w-14 items-center justify-center rounded-md border border-dashed text-muted-foreground"
+                        aria-hidden
+                      >
+                        <ImageOff className="h-4 w-4" />
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Link
                       href={`/boutiques/${store.id}`}

@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { storePlatforms, stores } from "@/db/schema";
+import { fileAttachments, storePlatforms, stores } from "@/db/schema";
 import { auditedDelete, auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import {
   ForbiddenError,
@@ -12,6 +12,7 @@ import {
   assertStoreAccess,
 } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
+import { saveUpload } from "@/lib/files/storage";
 
 type StoreInsert = typeof stores.$inferInsert;
 
@@ -42,7 +43,7 @@ export async function listStores(actor: SessionUser, filters: StoreFilters = {})
   if (filters.type) conditions.push(eq(stores.type, filters.type));
   if (filters.status) conditions.push(eq(stores.status, filters.status));
 
-  return db.query.stores.findMany({
+  const rows = await db.query.stores.findMany({
     where: conditions.length ? and(...conditions) : undefined,
     orderBy: [asc(stores.code)],
     with: {
@@ -50,6 +51,21 @@ export async function listStores(actor: SessionUser, filters: StoreFilters = {})
       animateur: { columns: { id: true, firstName: true, lastName: true } },
     },
   });
+  const photos = await storePhotoIds(rows.map((r) => r.id));
+  return rows.map((r) => ({ ...r, photoFileId: photos.get(r.id) ?? null }));
+}
+
+// Photo courante de chaque boutique (au plus une pièce jointe STORE_PHOTO).
+async function storePhotoIds(storeIds: string[]): Promise<Map<string, string>> {
+  if (storeIds.length === 0) return new Map();
+  const rows = await db.query.fileAttachments.findMany({
+    where: and(
+      eq(fileAttachments.entityType, "STORE_PHOTO"),
+      inArray(fileAttachments.entityId, storeIds)
+    ),
+    columns: { id: true, entityId: true },
+  });
+  return new Map(rows.map((r) => [r.entityId as string, r.id]));
 }
 
 export async function getStore(actor: SessionUser, storeId: string) {
@@ -63,7 +79,9 @@ export async function getStore(actor: SessionUser, storeId: string) {
       platforms: true,
     },
   });
-  return store ?? null;
+  if (!store) return null;
+  const photos = await storePhotoIds([store.id]);
+  return { ...store, photoFileId: photos.get(store.id) ?? null };
 }
 
 export type StoreInput = {
@@ -77,6 +95,8 @@ export type StoreInput = {
   postalCode: string | null;
   city: string | null;
   region: string | null;
+  latitude: string | null;
+  longitude: string | null;
   phone: string | null;
   email: string | null;
   siret: string | null;
@@ -124,6 +144,45 @@ export async function updateStore(
     delete input.internalNotes;
   }
   return auditedUpdate({ id: actor.id }, stores, storeId, input);
+}
+
+// ── Photo de la boutique ─────────────────────────────────────────
+
+const PHOTO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+// Remplace la photo de la fiche (au plus une par boutique) : l'ancienne
+// pièce jointe est supprimée (audité), la nouvelle enregistrée en STORE_PHOTO.
+export async function setStorePhoto(
+  actor: SessionUser,
+  storeId: string,
+  file: File
+) {
+  assertCan(actor, "store:write");
+  const store = await db.query.stores.findFirst({ where: eq(stores.id, storeId) });
+  if (!store) throw new Error("Boutique introuvable.");
+  if (!PHOTO_MIME_TYPES.has(file.type)) {
+    throw new Error("La photo doit être une image JPG, PNG ou WebP.");
+  }
+  await removeExistingPhoto(actor, storeId);
+  return saveUpload(actor, file, { entityType: "STORE_PHOTO", entityId: storeId });
+}
+
+export async function removeStorePhoto(actor: SessionUser, storeId: string) {
+  assertCan(actor, "store:write");
+  await removeExistingPhoto(actor, storeId);
+}
+
+async function removeExistingPhoto(actor: SessionUser, storeId: string) {
+  const existing = await db.query.fileAttachments.findMany({
+    where: and(
+      eq(fileAttachments.entityType, "STORE_PHOTO"),
+      eq(fileAttachments.entityId, storeId)
+    ),
+    columns: { id: true },
+  });
+  for (const attachment of existing) {
+    await auditedDelete({ id: actor.id }, fileAttachments, attachment.id);
+  }
 }
 
 // ── Plateformes de livraison ─────────────────────────────────────

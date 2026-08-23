@@ -215,6 +215,8 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "OPENING_STEP",
   "PROSPECT",
   "PREMISES",
+  // STORE_PHOTO : photo de la fiche boutique (étape 29)
+  "STORE_PHOTO",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -343,6 +345,9 @@ export const stores = pgTable(
     postalCode: text("postal_code"),
     city: text("city"),
     region: text("region"),
+    // Coordonnées GPS (lien/carte OpenStreetMap sur la fiche)
+    latitude: numeric("latitude", { precision: 9, scale: 6 }),
+    longitude: numeric("longitude", { precision: 9, scale: 6 }),
     phone: text("phone"),
     email: text("email"),
     siret: text("siret"),

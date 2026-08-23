@@ -20,6 +20,8 @@ export type StoreDTO = {
   postalCode: string | null;
   city: string | null;
   region: string | null;
+  latitude: string | null;
+  longitude: string | null;
   phone: string | null;
   email: string | null;
   siret: string | null;
@@ -42,6 +44,8 @@ export function toStoreDTO(store: StoreRow, user: SessionUser): StoreDTO {
     postalCode: store.postalCode,
     city: store.city,
     region: store.region,
+    latitude: store.latitude,
+    longitude: store.longitude,
     phone: store.phone,
     email: store.email,
     siret: store.siret,

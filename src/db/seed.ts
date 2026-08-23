@@ -226,6 +226,8 @@ async function main() {
       city: "Lyon",
       postalCode: "69003",
       region: "Auvergne-Rhône-Alpes",
+      latitude: "45.760500",
+      longitude: "4.857800",
       openingDate: "2022-03-15",
     },
     {
@@ -250,6 +252,8 @@ async function main() {
       city: "Paris",
       postalCode: "75011",
       region: "Île-de-France",
+      latitude: "48.853100",
+      longitude: "2.369100",
       openingDate: "2021-09-01",
     },
     {

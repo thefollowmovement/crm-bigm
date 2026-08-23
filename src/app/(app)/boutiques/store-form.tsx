@@ -157,6 +157,26 @@ export function StoreForm({
           <Input id="region" name="region" defaultValue={store?.region ?? ""} />
         </div>
         <div className="space-y-1.5">
+          <Label htmlFor="latitude">Latitude (GPS)</Label>
+          <Input
+            id="latitude"
+            name="latitude"
+            placeholder="45.764000"
+            defaultValue={store?.latitude ?? ""}
+            data-testid="store-latitude"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="longitude">Longitude (GPS)</Label>
+          <Input
+            id="longitude"
+            name="longitude"
+            placeholder="4.835700"
+            defaultValue={store?.longitude ?? ""}
+            data-testid="store-longitude"
+          />
+        </div>
+        <div className="space-y-1.5">
           <Label htmlFor="siret">SIRET</Label>
           <Input id="siret" name="siret" defaultValue={store?.siret ?? ""} />
         </div>

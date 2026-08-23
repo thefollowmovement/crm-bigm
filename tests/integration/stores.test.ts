@@ -160,6 +160,8 @@ function baseInput(
     postalCode: null,
     city: null,
     region: null,
+    latitude: null,
+    longitude: null,
     phone: null,
     email: null,
     siret: null,
