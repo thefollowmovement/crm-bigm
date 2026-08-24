@@ -31,6 +31,10 @@ COPY --from=builder /app/public ./public
 
 # Migrations Drizzle appliquées au démarrage (scripts/db.mjs migrate) :
 # le dossier drizzle/ + drizzle-orm + pg sont nécessaires au runtime.
+# pg et @node-rs/argon2 sont tracés dans le standalone, mais drizzle-orm est
+# bundlé dans le build Next (absent de node_modules) : on le copie depuis
+# l'étape deps (aucune dépendance transitive — vérifié, deps: {}).
+COPY --from=deps /app/node_modules/drizzle-orm ./node_modules/drizzle-orm
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/scripts/db.mjs ./scripts/db.mjs
 COPY --from=builder /app/scripts/create-admin.mjs ./scripts/create-admin.mjs
