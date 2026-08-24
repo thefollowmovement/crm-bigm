@@ -60,10 +60,13 @@ type UserRow = {
   franchiseeId: string | null;
   franchiseeName: string | null;
   franchisorMember: boolean;
+  customRoleId: string | null;
+  customRoleName: string | null;
   isActive: boolean;
 };
 
 type FranchiseeOption = { id: string; companyName: string };
+type CustomRoleOption = { id: string; name: string; baseRole: string };
 
 function useActionToast(state: ActionState, onSuccess?: () => void) {
   useEffect(() => {
@@ -79,11 +82,19 @@ function useActionToast(state: ActionState, onSuccess?: () => void) {
 function RoleFields({
   defaults,
   franchisees,
+  customRoles,
 }: {
   defaults?: Partial<UserRow>;
   franchisees: FranchiseeOption[];
+  customRoles: CustomRoleOption[];
 }) {
-  const [role, setRole] = useState(defaults?.role ?? "ANIMATION");
+  const [role, setRole] = useState(
+    defaults?.customRoleId ? `custom:${defaults.customRoleId}` : (defaults?.role ?? "ANIMATION")
+  );
+  // Rôle de base effectif (pour les champs conditionnels type « franchisé »).
+  const effectiveBase = role.startsWith("custom:")
+    ? (customRoles.find((r) => `custom:${r.id}` === role)?.baseRole ?? "ANIMATION")
+    : role;
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -117,6 +128,11 @@ function RoleFields({
               {Object.entries(ROLE_LABELS).map(([value, label]) => (
                 <SelectItem key={value} value={value}>
                   {label}
+                </SelectItem>
+              ))}
+              {customRoles.map((r) => (
+                <SelectItem key={r.id} value={`custom:${r.id}`}>
+                  {r.name} (personnalisé)
                 </SelectItem>
               ))}
             </SelectContent>
@@ -156,7 +172,7 @@ function RoleFields({
           </span>
         </span>
       </label>
-      {role === "FRANCHISE" ? (
+      {effectiveBase === "FRANCHISE" ? (
         <div className="space-y-1.5">
           <Label>Franchisé rattaché</Label>
           <Select
@@ -183,7 +199,13 @@ function RoleFields({
   );
 }
 
-function CreateUserDialog({ franchisees }: { franchisees: FranchiseeOption[] }) {
+function CreateUserDialog({
+  franchisees,
+  customRoles,
+}: {
+  franchisees: FranchiseeOption[];
+  customRoles: CustomRoleOption[];
+}) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createUserAction, {});
   useActionToast(state, () => setOpen(false));
@@ -217,7 +239,7 @@ function CreateUserDialog({ franchisees }: { franchisees: FranchiseeOption[] }) 
               minLength={10}
             />
           </div>
-          <RoleFields franchisees={franchisees} />
+          <RoleFields franchisees={franchisees} customRoles={customRoles} />
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Création…" : "Créer l'utilisateur"}
           </Button>
@@ -230,9 +252,11 @@ function CreateUserDialog({ franchisees }: { franchisees: FranchiseeOption[] }) 
 function EditUserDialog({
   user,
   franchisees,
+  customRoles,
 }: {
   user: UserRow;
   franchisees: FranchiseeOption[];
+  customRoles: CustomRoleOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(updateUserAction, {});
@@ -252,7 +276,7 @@ function EditUserDialog({
         </DialogHeader>
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="userId" value={user.id} />
-          <RoleFields defaults={user} franchisees={franchisees} />
+          <RoleFields defaults={user} franchisees={franchisees} customRoles={customRoles} />
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Enregistrement…" : "Enregistrer"}
           </Button>
@@ -357,18 +381,20 @@ function ToggleActiveButton({
 export function UsersTable({
   users,
   franchisees,
+  customRoles,
   currentUserId,
   canImpersonate,
 }: {
   users: UserRow[];
   franchisees: FranchiseeOption[];
+  customRoles: CustomRoleOption[];
   currentUserId: string;
   canImpersonate: boolean;
 }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <CreateUserDialog franchisees={franchisees} />
+        <CreateUserDialog franchisees={franchisees} customRoles={customRoles} />
       </div>
       <div className="rounded-xl border bg-card">
         <Table>
@@ -395,7 +421,9 @@ export function UsersTable({
                 </TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{ROLE_LABELS[u.role] ?? u.role}</Badge>
+                  <Badge variant="secondary">
+                    {u.customRoleName ?? ROLE_LABELS[u.role] ?? u.role}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {u.pole ? POLE_LABELS[u.pole] : "—"}
@@ -411,7 +439,11 @@ export function UsersTable({
                   {canImpersonate && u.isActive && u.id !== currentUserId ? (
                     <ImpersonateButton user={u} />
                   ) : null}
-                  <EditUserDialog user={u} franchisees={franchisees} />
+                  <EditUserDialog
+                    user={u}
+                    franchisees={franchisees}
+                    customRoles={customRoles}
+                  />
                   <ResetPasswordDialog user={u} />
                   <ToggleActiveButton user={u} disabled={u.id === currentUserId} />
                 </TableCell>

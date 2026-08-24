@@ -6,6 +6,7 @@ import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
+  customRolePermissions,
   permissionOverrides as permissionOverridesTable,
   sessions,
   users,
@@ -60,8 +61,11 @@ export type SessionUser = {
   // Id de l'admin réellement connecté quand la session est une usurpation
   // « se connecter en tant que » (étape 28). Absent sinon.
   impersonatorUserId?: string | null;
-  // Écarts de droits posés à chaud pour le rôle (étape 30) — voir can().
+  // Écarts de droits posés à chaud (étape 30) fusionnés avec ceux du rôle
+  // personnalisé éventuel (étape 35, prioritaire) — voir can().
   permissionOverrides?: PermissionOverrideMap;
+  // Rôle personnalisé assigné (étape 35) ; `role` reste son rôle de base.
+  customRoleId?: string | null;
   // Membre de l'entité FRANCHISEUR « Big M CIE » (étape 34) : accès aux
   // dossiers RH rattachés au siège.
   franchisorMember?: boolean;
@@ -101,21 +105,39 @@ export async function validateSessionToken(
     franchiseeId: user.franchiseeId,
     franchisorMember: user.franchisorMember,
     impersonatorUserId: row.impersonatorUserId ?? null,
-    permissionOverrides: await loadPermissionOverrides(user.role),
+    customRoleId: user.customRoleId ?? null,
+    permissionOverrides: await loadPermissionOverrides(
+      user.role,
+      user.customRoleId
+    ),
   };
 }
 
-// Écarts de droits du rôle (étape 30). ADMIN est immunisé : pas de requête.
+// Écarts de droits appliqués à la session (étape 30 + étape 35) : ceux du
+// rôle de base, surchargés par ceux du rôle personnalisé éventuel.
+// ADMIN est immunisé : pas de requête.
 async function loadPermissionOverrides(
-  role: (typeof users.$inferSelect)["role"]
+  role: (typeof users.$inferSelect)["role"],
+  customRoleId: string | null
 ): Promise<PermissionOverrideMap | undefined> {
   if (role === "ADMIN") return undefined;
-  const rows = await db.query.permissionOverrides.findMany({
-    where: eq(permissionOverridesTable.role, role),
-    columns: { permission: true, allowed: true },
-  });
-  if (rows.length === 0) return undefined;
-  return Object.fromEntries(rows.map((r) => [r.permission, r.allowed]));
+  const [roleRows, customRows] = await Promise.all([
+    db.query.permissionOverrides.findMany({
+      where: eq(permissionOverridesTable.role, role),
+      columns: { permission: true, allowed: true },
+    }),
+    customRoleId
+      ? db.query.customRolePermissions.findMany({
+          where: eq(customRolePermissions.customRoleId, customRoleId),
+          columns: { permission: true, allowed: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  if (roleRows.length === 0 && customRows.length === 0) return undefined;
+  return {
+    ...Object.fromEntries(roleRows.map((r) => [r.permission, r.allowed])),
+    ...Object.fromEntries(customRows.map((r) => [r.permission, r.allowed])),
+  };
 }
 
 export async function invalidateSessionToken(token: string) {

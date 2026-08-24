@@ -9,9 +9,15 @@ import {
 } from "@/lib/authz/permissions";
 import { PERMISSION_LABELS, ROLE_LABELS } from "@/lib/labels";
 import { listPermissionOverrides } from "@/services/permissions.service";
+import { listCustomRoles } from "@/services/custom-roles.service";
 import { AccessDenied } from "@/components/access-denied";
 
-import { PermissionsMatrix, type MatrixRow } from "./permissions-matrix";
+import { CustomRolesManager } from "./custom-roles-manager";
+import {
+  PermissionsMatrix,
+  type MatrixColumn,
+  type MatrixRow,
+} from "./permissions-matrix";
 
 export const metadata: Metadata = { title: "Droits d'accès" };
 
@@ -31,23 +37,55 @@ export default async function PermissionsPage() {
   const user = await requireUser();
   if (!can(user, "permission:manage")) return <AccessDenied />;
 
-  const overrides = await listPermissionOverrides(user);
+  const [overrides, customRoles] = await Promise.all([
+    listPermissionOverrides(user),
+    listCustomRoles(user),
+  ]);
   const overrideMap = new Map(
     overrides.map((o) => [`${o.role}:${o.permission}`, o.allowed])
+  );
+
+  const columns: MatrixColumn[] = [
+    ...EDITABLE_ROLES.map((role) => ({
+      value: role as string,
+      label: ROLE_LABELS[role] ?? role,
+      kind: "base" as const,
+      testKey: role as string,
+    })),
+    ...customRoles.map((role) => ({
+      value: role.id,
+      label: role.name,
+      kind: "custom" as const,
+      testKey: role.name,
+    })),
+  ];
+
+  const customOverrideMaps = new Map(
+    customRoles.map((role) => [
+      role.id,
+      new Map(role.permissions.map((p) => [p.permission, p.allowed])),
+    ])
   );
 
   const rows: MatrixRow[] = ALL_PERMISSIONS.map((permission) => ({
     permission,
     label: PERMISSION_LABELS[permission] ?? permission,
-    cells: Object.fromEntries(
-      EDITABLE_ROLES.map((role) => [
+    cells: Object.fromEntries([
+      ...EDITABLE_ROLES.map((role) => [
         role,
         {
           defaultValue: PERMISSIONS[role].has(permission),
           override: overrideMap.get(`${role}:${permission}`) ?? null,
         },
-      ])
-    ),
+      ]),
+      ...customRoles.map((role) => [
+        role.id,
+        {
+          defaultValue: PERMISSIONS[role.baseRole].has(permission),
+          override: customOverrideMaps.get(role.id)?.get(permission) ?? null,
+        },
+      ]),
+    ]),
   }));
 
   return (
@@ -58,16 +96,23 @@ export default async function PermissionsPage() {
           Accordez ou retirez une permission à un type de compte, à effet
           immédiat. Les cases surlignées sont des écarts par rapport à la
           matrice par défaut ; recocher la valeur d&apos;origine supprime
-          l&apos;écart. Le rôle ADMIN conserve toujours tous les droits.
+          l&apos;écart. Le rôle ADMIN conserve toujours tous les droits. Créez
+          des rôles personnalisés (basés sur un rôle existant) puis
+          assignez-les depuis Utilisateurs.
         </p>
       </div>
-      <PermissionsMatrix
-        roles={EDITABLE_ROLES.map((r) => ({
+      <CustomRolesManager
+        baseRoles={EDITABLE_ROLES.map((r) => ({
           value: r,
           label: ROLE_LABELS[r] ?? r,
         }))}
-        rows={rows}
+        customRoles={customRoles.map((r) => ({
+          id: r.id,
+          name: r.name,
+          baseRoleLabel: ROLE_LABELS[r.baseRole] ?? r.baseRole,
+        }))}
       />
+      <PermissionsMatrix roles={columns} rows={rows} />
     </div>
   );
 }

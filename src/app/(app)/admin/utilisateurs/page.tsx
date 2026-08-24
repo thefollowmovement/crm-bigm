@@ -6,6 +6,7 @@ import { can } from "@/lib/authz/permissions";
 import { db } from "@/lib/db/client";
 import { franchisees } from "@/db/schema";
 import { listUsers } from "@/services/users.service";
+import { listCustomRoles } from "@/services/custom-roles.service";
 import { AccessDenied } from "@/components/access-denied";
 
 import { UsersTable } from "./users-table";
@@ -16,12 +17,13 @@ export default async function UtilisateursPage() {
   const user = await requireUser();
   if (!can(user, "user:manage")) return <AccessDenied />;
 
-  const [allUsers, allFranchisees] = await Promise.all([
+  const [allUsers, allFranchisees, customRoles] = await Promise.all([
     listUsers(user),
     db.query.franchisees.findMany({
       orderBy: [asc(franchisees.companyName)],
       columns: { id: true, companyName: true },
     }),
+    listCustomRoles(user),
   ]);
 
   return (
@@ -43,9 +45,16 @@ export default async function UtilisateursPage() {
           franchiseeId: u.franchiseeId,
           franchiseeName: u.franchisee?.companyName ?? null,
           franchisorMember: u.franchisorMember,
+          customRoleId: u.customRole?.id ?? null,
+          customRoleName: u.customRole?.name ?? null,
           isActive: u.isActive,
         }))}
         franchisees={allFranchisees}
+        customRoles={customRoles.map((r) => ({
+          id: r.id,
+          name: r.name,
+          baseRole: r.baseRole,
+        }))}
         currentUserId={user.id}
         canImpersonate={can(user, "user:impersonate")}
       />

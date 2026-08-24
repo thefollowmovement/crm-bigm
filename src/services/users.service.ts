@@ -3,7 +3,7 @@ import "server-only";
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { users } from "@/db/schema";
+import { customRoles, users } from "@/db/schema";
 import { auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import { logAuditEvent } from "@/lib/audit/log";
 import { hashPassword } from "@/lib/auth/password";
@@ -18,8 +18,22 @@ export async function listUsers(actor: SessionUser) {
   return db.query.users.findMany({
     orderBy: [asc(users.lastName), asc(users.firstName)],
     columns: { passwordHash: false },
-    with: { franchisee: { columns: { id: true, companyName: true } } },
+    with: {
+      franchisee: { columns: { id: true, companyName: true } },
+      customRole: { columns: { id: true, name: true } },
+    },
   });
+}
+
+// Rôle personnalisé assigné (étape 35) : le rôle de base de l'utilisateur est
+// TOUJOURS dérivé du rôle personnalisé — jamais des deux champs à la fois.
+async function resolveCustomRole(customRoleId: string | null) {
+  if (!customRoleId) return null;
+  const role = await db.query.customRoles.findFirst({
+    where: eq(customRoles.id, customRoleId),
+  });
+  if (!role) throw new Error("Rôle personnalisé introuvable.");
+  return role;
 }
 
 export async function createUser(
@@ -33,6 +47,7 @@ export async function createUser(
     pole: Pole | null;
     franchiseeId: string | null;
     franchisorMember?: boolean;
+    customRoleId?: string | null;
   }
 ) {
   assertCan(actor, "user:manage");
@@ -42,16 +57,18 @@ export async function createUser(
   if (existing) {
     throw new Error("Un utilisateur avec cette adresse e-mail existe déjà.");
   }
+  const customRole = await resolveCustomRole(input.customRoleId ?? null);
   const passwordHash = await hashPassword(input.password);
   return auditedInsert({ id: actor.id }, users, {
     email: input.email,
     passwordHash,
     firstName: input.firstName,
     lastName: input.lastName,
-    role: input.role,
+    role: customRole ? customRole.baseRole : input.role,
     pole: input.pole,
     franchiseeId: input.franchiseeId,
     franchisorMember: input.franchisorMember ?? false,
+    customRoleId: customRole?.id ?? null,
   });
 }
 
@@ -65,10 +82,16 @@ export async function updateUser(
     pole: Pole | null;
     franchiseeId: string | null;
     franchisorMember?: boolean;
+    customRoleId?: string | null;
   }
 ) {
   assertCan(actor, "user:manage");
-  return auditedUpdate({ id: actor.id }, users, userId, input);
+  const customRole = await resolveCustomRole(input.customRoleId ?? null);
+  return auditedUpdate({ id: actor.id }, users, userId, {
+    ...input,
+    role: customRole ? customRole.baseRole : input.role,
+    customRoleId: customRole?.id ?? null,
+  });
 }
 
 export async function setUserActive(

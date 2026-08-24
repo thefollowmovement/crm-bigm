@@ -6,28 +6,51 @@ import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
 
-import { setPermissionOverrideAction } from "./actions";
+import {
+  setCustomRolePermissionAction,
+  setPermissionOverrideAction,
+} from "./actions";
 
 export type MatrixRow = {
   permission: string;
   label: string;
-  // par rôle : valeur par défaut de la matrice + écart éventuel
+  // par colonne (rôle de base OU rôle personnalisé) : défaut + écart éventuel
   cells: Record<string, { defaultValue: boolean; override: boolean | null }>;
+};
+
+export type MatrixColumn = {
+  // rôle de base : son nom d'enum ; rôle personnalisé : son id
+  value: string;
+  label: string;
+  kind: "base" | "custom";
+  // identifiant stable pour les tests (nom du rôle, jamais l'uuid)
+  testKey: string;
 };
 
 export function PermissionsMatrix({
   roles,
   rows,
 }: {
-  roles: { value: string; label: string }[];
+  roles: MatrixColumn[];
   rows: MatrixRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  function toggle(role: string, permission: string, allowed: boolean) {
+  function toggle(column: MatrixColumn, permission: string, allowed: boolean) {
     startTransition(async () => {
-      const result = await setPermissionOverrideAction({ role, permission, allowed });
+      const result =
+        column.kind === "custom"
+          ? await setCustomRolePermissionAction({
+              customRoleId: column.value,
+              permission,
+              allowed,
+            })
+          : await setPermissionOverrideAction({
+              role: column.value,
+              permission,
+              allowed,
+            });
       if (result.error) toast.error(result.error);
       else {
         toast.success(result.success ?? "Droits mis à jour.");
@@ -47,6 +70,11 @@ export function PermissionsMatrix({
             {roles.map((role) => (
               <th key={role.value} className="px-3 py-2 text-center font-medium">
                 {role.label}
+                {role.kind === "custom" ? (
+                  <span className="block text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+                    rôle personnalisé
+                  </span>
+                ) : null}
               </th>
             ))}
           </tr>
@@ -82,10 +110,10 @@ export function PermissionsMatrix({
                         checked={effective}
                         disabled={pending}
                         onCheckedChange={(checked) =>
-                          toggle(role.value, row.permission, checked === true)
+                          toggle(role, row.permission, checked === true)
                         }
                         aria-label={`${row.label} pour ${role.label}`}
-                        data-testid={`perm-${role.value}-${row.permission}`}
+                        data-testid={`perm-${role.testKey}-${row.permission}`}
                       />
                     </span>
                   </td>

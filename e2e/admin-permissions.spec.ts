@@ -56,6 +56,56 @@ test("l'admin accorde un droit hors matrice, puis le retire", async ({ page }) =
   await expect(page.getByTestId("access-denied")).toBeVisible();
 });
 
+test("rôle personnalisé : création, droits ajustés, assignation à un utilisateur", async ({
+  page,
+}) => {
+  // 1. L'admin crée un rôle basé sur RH, retire l'écriture RH, accorde les
+  //    finances en lecture.
+  await login(page, ACCOUNTS.admin);
+  await page.goto("/admin/permissions");
+  await page.getByTestId("new-custom-role-button").click();
+  await page.getByTestId("custom-role-name").fill("Manager RH junior");
+  await page.getByTestId("custom-role-base").click();
+  await page.getByRole("option", { name: "Ressources humaines" }).click();
+  await page.getByTestId("custom-role-submit").click();
+  await expect(page.getByText(/Rôle « Manager RH junior » créé/)).toBeVisible();
+  await expect(page.getByTestId("custom-role-chip-Manager RH junior")).toBeVisible();
+
+  // L'état des cases reflète la valeur persistée (re-rendu serveur).
+  await page.getByTestId("perm-Manager RH junior-hr:write").click();
+  await expect(
+    page.getByTestId("perm-Manager RH junior-hr:write")
+  ).toHaveAttribute("aria-checked", "false");
+  await page.getByTestId("perm-Manager RH junior-finance:read").click();
+  await expect(
+    page.getByTestId("perm-Manager RH junior-finance:read")
+  ).toHaveAttribute("aria-checked", "true");
+
+  // 2. Création d'un utilisateur portant ce rôle.
+  await page.goto("/admin/utilisateurs");
+  await page.getByTestId("create-user-button").click();
+  await page.locator("#email").fill("junior.rh@bigm.fr");
+  await page.locator("#password").fill("MdpJunior!2026");
+  await page.locator("#firstName").fill("Jade");
+  await page.locator("#lastName").fill("Junior");
+  await page.getByTestId("role-select").click();
+  await page.getByRole("option", { name: "Manager RH junior (personnalisé)" }).click();
+  await page.getByRole("button", { name: "Créer l'utilisateur" }).click();
+  await expect(page.getByText("Utilisateur créé.")).toBeVisible();
+  await expect(page.getByTestId("user-row-junior.rh@bigm.fr")).toContainText(
+    "Manager RH junior"
+  );
+
+  // 3. Le compte hérite de RH… ajusté : lecture RH sans écriture, finances OK.
+  await login(page, { email: "junior.rh@bigm.fr", password: "MdpJunior!2026" });
+  await page.goto("/rh/salaries");
+  await expect(page.getByTestId("employees-table")).toBeVisible();
+  await expect(page.getByTestId("new-employee-button")).toHaveCount(0);
+  await page.goto("/finances");
+  await expect(page.getByTestId("access-denied")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
 test("la gestion des droits est réservée à l'ADMIN (refusée à la direction)", async ({
   page,
 }) => {

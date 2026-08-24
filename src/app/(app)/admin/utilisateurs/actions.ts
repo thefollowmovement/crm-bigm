@@ -54,7 +54,23 @@ const baseUserSchema = z.object({
   franchiseeId: z.string().uuid().nullable(),
   // Membre de l'entité FRANCHISEUR « Big M CIE » (dossiers RH du siège)
   franchisorMember: z.boolean(),
+  // Rôle personnalisé (étape 35) — le rôle de base est alors dérivé côté service.
+  customRoleId: z.string().uuid().nullable(),
 });
+
+// Le select « Rôle » envoie soit un rôle de base, soit `custom:<id>`.
+// Quand un rôle personnalisé est choisi, le service dérive le rôle de base :
+// la valeur passée pour `role` n'est qu'un remplissage de schéma.
+function parseRoleSelector(value: FormDataEntryValue | null): {
+  role: string;
+  customRoleId: string | null;
+} {
+  const raw = typeof value === "string" ? value : "";
+  if (raw.startsWith("custom:")) {
+    return { role: "SALARIE", customRoleId: raw.slice("custom:".length) };
+  }
+  return { role: raw, customRoleId: null };
+}
 
 const passwordSchema = z
   .string()
@@ -85,7 +101,7 @@ export async function createUserAction(
       password: formData.get("password"),
       firstName: formData.get("firstName"),
       lastName: formData.get("lastName"),
-      role: formData.get("role"),
+      ...parseRoleSelector(formData.get("role")),
       pole: parseNullable(formData.get("pole")),
       franchiseeId: parseNullable(formData.get("franchiseeId")),
       franchisorMember: formData.get("franchisorMember") === "true",
@@ -114,7 +130,7 @@ export async function updateUserAction(
       userId: formData.get("userId"),
       firstName: formData.get("firstName"),
       lastName: formData.get("lastName"),
-      role: formData.get("role"),
+      ...parseRoleSelector(formData.get("role")),
       pole: parseNullable(formData.get("pole")),
       franchiseeId: parseNullable(formData.get("franchiseeId")),
       franchisorMember: formData.get("franchisorMember") === "true",

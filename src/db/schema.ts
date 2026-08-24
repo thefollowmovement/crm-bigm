@@ -274,6 +274,11 @@ export const users = pgTable(
     // Membre de l'entité FRANCHISEUR « Big M CIE » (étape 34) : seul un membre
     // (ou un ADMIN) voit les dossiers RH rattachés au siège.
     franchisorMember: boolean("franchisor_member").notNull().default(false),
+    // Rôle personnalisé (étape 35) : affine `role` (son rôle de base) par des
+    // écarts de permissions propres.
+    customRoleId: uuid("custom_role_id").references(
+      (): AnyPgColumn => customRoles.id
+    ),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -305,6 +310,50 @@ export const sessions = pgTable(
     }),
   },
   (t) => [index("sessions_user_idx").on(t.userId)]
+);
+
+// ─────────────── RÔLES PERSONNALISÉS (étape 35) ───────────────
+
+// Un rôle personnalisé = un rôle de base (jamais ADMIN) + des écarts de
+// permissions propres. Assignable à un utilisateur (users.customRoleId) ;
+// les écarts du rôle personnalisé priment sur ceux du rôle de base.
+export const customRoles = pgTable(
+  "custom_roles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    baseRole: roleEnum("base_role").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("custom_roles_name_unique").on(t.name)]
+);
+
+export const customRolePermissions = pgTable(
+  "custom_role_permissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customRoleId: uuid("custom_role_id")
+      .notNull()
+      .references(() => customRoles.id, { onDelete: "cascade" }),
+    permission: text("permission").notNull(),
+    allowed: boolean("allowed").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("custom_role_permissions_role_permission_unique").on(
+      t.customRoleId,
+      t.permission
+    ),
+  ]
 );
 
 // ─────────────── SAUVEGARDES DE LA BASE (étape 33) ───────────────
@@ -2026,10 +2075,29 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.franchiseeId],
     references: [franchisees.id],
   }),
+  customRole: one(customRoles, {
+    fields: [users.customRoleId],
+    references: [customRoles.id],
+  }),
   sessions: many(sessions),
   managedStores: many(stores),
   notifications: many(notifications),
 }));
+
+export const customRolesRelations = relations(customRoles, ({ many }) => ({
+  permissions: many(customRolePermissions),
+  users: many(users),
+}));
+
+export const customRolePermissionsRelations = relations(
+  customRolePermissions,
+  ({ one }) => ({
+    customRole: one(customRoles, {
+      fields: [customRolePermissions.customRoleId],
+      references: [customRoles.id],
+    }),
+  })
+);
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, { fields: [sessions.userId], references: [users.id] }),

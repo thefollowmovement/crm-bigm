@@ -148,6 +148,13 @@
       "when": 1787567272583,
       "tag": "0020_daffy_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787568302011,
+      "tag": "0021_majestic_emma_frost",
+      "breakpoints": true
     }
   ]
 }
