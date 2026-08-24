@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { employees, leaveRequests, users } from "@/db/schema";
@@ -42,13 +42,20 @@ export function canCancelLeave(context: {
 
 export async function listLeaves(
   actor: SessionUser,
-  filters: { status?: LeaveStatus; employeeId?: string } = {}
+  filters: {
+    status?: LeaveStatus;
+    employeeId?: string;
+    // Demandes chevauchant la période [from, to] incluse (vue calendrier).
+    overlapping?: { from: string; to: string };
+  } = {}
 ) {
   if (!can(actor, "hr:read")) assertCan(actor, "self:leave");
 
   const conditions = [
     filters.status ? eq(leaveRequests.status, filters.status) : undefined,
     filters.employeeId ? eq(leaveRequests.employeeId, filters.employeeId) : undefined,
+    filters.overlapping ? lte(leaveRequests.startDate, filters.overlapping.to) : undefined,
+    filters.overlapping ? gte(leaveRequests.endDate, filters.overlapping.from) : undefined,
   ].filter((c): c is NonNullable<typeof c> => c !== undefined);
 
   if (!can(actor, "hr:read")) {

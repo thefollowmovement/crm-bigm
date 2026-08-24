@@ -71,6 +71,47 @@ export function LeaveStatusFilter({ current }: { current: string }) {
   );
 }
 
+// Filtre boutique de la vue calendrier (« SIEGE » = salariés Big M CIE).
+export function LeaveStoreFilter({
+  current,
+  stores,
+  showSiege,
+}: {
+  current: string;
+  stores: Option[];
+  showSiege: boolean;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  function setParam(value: string) {
+    const params = new URLSearchParams(searchParams);
+    if (value === "toutes") params.delete("boutique");
+    else params.set("boutique", value);
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  return (
+    <Select value={current || "toutes"} onValueChange={setParam}>
+      <SelectTrigger className="w-64" data-testid="leave-store-filter">
+        <SelectValue placeholder="Toutes les boutiques" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="toutes">Toutes les boutiques</SelectItem>
+        {showSiege ? (
+          <SelectItem value="SIEGE">Siège — Big M CIE</SelectItem>
+        ) : null}
+        {stores.map((s) => (
+          <SelectItem key={s.id} value={s.id}>
+            {s.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export function CreateLeaveDialog({ employees }: { employees: Option[] }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(

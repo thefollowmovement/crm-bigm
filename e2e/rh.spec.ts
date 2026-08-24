@@ -75,3 +75,41 @@ test("RH : saisie et validation d'une demande, fiche salarié avec salaire", asy
   await page.goto("/rh/salaries");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 });
+
+test("congés : vue calendrier filtrée par boutique", async ({ page }) => {
+  await login(page, ACCOUNTS.rh);
+
+  // Décembre : la demande validée de Louna (BM-003, tests précédents) couvre
+  // chaque jour de sa période.
+  await page.goto("/rh/conges?vue=calendrier&mois=2026-12-01");
+  await expect(page.getByTestId("leaves-calendar")).toBeVisible();
+  await expect(
+    page.getByTestId("month-day-2026-12-03").getByTestId("leave-chip")
+  ).toContainText("Louna");
+
+  // Novembre : la demande encore en attente de Sami s'affiche avec « ? ».
+  await page.getByTestId("prev-month").click();
+  await expect(
+    page.getByTestId("month-day-2026-11-04").getByTestId("leave-chip")
+  ).toContainText("Sami");
+  await expect(
+    page.getByTestId("month-day-2026-11-04").getByTestId("leave-chip")
+  ).toContainText("?");
+
+  // Filtre boutique : BM-001 (Basile, sans congés) → calendrier vide.
+  await page.getByTestId("leave-store-filter").click();
+  await page.getByRole("option", { name: /BM-001/ }).click();
+  await expect(page.getByTestId("leaves-calendar")).toBeVisible();
+  await expect(page.getByTestId("leave-chip")).toHaveCount(0);
+
+  // Filtre BM-003 : Sami réapparaît.
+  await page.getByTestId("leave-store-filter").click();
+  await page.getByRole("option", { name: /BM-003/ }).click();
+  await expect(
+    page.getByTestId("month-day-2026-11-04").getByTestId("leave-chip")
+  ).toContainText("Sami");
+
+  // Retour à la liste.
+  await page.getByTestId("conges-view-liste").click();
+  await expect(page.getByTestId("leaves-table")).toBeVisible();
+});

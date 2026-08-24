@@ -923,6 +923,23 @@ async function main() {
         });
       }
     }
+    // Un salarié sur une autre boutique, pour le filtre du calendrier des congés.
+    if (bm001) {
+      const existingThird = await db.query.employees.findFirst({
+        where: and(eq(employees.lastName, "Comptoir"), eq(employees.storeId, bm001.id)),
+      });
+      if (!existingThird) {
+        await db.insert(employees).values({
+          storeId: bm001.id,
+          firstName: "Basile",
+          lastName: "Comptoir",
+          position: "Manager",
+          contractType: "CDI",
+          hireDate: "2025-03-03",
+          salaryMonthly: "2350.00",
+        });
+      }
+    }
   }
 
   // ── Projet d'ouverture de démonstration (BM-004, en projet) ─────

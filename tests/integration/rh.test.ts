@@ -21,7 +21,11 @@ import {
 import { clock, getMyClockDay, getTimesheet } from "@/services/timeclock.service";
 import { todayParis } from "@/lib/dates";
 import { resetDb } from "./setup/reset-db";
-import { createTestEmployee, createTestUser } from "../helpers/factories";
+import {
+  createTestEmployee,
+  createTestStore,
+  createTestUser,
+} from "../helpers/factories";
 
 function asSession(user: {
   id: string;
@@ -190,6 +194,52 @@ describe("RH — salariés, congés, pointeuse", () => {
     const mine = await listLeaves(salarie);
     expect(mine).toHaveLength(1);
     expect(mine[0].id).toBe(leave.id);
+  });
+
+  it("listLeaves : filtre par chevauchement de période (vue calendrier)", async () => {
+    const rh = asSession(
+      await createTestUser({ role: "RH", pole: "RH", franchisorMember: true })
+    );
+    const store = await createTestStore();
+    const emp = await createTestEmployee({ storeId: store.id });
+
+    await requestLeave(rh, {
+      employeeId: emp.id,
+      type: "CONGES_PAYES",
+      startDate: "2026-11-02",
+      endDate: "2026-11-06",
+      comment: null,
+    });
+    await requestLeave(rh, {
+      employeeId: emp.id,
+      type: "CONGES_PAYES",
+      startDate: "2026-12-28",
+      endDate: "2027-01-03",
+      comment: null,
+    });
+
+    const nov = await listLeaves(rh, {
+      overlapping: { from: "2026-11-01", to: "2026-11-30" },
+    });
+    expect(nov).toHaveLength(1);
+    expect(nov[0].startDate).toBe("2026-11-02");
+    expect(nov[0].employee.storeId).toBe(store.id);
+
+    // La période à cheval décembre/janvier remonte pour les deux mois.
+    const dec = await listLeaves(rh, {
+      overlapping: { from: "2026-12-01", to: "2026-12-31" },
+    });
+    const jan = await listLeaves(rh, {
+      overlapping: { from: "2027-01-01", to: "2027-01-31" },
+    });
+    expect(dec).toHaveLength(1);
+    expect(jan).toHaveLength(1);
+    expect(jan[0].endDate).toBe("2027-01-03");
+
+    // Hors période : rien.
+    expect(
+      await listLeaves(rh, { overlapping: { from: "2026-10-01", to: "2026-10-31" } })
+    ).toHaveLength(0);
   });
 
   it("pointeuse : cycle complet, un seul badge ouvert, feuille de temps", async () => {
