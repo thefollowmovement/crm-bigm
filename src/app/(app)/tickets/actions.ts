@@ -6,8 +6,8 @@ import { z } from "zod";
 import { nullable, safeFormAction } from "@/lib/actions/safe-action";
 import {
   addTicketComment,
-  assignTicket,
   createTicket,
+  setTicketAssignees,
   transitionTicket,
 } from "@/services/tickets.service";
 
@@ -50,7 +50,8 @@ export const createTicketAction = safeFormAction(
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide")
         .nullable(),
-      assigneeId: z.string().uuid().nullable(),
+      extraPoles: z.array(poleSchema),
+      assigneeIds: z.array(z.string().uuid()),
       files: filesField,
     }),
     prepare: (formData) => ({
@@ -60,7 +61,8 @@ export const createTicketAction = safeFormAction(
       storeId: nullable(formData.get("storeId")),
       priority: formData.get("priority"),
       dueDate: nullable(formData.get("dueDate")),
-      assigneeId: nullable(formData.get("assigneeId")),
+      extraPoles: formData.getAll("extraPoles"),
+      assigneeIds: formData.getAll("assigneeIds"),
       files: extractFiles(formData),
     }),
   },
@@ -76,18 +78,18 @@ export const assignTicketAction = safeFormAction(
     permission: "ticket:write",
     schema: z.object({
       ticketId: z.string().uuid(),
-      assigneeId: z.string().uuid("Choisissez un responsable"),
+      assigneeIds: z.array(z.string().uuid()),
     }),
     prepare: (formData) => ({
       ticketId: formData.get("ticketId"),
-      assigneeId: nullable(formData.get("assigneeId")),
+      assigneeIds: formData.getAll("assigneeIds"),
     }),
   },
-  async ({ ticketId, assigneeId }, actor) => {
-    await assignTicket(actor, ticketId, assigneeId);
+  async ({ ticketId, assigneeIds }, actor) => {
+    await setTicketAssignees(actor, ticketId, assigneeIds);
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath("/tickets");
-    return "Ticket affecté.";
+    return "Responsables mis à jour.";
   }
 );
 

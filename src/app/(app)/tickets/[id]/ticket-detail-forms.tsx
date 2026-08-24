@@ -4,14 +4,9 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionState } from "@/lib/actions/safe-action";
 
@@ -99,48 +94,63 @@ export function TransitionButtons({
   );
 }
 
+// Responsables multiples : tout utilisateur actif (salarié et franchisé
+// compris). Le premier coché devient le responsable principal.
 export function AssignForm({
   ticketId,
   members,
-  currentAssigneeId,
+  currentAssigneeIds,
 }: {
   ticketId: string;
   members: { id: string; label: string }[];
-  currentAssigneeId: string | null;
+  currentAssigneeIds: string[];
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     assignTicketAction,
     {}
   );
   useToastState(state);
-  const [selected, setSelected] = useState(currentAssigneeId ?? "none");
+  const [search, setSearch] = useState("");
+  const visible = members.filter((m) =>
+    m.label.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <form action={formAction} className="flex items-end gap-2">
+    <form action={formAction} className="w-full max-w-md space-y-2">
       <input type="hidden" name="ticketId" value={ticketId} />
-      <div className="space-y-1.5">
-        <Label>Responsable</Label>
-        <Select name="assigneeId" value={selected} onValueChange={setSelected}>
-          <SelectTrigger className="w-56" data-testid="assignee-select">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Choisir…</SelectItem>
-            {members.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <Label>Responsables (pôles, salariés, franchisés…)</Label>
+      <Input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Filtrer les personnes…"
+        data-testid="assignee-search"
+      />
+      <div
+        className="max-h-44 space-y-1 overflow-y-auto rounded-lg border p-2"
+        data-testid="assignee-list"
+      >
+        {visible.map((m) => (
+          <label key={m.id} className="flex items-center gap-2 text-sm">
+            <Checkbox
+              name="assigneeIds"
+              value={m.id}
+              defaultChecked={currentAssigneeIds.includes(m.id)}
+              data-testid={`assignee-${m.id}`}
+            />
+            {m.label}
+          </label>
+        ))}
+        {visible.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun résultat.</p>
+        ) : null}
       </div>
       <Button
         type="submit"
         variant="outline"
-        disabled={pending || selected === "none" || selected === currentAssigneeId}
+        disabled={pending}
         data-testid="assign-submit"
       >
-        Affecter
+        {pending ? "Mise à jour…" : "Mettre à jour les responsables"}
       </Button>
     </form>
   );

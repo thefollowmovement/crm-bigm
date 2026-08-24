@@ -10,6 +10,7 @@ import {
   getTicket,
   listAssignableUsers,
   listTickets,
+  setTicketAssignees,
   transitionTicket,
 } from "@/services/tickets.service";
 import { resetDb } from "./setup/reset-db";
@@ -166,14 +167,14 @@ describe("tickets inter-pôles", () => {
     const inactif = await createTestUser({ role: "ANIMATION", isActive: false });
 
     await expect(
-      createTicket(rh, { ...baseInput, assigneeId: inactif.id })
+      createTicket(rh, { ...baseInput, assigneeIds: [inactif.id] })
     ).rejects.toThrow(/invalide/);
 
     // Le responsable peut être HORS du pôle destinataire.
     const ticket = await createTicket(rh, {
       ...baseInput,
       toPole: "COMMUNICATION",
-      assigneeId: animateur.id,
+      assigneeIds: [animateur.id],
     });
     expect(ticket.status).toBe("AFFECTE");
     expect(ticket.assigneeId).toBe(animateur.id);
@@ -188,7 +189,7 @@ describe("tickets inter-pôles", () => {
     expect(mine.map((t) => t.id)).toContain(ticket.id);
   });
 
-  it("listAssignableUsers : internes actifs uniquement, tous pôles confondus", async () => {
+  it("listAssignableUsers : tous les utilisateurs actifs (salariés et franchisés compris)", async () => {
     const rh = asSession(await createTestUser({ role: "RH", pole: "RH" }));
     await createTestUser({ role: "ANIMATION", pole: "ANIMATION" });
     await createTestUser({ role: "FRANCHISE" });
@@ -196,8 +197,8 @@ describe("tickets inter-pôles", () => {
     await createTestUser({ role: "COMMUNICATION", isActive: false });
 
     const assignables = await listAssignableUsers(rh);
-    // rh + animateur — jamais les franchisés, salariés ni comptes désactivés.
-    expect(assignables).toHaveLength(2);
+    // Tous les actifs — jamais les comptes désactivés.
+    expect(assignables).toHaveLength(4);
 
     // Réaffectation d'un ticket vers un collaborateur d'un AUTRE pôle.
     const ticket = await createTicket(rh, baseInput); // RH → RH
@@ -208,5 +209,58 @@ describe("tickets inter-pôles", () => {
     const updated = await assignTicket(rh, ticket.id, communication.id);
     expect(updated.assigneeId).toBe(communication.id);
     expect(updated.status).toBe("AFFECTE");
+  });
+
+  it("multi-pôles et multi-responsables : chacun voit SES tickets, diff notifié", async () => {
+    const direction = asSession(
+      await createTestUser({ role: "DIRECTION", pole: "DIRECTION" })
+    );
+    const animateur = asSession(
+      await createTestUser({ role: "ANIMATION", pole: "ANIMATION" })
+    );
+    const salarie = await createTestUser({ role: "SALARIE" });
+    const franchise = await createTestUser({ role: "FRANCHISE" });
+    const etranger = await createTestUser({ role: "SALARIE" });
+
+    const ticket = await createTicket(direction, {
+      ...baseInput,
+      toPole: "COMMUNICATION",
+      extraPoles: ["ANIMATION", "COMMUNICATION"], // doublon du principal filtré
+      assigneeIds: [salarie.id, franchise.id],
+    });
+    expect(ticket.extraPoles).toEqual(["ANIMATION"]);
+    expect(ticket.status).toBe("AFFECTE");
+    expect(ticket.assigneeId).toBe(salarie.id);
+
+    // Vue « mon pôle » : l'animation est concernée via extraPoles.
+    const poleView = await listTickets(animateur, { view: "pole" });
+    expect(poleView.map((t) => t.id)).toContain(ticket.id);
+
+    // Le salarié assigné (sans ticket:read) ne voit QUE ses tickets…
+    const salarieSession = asSession(salarie);
+    const mine = await listTickets(salarieSession);
+    expect(mine.map((t) => t.id)).toEqual([ticket.id]);
+    const detail = await getTicket(salarieSession, ticket.id);
+    expect(detail?.assignees.map((a) => a.userId).sort()).toEqual(
+      [salarie.id, franchise.id].sort()
+    );
+    // …et un salarié étranger au ticket est refusé.
+    await expect(getTicket(asSession(etranger), ticket.id)).rejects.toThrow(
+      ForbiddenError
+    );
+
+    // Diff des responsables : retire le franchisé, ajoute l'animateur —
+    // seul le nouveau venu est notifié.
+    await setTicketAssignees(direction, ticket.id, [salarie.id, animateur.id]);
+    const rows = await db.query.ticketAssignees.findMany({
+      where: (t, { eq: whereEq }) => whereEq(t.ticketId, ticket.id),
+    });
+    expect(rows.map((r) => r.userId).sort()).toEqual(
+      [salarie.id, animateur.id].sort()
+    );
+    const notifs = await db.query.notifications.findMany({
+      where: (n, { eq: whereEq }) => whereEq(n.userId, animateur.id),
+    });
+    expect(notifs.some((n) => n.title.includes("affecté à vous"))).toBe(true);
   });
 });

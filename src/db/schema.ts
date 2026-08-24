@@ -146,6 +146,8 @@ export const reminderChannelEnum = pgEnum("reminder_channel", [
   "AUTRE",
 ]);
 
+// tickets.extraPoles (étape 36) : pôles destinataires supplémentaires en plus
+// de toPole — un ticket peut viser plusieurs services à la fois.
 export const ticketStatusEnum = pgEnum("ticket_status", [
   "NOUVEAU",
   "AFFECTE",
@@ -1978,9 +1980,11 @@ export const tickets = pgTable(
       .notNull()
       .references(() => users.id),
     fromPole: poleEnum("from_pole").notNull(),
-    // service destinataire
+    // service destinataire principal
     toPole: poleEnum("to_pole").notNull(),
-    // responsable désigné
+    // pôles destinataires supplémentaires (étape 36)
+    extraPoles: poleEnum("extra_poles").array().notNull().default([]),
+    // responsable principal (les co-responsables : table ticketAssignees)
     assigneeId: uuid("assignee_id").references(() => users.id),
     priority: ticketPriorityEnum("priority").notNull().default("NORMALE"),
     status: ticketStatusEnum("status").notNull().default("NOUVEAU"),
@@ -1998,6 +2002,26 @@ export const tickets = pgTable(
     index("tickets_to_pole_status_idx").on(t.toPole, t.status),
     index("tickets_assignee_status_idx").on(t.assigneeId, t.status),
     index("tickets_store_idx").on(t.storeId),
+  ]
+);
+
+// Co-responsables d'un ticket (étape 36) : tout utilisateur actif — salarié
+// ou franchisé compris. L'assigné voit SES tickets même sans ticket:read.
+export const ticketAssignees = pgTable(
+  "ticket_assignees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ticketId: uuid("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ticket_assignees_ticket_user_unique").on(t.ticketId, t.userId),
+    index("ticket_assignees_user_idx").on(t.userId),
   ]
 );
 
@@ -2459,7 +2483,19 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
     references: [users.id],
     relationName: "assignee",
   }),
+  assignees: many(ticketAssignees),
   comments: many(ticketComments),
+}));
+
+export const ticketAssigneesRelations = relations(ticketAssignees, ({ one }) => ({
+  ticket: one(tickets, {
+    fields: [ticketAssignees.ticketId],
+    references: [tickets.id],
+  }),
+  user: one(users, {
+    fields: [ticketAssignees.userId],
+    references: [users.id],
+  }),
 }));
 
 export const ticketCommentsRelations = relations(ticketComments, ({ one }) => ({

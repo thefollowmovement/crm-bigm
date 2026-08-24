@@ -1,10 +1,17 @@
 import "server-only";
 
-import { and, asc, desc, eq, notInArray, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { fileAttachments, ticketComments, tickets, users } from "@/db/schema";
-import { auditedInsert, auditedUpdate } from "@/lib/db/audited";
+import {
+  fileAttachments,
+  ticketAssignees,
+  ticketComments,
+  tickets,
+  users,
+} from "@/db/schema";
+import { auditedDelete, auditedInsert, auditedUpdate } from "@/lib/db/audited";
+import { can } from "@/lib/authz/permissions";
 import { ForbiddenError, assertCan } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
 import { saveUpload } from "@/lib/files/storage";
@@ -68,17 +75,34 @@ export type TicketFilters = {
   priority?: TicketRow["priority"];
 };
 
+// Condition « je suis concerné » : demandeur, responsable principal ou
+// co-responsable (table ticketAssignees).
+function mineCondition(actorId: string): SQL {
+  return or(
+    eq(tickets.requesterId, actorId),
+    eq(tickets.assigneeId, actorId),
+    inArray(
+      tickets.id,
+      db
+        .select({ id: ticketAssignees.ticketId })
+        .from(ticketAssignees)
+        .where(eq(ticketAssignees.userId, actorId))
+    )
+  )!;
+}
+
+// Sans ticket:read (salarié, franchisé…), un utilisateur voit tout de même
+// LES tickets qui le concernent : la vue est forcée sur « les miens ».
 export async function listTickets(actor: SessionUser, filters: TicketFilters = {}) {
-  assertCan(actor, "ticket:read");
   const conditions: SQL[] = [];
-  if (filters.view === "mine") {
-    const cond = or(
-      eq(tickets.requesterId, actor.id),
-      eq(tickets.assigneeId, actor.id)
-    );
-    if (cond) conditions.push(cond);
+  if (!can(actor, "ticket:read") || filters.view === "mine") {
+    conditions.push(mineCondition(actor.id));
   } else if (filters.view === "pole" && actor.pole) {
-    const cond = or(eq(tickets.toPole, actor.pole), eq(tickets.fromPole, actor.pole));
+    const cond = or(
+      eq(tickets.toPole, actor.pole),
+      eq(tickets.fromPole, actor.pole),
+      sql`${tickets.extraPoles} @> ARRAY[${actor.pole}]::pole[]`
+    );
     if (cond) conditions.push(cond);
   }
   if (filters.status) conditions.push(eq(tickets.status, filters.status));
@@ -91,18 +115,23 @@ export async function listTickets(actor: SessionUser, filters: TicketFilters = {
       store: { columns: { id: true, code: true, name: true } },
       requester: { columns: { id: true, firstName: true, lastName: true } },
       assignee: { columns: { id: true, firstName: true, lastName: true } },
+      assignees: {
+        with: { user: { columns: { id: true, firstName: true, lastName: true } } },
+      },
     },
   });
 }
 
 export async function getTicket(actor: SessionUser, ticketId: string) {
-  assertCan(actor, "ticket:read");
   const ticket = await db.query.tickets.findFirst({
     where: eq(tickets.id, ticketId),
     with: {
       store: { columns: { id: true, code: true, name: true } },
       requester: { columns: { id: true, firstName: true, lastName: true, pole: true } },
       assignee: { columns: { id: true, firstName: true, lastName: true } },
+      assignees: {
+        with: { user: { columns: { id: true, firstName: true, lastName: true } } },
+      },
       comments: {
         orderBy: [ticketComments.createdAt],
         with: { author: { columns: { id: true, firstName: true, lastName: true } } },
@@ -110,6 +139,15 @@ export async function getTicket(actor: SessionUser, ticketId: string) {
     },
   });
   if (!ticket) return null;
+
+  // Sans ticket:read, seul un ticket qui me concerne est consultable.
+  const concerned =
+    ticket.requesterId === actor.id ||
+    ticket.assigneeId === actor.id ||
+    ticket.assignees.some((a) => a.userId === actor.id);
+  if (!can(actor, "ticket:read") && !concerned) {
+    throw new ForbiddenError("Ce ticket ne vous concerne pas.");
+  }
 
   const attachments = await db.query.fileAttachments.findMany({
     where: and(
@@ -121,16 +159,14 @@ export async function getTicket(actor: SessionUser, ticketId: string) {
   return { ...ticket, attachments };
 }
 
-// Collaborateurs internes actifs (tous pôles confondus) : un ticket peut être
-// confié à une personne précise, pas seulement au pôle destinataire.
+// TOUT utilisateur actif peut être responsable d'un ticket : collaborateurs
+// internes, mais aussi salariés de boutique ou franchisés (ils voient alors
+// leurs tickets, même sans la permission ticket:read).
 export async function listAssignableUsers(actor: SessionUser) {
   assertCan(actor, "ticket:read");
   return db.query.users.findMany({
-    where: and(
-      eq(users.isActive, true),
-      notInArray(users.role, ["FRANCHISE", "SALARIE"])
-    ),
-    columns: { id: true, firstName: true, lastName: true, pole: true },
+    where: eq(users.isActive, true),
+    columns: { id: true, firstName: true, lastName: true, pole: true, role: true },
     orderBy: [asc(users.lastName), asc(users.firstName)],
   });
 }
@@ -152,90 +188,136 @@ async function notifyPole(pole: Pole, exceptUserId: string, payload: {
 
 // ── Écritures ────────────────────────────────────────────────────
 
+// Vérifie que chaque id correspond à un utilisateur actif ; renvoie la liste
+// dédupliquée dans l'ordre de saisie (le premier = responsable principal).
+async function assertActiveUsers(ids: string[]): Promise<string[]> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return [];
+  const rows = await db.query.users.findMany({
+    where: and(inArray(users.id, unique), eq(users.isActive, true)),
+    columns: { id: true },
+  });
+  if (rows.length !== unique.length) throw new Error("Responsable invalide.");
+  return unique;
+}
+
 export async function createTicket(
   actor: SessionUser,
   input: {
     title: string;
     description: string;
     toPole: Pole;
+    // Pôles destinataires supplémentaires (étape 36).
+    extraPoles?: Pole[];
     storeId: string | null;
     priority: TicketRow["priority"];
     dueDate: string | null;
-    // Responsable désigné dès la création (optionnel) : le ticket naît AFFECTE.
-    assigneeId?: string | null;
+    // Responsables désignés dès la création : le ticket naît AFFECTE.
+    assigneeIds?: string[];
     files: File[];
   }
 ) {
   assertCan(actor, "ticket:write");
   const fromPole = actor.pole ?? "DIRECTION";
-
-  let assigneeId: string | null = null;
-  if (input.assigneeId) {
-    const assignee = await db.query.users.findFirst({
-      where: eq(users.id, input.assigneeId),
-    });
-    if (!assignee || !assignee.isActive) throw new Error("Responsable invalide.");
-    assigneeId = assignee.id;
-  }
+  const extraPoles = [
+    ...new Set((input.extraPoles ?? []).filter((p) => p !== input.toPole)),
+  ];
+  const assigneeIds = await assertActiveUsers(input.assigneeIds ?? []);
 
   const ticket = await auditedInsert({ id: actor.id }, tickets, {
     title: input.title,
     description: input.description,
     fromPole,
     toPole: input.toPole,
+    extraPoles,
     storeId: input.storeId,
     priority: input.priority,
     dueDate: input.dueDate,
     requesterId: actor.id,
-    assigneeId,
-    status: assigneeId ? "AFFECTE" : "NOUVEAU",
+    assigneeId: assigneeIds[0] ?? null,
+    status: assigneeIds.length > 0 ? "AFFECTE" : "NOUVEAU",
   });
+  for (const userId of assigneeIds) {
+    await auditedInsert({ id: actor.id }, ticketAssignees, {
+      ticketId: ticket.id,
+      userId,
+    });
+  }
   for (const file of input.files) {
     await saveUpload(actor, file, { entityType: "TICKET", entityId: ticket.id });
   }
   const number = `T-${String(ticket.number).padStart(6, "0")}`;
-  await notifyPole(input.toPole, actor.id, {
-    title: `Nouveau ticket ${number} : ${input.title}`,
-    body: `De ${actor.firstName} ${actor.lastName} (${fromPole})`,
-    link: `/tickets/${ticket.id}`,
-  });
-  if (assigneeId && assigneeId !== actor.id) {
-    await notify([assigneeId], {
+  for (const pole of [input.toPole, ...extraPoles]) {
+    await notifyPole(pole, actor.id, {
+      title: `Nouveau ticket ${number} : ${input.title}`,
+      body: `De ${actor.firstName} ${actor.lastName} (${fromPole})`,
+      link: `/tickets/${ticket.id}`,
+    });
+  }
+  await notify(
+    assigneeIds.filter((id) => id !== actor.id),
+    {
       type: "TICKET",
       title: `Ticket ${number} affecté à vous`,
       body: input.title,
       link: `/tickets/${ticket.id}`,
-    });
-  }
+    }
+  );
   return ticket;
 }
 
-export async function assignTicket(
+// Remplace la liste des responsables (diff audité) : le premier devient le
+// responsable principal ; seuls les nouveaux venus sont notifiés.
+export async function setTicketAssignees(
   actor: SessionUser,
   ticketId: string,
-  assigneeId: string
+  userIds: string[]
 ) {
   assertCan(actor, "ticket:write");
   const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, ticketId) });
   if (!ticket) throw new Error("Ticket introuvable.");
   if (ticket.status === "VALIDE") throw new Error("Ticket déjà validé.");
 
-  const assignee = await db.query.users.findFirst({ where: eq(users.id, assigneeId) });
-  if (!assignee || !assignee.isActive) throw new Error("Responsable invalide.");
+  const wanted = await assertActiveUsers(userIds);
+  const existing = await db.query.ticketAssignees.findMany({
+    where: eq(ticketAssignees.ticketId, ticketId),
+  });
+  const existingIds = new Set(existing.map((a) => a.userId));
+  const added = wanted.filter((id) => !existingIds.has(id));
+
+  for (const row of existing) {
+    if (!wanted.includes(row.userId)) {
+      await auditedDelete({ id: actor.id }, ticketAssignees, row.id);
+    }
+  }
+  for (const userId of added) {
+    await auditedInsert({ id: actor.id }, ticketAssignees, { ticketId, userId });
+  }
 
   const updated = await auditedUpdate({ id: actor.id }, tickets, ticketId, {
-    assigneeId,
-    status: ticket.status === "NOUVEAU" ? "AFFECTE" : ticket.status,
+    assigneeId: wanted[0] ?? null,
+    status:
+      ticket.status === "NOUVEAU" && wanted.length > 0 ? "AFFECTE" : ticket.status,
   });
-  if (assigneeId !== actor.id) {
-    await notify([assigneeId], {
+  await notify(
+    added.filter((id) => id !== actor.id),
+    {
       type: "TICKET",
       title: `Ticket T-${String(ticket.number).padStart(6, "0")} affecté à vous`,
       body: ticket.title,
       link: `/tickets/${ticketId}`,
-    });
-  }
+    }
+  );
   return updated;
+}
+
+// Compatibilité : affectation d'un responsable unique.
+export async function assignTicket(
+  actor: SessionUser,
+  ticketId: string,
+  assigneeId: string
+) {
+  return setTicketAssignees(actor, ticketId, [assigneeId]);
 }
 
 export async function transitionTicket(

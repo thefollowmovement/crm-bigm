@@ -5,9 +5,11 @@ import { Download } from "lucide-react";
 
 import { requireUser } from "@/lib/auth/current-user";
 import { can } from "@/lib/authz/permissions";
+import { ForbiddenError } from "@/lib/authz/guards";
 import { todayParis } from "@/lib/dates";
 import {
   POLE_LABELS,
+  ROLE_LABELS,
   TICKET_PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
 } from "@/lib/labels";
@@ -33,15 +35,21 @@ export default async function TicketDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireUser();
-  if (!can(user, "ticket:read")) return <AccessDenied />;
 
+  // Sans ticket:read, le service n'autorise que les tickets qui concernent
+  // l'utilisateur (demandeur ou responsable) — un salarié ou un franchisé
+  // assigné consulte donc SON ticket.
   const { id } = await params;
-  const ticket = await getTicket(user, id);
+  let ticket;
+  try {
+    ticket = await getTicket(user, id);
+  } catch (e) {
+    if (e instanceof ForbiddenError) return <AccessDenied />;
+    throw e;
+  }
   if (!ticket) notFound();
 
-  // Tout collaborateur interne actif peut être désigné responsable, pas
-  // uniquement les membres du pôle destinataire.
-  const members = await listAssignableUsers(user);
+  const members = can(user, "ticket:read") ? await listAssignableUsers(user) : [];
   const number = `T-${String(ticket.number).padStart(6, "0")}`;
   const late = isTicketLate(ticket, todayParis());
   const canWrite = can(user, "ticket:write");
@@ -95,7 +103,12 @@ export default async function TicketDetailPage({
                   Demandeur : {ticket.requester.firstName} {ticket.requester.lastName} (
                   {POLE_LABELS[ticket.fromPole]})
                 </span>
-                <span>Destinataire : {POLE_LABELS[ticket.toPole]}</span>
+                <span>
+                  Destinataires :{" "}
+                  {[ticket.toPole, ...ticket.extraPoles]
+                    .map((pole) => POLE_LABELS[pole])
+                    .join(", ")}
+                </span>
                 {ticket.store ? (
                   <span>
                     Boutique :{" "}
@@ -108,10 +121,12 @@ export default async function TicketDetailPage({
                   </span>
                 ) : null}
                 {ticket.dueDate ? <span>Échéance : {ticket.dueDate}</span> : null}
-                <span>
-                  Responsable :{" "}
-                  {ticket.assignee
-                    ? `${ticket.assignee.firstName} ${ticket.assignee.lastName}`
+                <span data-testid="ticket-assignees">
+                  Responsables :{" "}
+                  {ticket.assignees.length > 0
+                    ? ticket.assignees
+                        .map((a) => `${a.user.firstName} ${a.user.lastName}`)
+                        .join(", ")
                     : "non affecté"}
                 </span>
               </div>
@@ -145,10 +160,12 @@ export default async function TicketDetailPage({
                   members={members.map((m) => ({
                     id: m.id,
                     label: `${m.firstName} ${m.lastName}${
-                      m.pole ? ` · ${POLE_LABELS[m.pole]}` : ""
+                      m.pole
+                        ? ` · ${POLE_LABELS[m.pole]}`
+                        : ` · ${ROLE_LABELS[m.role] ?? m.role}`
                     }`,
                   }))}
-                  currentAssigneeId={ticket.assigneeId}
+                  currentAssigneeIds={ticket.assignees.map((a) => a.userId)}
                 />
               ) : null}
             </div>

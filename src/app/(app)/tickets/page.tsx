@@ -6,6 +6,7 @@ import { can } from "@/lib/authz/permissions";
 import { todayParis } from "@/lib/dates";
 import {
   POLE_LABELS,
+  ROLE_LABELS,
   TICKET_PRIORITY_LABELS,
   TICKET_STATUS_LABELS,
 } from "@/lib/labels";
@@ -15,7 +16,6 @@ import {
   listTickets,
 } from "@/services/tickets.service";
 import { listStores } from "@/services/stores.service";
-import { AccessDenied } from "@/components/access-denied";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -62,7 +62,10 @@ export default async function TicketsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
-  if (!can(user, "ticket:read")) return <AccessDenied />;
+  // Sans ticket:read (salarié, franchisé…), la page reste accessible mais ne
+  // montre que les tickets où l'utilisateur est demandeur ou responsable.
+  const canRead = can(user, "ticket:read");
+  const canWrite = can(user, "ticket:write");
 
   const params = await searchParams;
   const view =
@@ -74,8 +77,8 @@ export default async function TicketsPage({
 
   const [rows, stores, assignables] = await Promise.all([
     listTickets(user, { view, status, priority }),
-    listStores(user),
-    listAssignableUsers(user),
+    canWrite && can(user, "store:read") ? listStores(user) : Promise.resolve([]),
+    canRead ? listAssignableUsers(user) : Promise.resolve([]),
   ]);
   const today = todayParis();
 
@@ -88,16 +91,22 @@ export default async function TicketsPage({
             Toutes les demandes entre services — fini WhatsApp, tout est tracé.
           </p>
         </div>
-        <CreateTicketDialog
-          stores={stores.map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` }))}
-          assignables={assignables.map((a) => ({
-            id: a.id,
-            label: `${a.firstName} ${a.lastName}${a.pole ? ` · ${POLE_LABELS[a.pole]}` : ""}`,
-          }))}
-        />
+        {canWrite ? (
+          <CreateTicketDialog
+            stores={stores.map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` }))}
+            assignables={assignables.map((a) => ({
+              id: a.id,
+              label: `${a.firstName} ${a.lastName} · ${
+                a.pole ? POLE_LABELS[a.pole] : (ROLE_LABELS[a.role] ?? a.role)
+              }`,
+            }))}
+          />
+        ) : null}
       </div>
 
-      <TicketFilters current={{ vue: view, statut: status, priorite: priority }} />
+      {canRead ? (
+        <TicketFilters current={{ vue: view, statut: status, priorite: priority }} />
+      ) : null}
 
       <div className="rounded-xl border bg-card">
         <Table>
@@ -140,7 +149,10 @@ export default async function TicketsPage({
                       </Link>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                      {POLE_LABELS[ticket.fromPole]} → {POLE_LABELS[ticket.toPole]}
+                      {POLE_LABELS[ticket.fromPole]} →{" "}
+                      {[ticket.toPole, ...ticket.extraPoles]
+                        .map((pole) => POLE_LABELS[pole])
+                        .join(", ")}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {ticket.store ? ticket.store.code : "—"}
@@ -176,7 +188,11 @@ export default async function TicketsPage({
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {ticket.assignee
-                        ? `${ticket.assignee.firstName} ${ticket.assignee.lastName}`
+                        ? `${ticket.assignee.firstName} ${ticket.assignee.lastName}${
+                            ticket.assignees.length > 1
+                              ? ` +${ticket.assignees.length - 1}`
+                              : ""
+                          }`
                         : "—"}
                     </TableCell>
                   </TableRow>

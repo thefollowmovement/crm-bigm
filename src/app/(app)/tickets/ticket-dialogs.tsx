@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -194,23 +195,36 @@ export function CreateTicketDialog({
               <Label htmlFor="ticket-due">Échéance</Label>
               <Input id="ticket-due" name="dueDate" type="date" />
             </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label>Confier à (optionnel)</Label>
-              <Select name="assigneeId" defaultValue="none">
-                <SelectTrigger data-testid="ticket-assignee">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— Le pôle destinataire choisira</SelectItem>
-                  {assignables.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">
+              Pôles destinataires supplémentaires (optionnel)
+            </legend>
+            <div className="grid grid-cols-2 gap-1.5" data-testid="ticket-extra-poles">
+              {Object.entries(POLE_LABELS).map(([value, label]) => (
+                <label key={value} className="flex items-center gap-2 text-sm">
+                  <Checkbox name="extraPoles" value={value} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">
+              Confier à (optionnel — salariés et franchisés compris)
+            </legend>
+            <div
+              className="max-h-36 space-y-1 overflow-y-auto rounded-lg border p-2"
+              data-testid="ticket-assignees-list"
+            >
+              {assignables.map((a) => (
+                <label key={a.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox name="assigneeIds" value={a.id} />
+                  {a.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <div className="space-y-1.5">
             <Label htmlFor="ticket-files">Pièces jointes</Label>
             <Input id="ticket-files" name="files" type="file" multiple />
