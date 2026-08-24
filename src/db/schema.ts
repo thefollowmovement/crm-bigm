@@ -785,10 +785,53 @@ export const reminders = pgTable(
       .notNull()
       .references(() => users.id),
     notes: text("notes"),
+    // destinataire réel quand la relance a été envoyée par e-mail (étape 43)
+    emailSentTo: text("email_sent_to"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     // PJ (courrier scanné) via file_attachments(entity_type: REMINDER)
   },
   (t) => [index("reminders_invoice_idx").on(t.invoiceId, t.level)]
+);
+
+// ─────────────── E-MAILS (SMTP + modèles de relance, étape 43) ───────────────
+
+// Paramètres SMTP — une seule ligne, mot de passe chiffré avec VAULT_KEY
+// (format v1:iv:tag:cipher, jamais journalisé dans l'audit).
+export const emailSettings = pgTable("email_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  host: text("host").notNull(),
+  port: integer("port").notNull().default(587),
+  // true = TLS implicite (port 465) ; false = STARTTLS/aucun (587, 25)
+  secure: boolean("secure").notNull().default(false),
+  username: text("username"),
+  passwordEncrypted: text("password_encrypted"),
+  fromName: text("from_name").notNull().default("CRM Big M"),
+  fromEmail: text("from_email").notNull(),
+  // habillage HTML commun à tous les e-mails
+  headerHtml: text("header_html"),
+  footerHtml: text("footer_html"),
+  signatureHtml: text("signature_html"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// Modèle d'e-mail par niveau de relance (1, 2, 3) — variables {{…}}
+// remplacées à l'envoi (voir lib/email/render.ts).
+export const emailTemplates = pgTable(
+  "email_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    level: integer("level").notNull(),
+    subject: text("subject").notNull(),
+    bodyHtml: text("body_html").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("email_templates_level_unique").on(t.level)]
 );
 
 // ─────────────── CHIFFRE D'AFFAIRES ───────────────

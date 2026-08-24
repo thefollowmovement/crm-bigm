@@ -14,7 +14,8 @@ import {
 import { auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import { assertCan } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
-import { todayParis } from "@/lib/dates";
+import { formatDateFr, todayParis } from "@/lib/dates";
+import { sendReminderEmail } from "@/services/email.service";
 import {
   addAmounts,
   compareAmounts,
@@ -205,6 +206,8 @@ export type ReminderInput = {
   sentAt: string;
   notes: string | null;
   file?: File | null;
+  // canal EMAIL : envoyer réellement l'e-mail (modèle du niveau + SMTP)
+  sendEmail?: boolean;
 };
 
 export async function addReminder(
@@ -215,7 +218,7 @@ export async function addReminder(
   assertCan(actor, "finance:write");
   const invoice = await db.query.invoices.findFirst({
     where: eq(invoices.id, invoiceId),
-    with: { reminders: true },
+    with: { reminders: true, store: { with: { franchisee: true } } },
   });
   if (!invoice) throw new Error("Facture introuvable.");
   if (invoice.status === "PAYEE") {
@@ -234,6 +237,37 @@ export async function addReminder(
     );
   }
 
+  // Envoi réel AVANT l'enregistrement : pas d'envoi → pas de trace.
+  let emailSentTo: string | null = null;
+  if (input.sendEmail) {
+    if (input.channel !== "EMAIL") {
+      throw new Error(
+        "L'envoi automatique n'est possible que pour le canal E-mail."
+      );
+    }
+    const franchisee = invoice.store.franchisee;
+    if (!franchisee?.email) {
+      throw new Error(
+        "Le franchisé de cette boutique n'a pas d'adresse e-mail : complétez sa fiche ou décochez l'envoi automatique."
+      );
+    }
+    const sent = await sendReminderEmail({
+      level: input.level,
+      to: franchisee.email,
+      variables: {
+        contact_prenom: franchisee.contactFirstName,
+        contact_nom: franchisee.contactLastName,
+        societe: franchisee.companyName,
+        boutique: `${invoice.store.code} — ${invoice.store.name}`,
+        facture_numero: invoice.number,
+        facture_montant: formatEUR(invoice.amountTTC),
+        facture_echeance: formatDateFr(invoice.dueDate),
+        niveau: String(input.level),
+      },
+    });
+    emailSentTo = sent.to;
+  }
+
   const reminder = await auditedInsert({ id: actor.id }, reminders, {
     invoiceId,
     level: input.level,
@@ -241,6 +275,7 @@ export async function addReminder(
     sentAt: input.sentAt,
     sentById: actor.id,
     notes: input.notes,
+    emailSentTo,
   });
   if (input.file) {
     await saveUpload(actor, input.file, {

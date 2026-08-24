@@ -399,6 +399,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "user:impersonate": "Se connecter en tant que",
   "permission:manage": "Droits d'accès — administrer",
   "backup:manage": "Sauvegardes de la base — gérer",
+  "email:manage": "E-mails — SMTP & modèles de relance",
   "audit:read": "Journal d'audit — consulter",
 };
 

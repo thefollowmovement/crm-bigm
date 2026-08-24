@@ -256,6 +256,7 @@ describe("matrice de permissions", () => {
       expect(can({ role }, "audit:read")).toBe(expected);
       expect(can({ role }, "direction:cockpit")).toBe(expected);
       expect(can({ role }, "backup:manage")).toBe(expected);
+      expect(can({ role }, "email:manage")).toBe(expected);
     }
   });
 });

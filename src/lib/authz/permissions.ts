@@ -69,6 +69,7 @@ export type Permission =
   | "user:impersonate"
   | "permission:manage"
   | "backup:manage"
+  | "email:manage"
   | "audit:read";
 
 export type Role = SessionUser["role"];
@@ -137,6 +138,8 @@ const ALL: readonly Permission[] = [
   "user:manage",
   // Sauvegardes de la base : déclenchement manuel, téléchargement, purge.
   "backup:manage",
+  // Paramètres SMTP + modèles d'e-mails de relance (étape 43).
+  "email:manage",
   "audit:read",
 ];
 

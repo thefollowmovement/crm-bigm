@@ -15,7 +15,8 @@ import { auditLogs } from "@/db/schema";
 
 // Champs jamais journalisés (secrets) — `encrypted` : ciphertext du
 // coffre-fort, exclu même chiffré des snapshots d'audit.
-const SENSITIVE_FIELDS = new Set(["passwordHash", "encrypted"]);
+// (`passwordEncrypted` : mot de passe SMTP chiffré, même règle que le coffre)
+const SENSITIVE_FIELDS = new Set(["passwordHash", "encrypted", "passwordEncrypted"]);
 // Champs techniques exclus du diff (bruit)
 const NOISE_FIELDS = new Set(["updatedAt", "createdAt"]);
 

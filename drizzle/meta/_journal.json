@@ -169,6 +169,13 @@
       "when": 1787598223321,
       "tag": "0023_massive_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787599158375,
+      "tag": "0024_typical_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

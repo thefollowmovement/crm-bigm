@@ -133,6 +133,7 @@ export function AddPaymentDialog({
 
 export function AddReminderDialog({ invoiceId }: { invoiceId: string }) {
   const [open, setOpen] = useState(false);
+  const [channel, setChannel] = useState("EMAIL");
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     addReminderAction,
     {}
@@ -178,7 +179,7 @@ export function AddReminderDialog({ invoiceId }: { invoiceId: string }) {
             </div>
             <div className="space-y-1.5">
               <Label>Canal</Label>
-              <Select name="channel" defaultValue="EMAIL">
+              <Select name="channel" value={channel} onValueChange={setChannel}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -204,6 +205,19 @@ export function AddReminderDialog({ invoiceId }: { invoiceId: string }) {
             <Label htmlFor="reminder-notes">Notes</Label>
             <Textarea id="reminder-notes" name="notes" rows={2} />
           </div>
+          {channel === "EMAIL" ? (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="sendEmail"
+                value="true"
+                className="size-4 accent-primary"
+                data-testid="reminder-send-email"
+              />
+              Envoyer l&apos;e-mail au franchisé (modèle du niveau choisi,
+              paramètres SMTP d&apos;Administration → E-mails)
+            </label>
+          ) : null}
           <Button
             type="submit"
             className="w-full"

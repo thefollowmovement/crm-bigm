@@ -94,6 +94,7 @@ export const addReminderAction = safeFormAction(
       sentAt: dateString,
       notes: z.string().nullable(),
       file: optionalFileSchema,
+      sendEmail: z.boolean(),
     }),
     prepare: (formData) => {
       const file = formData.get("file");
@@ -104,13 +105,16 @@ export const addReminderAction = safeFormAction(
         sentAt: formData.get("sentAt"),
         notes: nullable(formData.get("notes")),
         file: file instanceof File && file.size > 0 ? file : null,
+        sendEmail: formData.get("sendEmail") === "true",
       };
     },
   },
   async ({ invoiceId, ...input }, actor) => {
-    await addReminder(actor, invoiceId, input);
+    const reminder = await addReminder(actor, invoiceId, input);
     revalidatePath(`/finances/${invoiceId}`);
-    return `Relance niveau ${input.level} enregistrée.`;
+    return reminder.emailSentTo
+      ? `Relance niveau ${input.level} enregistrée — e-mail envoyé à ${reminder.emailSentTo}.`
+      : `Relance niveau ${input.level} enregistrée.`;
   }
 );
 

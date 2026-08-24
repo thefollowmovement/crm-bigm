@@ -13,6 +13,7 @@ import {
   Handshake,
   IdCard,
   KeyRound,
+  Mail,
   Megaphone,
   MonitorSmartphone,
   Rocket,
@@ -265,6 +266,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Sauvegardes",
         icon: DatabaseBackup,
         permission: "backup:manage",
+      },
+      {
+        href: "/admin/emails",
+        label: "E-mails",
+        icon: Mail,
+        permission: "email:manage",
       },
       {
         href: "/admin/audit",
