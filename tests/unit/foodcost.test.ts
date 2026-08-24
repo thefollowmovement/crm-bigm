@@ -5,6 +5,7 @@ import {
   convertToBaseUnit,
   foodCostPct,
   formatTenThousandths,
+  scaleAmount,
   toTenThousandths,
 } from "@/lib/foodcost";
 
@@ -21,6 +22,17 @@ describe("toTenThousandths / formatTenThousandths", () => {
     expect(() => toTenThousandths("1,5")).toThrow();
     expect(() => toTenThousandths("1.23456")).toThrow();
     expect(() => toTenThousandths("")).toThrow();
+  });
+});
+
+describe("scaleAmount (menus : coût produit × quantité)", () => {
+  it("multiplie en entiers, arrondi half-up au centime", () => {
+    expect(scaleAmount("1.23", "2.0000")).toBe("2.46");
+    expect(scaleAmount("1.23", "1.0000")).toBe("1.23");
+    expect(scaleAmount("2.50", "0.5000")).toBe("1.25");
+    expect(scaleAmount("0.33", "3.0000")).toBe("0.99");
+    expect(scaleAmount("0.01", "0.5000")).toBe("0.01"); // 0,005 → half-up
+    expect(scaleAmount("1.40", "2.0000")).toBe("2.80");
   });
 });
 

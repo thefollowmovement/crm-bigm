@@ -86,6 +86,59 @@ test("création d'un dépôt à la volée depuis le formulaire de tarif + infobu
   await expect(page.getByTestId("info-hint").first()).toBeVisible();
 });
 
+test("menus : formule burger + emballage, coût matière par dépôt", async ({
+  page,
+}) => {
+  await login(page, ACCOUNTS.direction);
+  await page.goto("/foodcost");
+
+  // Ingrédient d'emballage (pièce) + tarif Lyon.
+  await page.getByTestId("new-ingredient-button").click();
+  await page.getByLabel("Nom").fill("Boîte burger");
+  await page.getByTestId("ingredient-unit").click();
+  await page.getByRole("option", { name: "pièce" }).click();
+  await page.getByTestId("ingredient-submit").click();
+  await expect(page.getByText("Ingrédient créé.")).toBeVisible();
+
+  await page.getByTestId("new-price-button").click();
+  await page.getByTestId("price-ingredient-select").click();
+  await page.getByRole("option", { name: /Boîte burger/ }).click();
+  await page.getByTestId("price-depot-select").click();
+  await page.getByRole("option", { name: /DPS-LYON/ }).click();
+  await page.getByLabel("Tarif unitaire (€)").fill("0,25");
+  await page.getByLabel("Date d'effet").fill("2026-01-01");
+  await page.getByTestId("price-submit").click();
+  await expect(page.getByText("Tarif enregistré.")).toBeVisible();
+
+  // Le menu : Burger Classic + boîte, prix de vente 12,00 €.
+  await page.getByTestId("tab-menus").click();
+  await page.getByTestId("new-menu-name").fill("Menu Classic");
+  await page.getByTestId("new-menu-price").fill("12,00");
+  await page.getByTestId("new-menu-submit").click();
+  await expect(
+    page.getByText("Menu créé — ajoutez ses produits et emballages.")
+  ).toBeVisible();
+
+  const card = page.getByTestId("menu-card-Menu Classic");
+  await card.getByTestId("menu-item-select").click();
+  await page.getByRole("option", { name: /Burger Classic/ }).click();
+  await card.getByTestId("menu-item-qty").fill("1");
+  await card.getByTestId("menu-item-add").click();
+  await expect(page.getByText("Ligne du menu enregistrée.")).toBeVisible();
+
+  await card.getByTestId("menu-item-select").click();
+  await page.getByRole("option", { name: "Boîte burger" }).click();
+  await card.getByTestId("menu-item-qty").fill("1");
+  await card.getByTestId("menu-item-add").click();
+
+  // Lyon : burger 1,40 (recette enrichie au test 1) + boîte 0,25 = 1,65 €
+  // soit 13,8 % du PV ; les dépôts sans tous les tarifs sont incalculables.
+  const costs = page.getByTestId("menu-costs-Menu Classic");
+  await expect(costs).toContainText("1,65");
+  await expect(costs).toContainText("13,8 % du PV");
+  await expect(costs).toContainText("tarif manquant");
+});
+
 test("le Food Cost est invisible pour un franchisé", async ({ page }) => {
   await login(page, ACCOUNTS.franchise);
   await page.goto("/foodcost");

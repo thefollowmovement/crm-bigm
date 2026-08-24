@@ -5,10 +5,15 @@ import type { SessionUser } from "@/lib/auth/session";
 import { ForbiddenError } from "@/lib/authz/guards";
 import {
   createIngredient,
+  createMenu,
+  deleteMenu,
   getFoodCostBoard,
+  getMenuBoard,
   getOrCreateRecipe,
   getProductCost,
+  listMenus,
   setIngredientPrice,
+  setMenuItem,
   setProductSalePrice,
   setRecipeItemFromRaw,
 } from "@/services/foodcost.service";
@@ -142,5 +147,83 @@ describe("Food Cost", () => {
     await expect(getFoodCostBoard(franchise)).rejects.toThrow(ForbiddenError);
     // La compta lit la synthèse.
     expect(await getFoodCostBoard(compta)).toEqual([]);
+  });
+
+  it("menus : coût = produits × quantité + emballages, par dépôt", async () => {
+    const direction = asSession(await createTestUser({ role: "DIRECTION" }));
+    const depotA = await createTestDepot({ code: "DPS-M1" });
+    const depotB = await createTestDepot({ code: "DPS-M2" });
+    const steak = await createIngredient(direction, { name: "Steak menu", unit: "KG" });
+    const boite = await createIngredient(direction, { name: "Boîte", unit: "PIECE" });
+    const product = await createTestProduct({ code: "BURGER-MENU" });
+
+    await setIngredientPrice(direction, {
+      ingredientId: steak.id,
+      depotId: depotA.id,
+      pricePerUnit: "10.0000",
+      effectiveDate: "2026-01-01",
+    });
+    await setIngredientPrice(direction, {
+      ingredientId: steak.id,
+      depotId: depotB.id,
+      pricePerUnit: "12.0000",
+      effectiveDate: "2026-01-01",
+    });
+    await setIngredientPrice(direction, {
+      ingredientId: boite.id,
+      depotId: depotA.id,
+      pricePerUnit: "0.2500",
+      effectiveDate: "2026-01-01",
+    });
+    const recipe = await getOrCreateRecipe(direction, product.id);
+    await setRecipeItemFromRaw(direction, recipe.id, {
+      ingredientId: steak.id,
+      rawQuantity: "100", // g → 1,00 € au dépôt A, 1,20 € au dépôt B
+    });
+
+    const menu = await createMenu(direction, {
+      name: "Menu Test",
+      salePriceHT: "10.00",
+    });
+    await setMenuItem(direction, menu.id, {
+      productId: product.id,
+      rawQuantity: "2", // 2 burgers
+    });
+    await setMenuItem(direction, menu.id, {
+      ingredientId: boite.id,
+      rawQuantity: "1", // 1 boîte
+    });
+
+    let row = (await getMenuBoard(direction)).find((r) => r.name === "Menu Test")!;
+    const costA = row.costs.find((c) => c.depotCode === "DPS-M1")!;
+    expect(costA.cost).toBe("2.25"); // 2 × 1,00 + 0,25
+    expect(costA.pct).toBe("22.5");
+    // Boîte sans tarif au dépôt B → menu incalculable là-bas.
+    expect(row.costs.find((c) => c.depotCode === "DPS-M2")!.cost).toBeNull();
+
+    // Re-saisie du même produit : la quantité est remplacée, pas dupliquée.
+    await setMenuItem(direction, menu.id, {
+      productId: product.id,
+      rawQuantity: "1",
+    });
+    row = (await getMenuBoard(direction)).find((r) => r.name === "Menu Test")!;
+    expect(row.items).toHaveLength(2);
+    expect(row.costs.find((c) => c.depotCode === "DPS-M1")!.cost).toBe("1.25");
+
+    // Erreurs : ni produit ni ingrédient, ou les deux à la fois.
+    await expect(
+      setMenuItem(direction, menu.id, { rawQuantity: "1" })
+    ).rejects.toThrow(/produit OU/);
+    await expect(
+      setMenuItem(direction, menu.id, {
+        productId: product.id,
+        ingredientId: boite.id,
+        rawQuantity: "1",
+      })
+    ).rejects.toThrow(/produit OU/);
+
+    // Suppression : lignes puis menu (tout audité).
+    await deleteMenu(direction, menu.id);
+    expect(await listMenus(direction)).toHaveLength(0);
   });
 });

@@ -65,6 +65,19 @@ export function computeRecipeCost(
   return `${sign}${abs / BigInt(100)}.${(abs % BigInt(100)).toString().padStart(2, "0")}`;
 }
 
+// Montant "12.34" × quantité numeric(12,4) — pour les menus (coût d'un
+// produit × nombre d'unités). Entiers uniquement, arrondi half-up au centime.
+export function scaleAmount(amount: string, quantity: string): string {
+  const cents = BigInt(toCents(amount)); // peut être négatif en théorie
+  const qty = toTenThousandths(quantity);
+  const raw = cents * qty; // en 10^-6 €
+  const half = raw < BigInt(0) ? BigInt(-5_000) : BigInt(5_000);
+  const scaled = (raw + half) / BigInt(10_000);
+  const sign = scaled < BigInt(0) ? "-" : "";
+  const abs = scaled < BigInt(0) ? -scaled : scaled;
+  return `${sign}${abs / BigInt(100)}.${(abs % BigInt(100)).toString().padStart(2, "0")}`;
+}
+
 // Part du coût matière dans le prix de vente HT, en % (1 décimale).
 // null si le prix de vente est absent ou nul.
 export function foodCostPct(

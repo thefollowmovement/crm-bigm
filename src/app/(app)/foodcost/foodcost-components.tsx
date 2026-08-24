@@ -18,7 +18,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -26,8 +28,13 @@ import type { ActionState } from "@/lib/actions/safe-action";
 
 import {
   createIngredientAction,
+  createMenuAction,
   createRecipeAction,
+  deleteMenuAction,
+  removeMenuItemAction,
   removeRecipeItemAction,
+  setMenuItemAction,
+  setMenuSalePriceAction,
   setPriceAction,
   setRecipeItemAction,
   setSalePriceAction,
@@ -360,6 +367,202 @@ export function RemoveRecipeItemButton({ itemId }: { itemId: string }) {
         size="sm"
         disabled={pending}
         aria-label="Retirer l'ingrédient"
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    </form>
+  );
+}
+
+// ── Menus / formules ─────────────────────────────────────────────
+
+export function CreateMenuForm() {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    createMenuAction,
+    {}
+  );
+  useToasted(state);
+  return (
+    <form action={formAction} className="flex flex-wrap items-end gap-2">
+      <div className="space-y-1.5">
+        <Label htmlFor="new-menu-name">Nouveau menu</Label>
+        <Input
+          id="new-menu-name"
+          name="name"
+          required
+          placeholder="Menu Burger Classic"
+          className="w-64"
+          data-testid="new-menu-name"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="new-menu-price">Prix de vente HT (€)</Label>
+        <Input
+          id="new-menu-price"
+          name="salePriceHT"
+          inputMode="decimal"
+          placeholder="12,50"
+          className="w-32"
+          data-testid="new-menu-price"
+        />
+      </div>
+      <Button type="submit" disabled={pending} data-testid="new-menu-submit">
+        <Plus /> Créer le menu
+      </Button>
+    </form>
+  );
+}
+
+export function MenuItemForm({
+  menuId,
+  products,
+  ingredients,
+}: {
+  menuId: string;
+  products: Option[];
+  ingredients: { id: string; label: string; unit: string }[];
+}) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    setMenuItemAction,
+    {}
+  );
+  useToasted(state);
+  const [component, setComponent] = useState<string>("");
+  const selectedIngredient = component.startsWith("i:")
+    ? ingredients.find((i) => i.id === component.slice(2))
+    : undefined;
+  const qtyHint = component.startsWith("p:")
+    ? "(unités)"
+    : selectedIngredient
+      ? selectedIngredient.unit === "KG"
+        ? "(g)"
+        : selectedIngredient.unit === "L"
+          ? "(ml)"
+          : "(pièces)"
+      : "";
+
+  return (
+    <form action={formAction} className="flex flex-wrap items-end gap-2">
+      <input type="hidden" name="menuId" value={menuId} />
+      <div className="space-y-1.5">
+        <Label>Composant</Label>
+        <Select name="component" value={component} onValueChange={setComponent}>
+          <SelectTrigger className="w-72" data-testid="menu-item-select">
+            <SelectValue placeholder="Produit ou emballage…" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Produits</SelectLabel>
+              {products.map((p) => (
+                <SelectItem key={p.id} value={`p:${p.id}`}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            <SelectGroup>
+              <SelectLabel>Emballages &amp; ingrédients directs</SelectLabel>
+              {ingredients.map((i) => (
+                <SelectItem key={i.id} value={`i:${i.id}`}>
+                  {i.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`menu-qty-${menuId}`}>Quantité {qtyHint}</Label>
+        <Input
+          id={`menu-qty-${menuId}`}
+          name="rawQuantity"
+          required
+          inputMode="decimal"
+          className="w-28"
+          placeholder="1"
+          data-testid="menu-item-qty"
+        />
+      </div>
+      <Button
+        type="submit"
+        variant="outline"
+        disabled={pending}
+        data-testid="menu-item-add"
+      >
+        Ajouter
+      </Button>
+    </form>
+  );
+}
+
+export function RemoveMenuItemButton({ itemId }: { itemId: string }) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    removeMenuItemAction,
+    {}
+  );
+  useToasted(state);
+  return (
+    <form action={formAction} className="inline">
+      <input type="hidden" name="itemId" value={itemId} />
+      <Button
+        type="submit"
+        variant="ghost"
+        size="sm"
+        disabled={pending}
+        aria-label="Retirer du menu"
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    </form>
+  );
+}
+
+export function MenuSalePriceForm({
+  menuId,
+  salePriceHT,
+}: {
+  menuId: string;
+  salePriceHT: string | null;
+}) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    setMenuSalePriceAction,
+    {}
+  );
+  useToasted(state);
+  return (
+    <form action={formAction} className="flex items-center gap-1">
+      <input type="hidden" name="menuId" value={menuId} />
+      <Input
+        name="salePriceHT"
+        defaultValue={salePriceHT ?? ""}
+        inputMode="decimal"
+        className="w-24 text-right"
+        placeholder="12,50"
+        aria-label="Prix de vente HT du menu"
+        data-testid="menu-price-input"
+      />
+      <Button type="submit" variant="ghost" size="sm" disabled={pending}>
+        OK
+      </Button>
+    </form>
+  );
+}
+
+export function DeleteMenuButton({ menuId }: { menuId: string }) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    deleteMenuAction,
+    {}
+  );
+  useToasted(state);
+  return (
+    <form action={formAction} className="inline">
+      <input type="hidden" name="menuId" value={menuId} />
+      <Button
+        type="submit"
+        variant="ghost"
+        size="sm"
+        disabled={pending}
+        aria-label="Supprimer le menu"
+        data-testid="menu-delete"
       >
         <Trash2 className="size-4" />
       </Button>

@@ -8,6 +8,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -1312,6 +1313,53 @@ export const recipeItems = pgTable(
   (t) => [uniqueIndex("recipe_items_unique").on(t.recipeId, t.ingredientId)]
 );
 
+// Menu / formule (type « menu burger » : burger + frites + boisson +
+// emballages) : composé de produits du référentiel et/ou d'ingrédients
+// directs (emballages, serviettes…). Le coût matière est dérivé, jamais stocké.
+export const menus = pgTable("menus", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  // prix de vente HT du menu (pour le % de coût matière)
+  salePriceHT: numeric("sale_price_ht", { precision: 12, scale: 2 }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const menuItems = pgTable(
+  "menu_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    menuId: uuid("menu_id")
+      .notNull()
+      .references(() => menus.id, { onDelete: "cascade" }),
+    // soit un produit (burger, frites, boisson, dessert…)
+    productId: uuid("product_id").references(() => products.id),
+    // soit un ingrédient direct (emballage, sac, serviette…)
+    ingredientId: uuid("ingredient_id").references(() => ingredients.id),
+    // produits : nombre d'unités ; ingrédients : quantité en unité de base
+    quantity: numeric("quantity", { precision: 12, scale: 4 })
+      .notNull()
+      .default("1.0000"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("menu_items_menu_product_unique").on(t.menuId, t.productId),
+    uniqueIndex("menu_items_menu_ingredient_unique").on(t.menuId, t.ingredientId),
+    check(
+      "menu_items_one_ref",
+      sql`(${t.productId} IS NOT NULL) <> (${t.ingredientId} IS NOT NULL)`
+    ),
+  ]
+);
+
 // ─────────────── ACHATS DPS (dépôts d'approvisionnement) ───────────────
 
 // Dépôt DPS : les tarifs (Food Cost, étape 18) varient par dépôt.
@@ -2440,6 +2488,22 @@ export const recipeItemsRelations = relations(recipeItems, ({ one }) => ({
   recipe: one(recipes, { fields: [recipeItems.recipeId], references: [recipes.id] }),
   ingredient: one(ingredients, {
     fields: [recipeItems.ingredientId],
+    references: [ingredients.id],
+  }),
+}));
+
+export const menusRelations = relations(menus, ({ many }) => ({
+  items: many(menuItems),
+}));
+
+export const menuItemsRelations = relations(menuItems, ({ one }) => ({
+  menu: one(menus, { fields: [menuItems.menuId], references: [menus.id] }),
+  product: one(products, {
+    fields: [menuItems.productId],
+    references: [products.id],
+  }),
+  ingredient: one(ingredients, {
+    fields: [menuItems.ingredientId],
     references: [ingredients.id],
   }),
 }));

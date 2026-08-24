@@ -8,6 +8,7 @@ import { formatMonthFr } from "@/lib/analytics";
 import {
   getApplicablePrices,
   getFoodCostBoard,
+  getMenuBoard,
   listIngredients,
   listRecipes,
 } from "@/services/foodcost.service";
@@ -30,10 +31,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import {
+  CreateMenuForm,
   CreateRecipeForm,
+  DeleteMenuButton,
   IngredientDialog,
+  MenuItemForm,
+  MenuSalePriceForm,
   PriceDialog,
   RecipeItemForm,
+  RemoveMenuItemButton,
   RemoveRecipeItemButton,
   SalePriceForm,
   ToggleIngredientButton,
@@ -62,7 +68,7 @@ export default async function FoodCostPage() {
   const canWrite = can(user, "foodcost:write");
   const today = todayParis();
   const [year, month] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
-  const [ingredients, depots, prices, recipes, products, board, variance] =
+  const [ingredients, depots, prices, recipes, products, board, variance, menuBoard] =
     await Promise.all([
       listIngredients(user, { includeInactive: true }),
       listDepots(user),
@@ -71,6 +77,7 @@ export default async function FoodCostPage() {
       listProducts(user),
       getFoodCostBoard(user),
       getMaterialVariance(user, year, month),
+      getMenuBoard(user),
     ]);
 
   const withRecipe = new Set(recipes.map((r) => r.productId));
@@ -111,10 +118,131 @@ export default async function FoodCostPage() {
           <TabsTrigger value="synthese" data-testid="tab-synthese">
             Synthèse
           </TabsTrigger>
+          <TabsTrigger value="menus" data-testid="tab-menus">
+            Menus
+          </TabsTrigger>
           <TabsTrigger value="ecart" data-testid="tab-ecart">
             Écart matière
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="menus" className="mt-4 space-y-6">
+          {canWrite ? <CreateMenuForm /> : null}
+          {menuBoard.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Aucun menu — composez une formule (burger + frites + boisson +
+              emballages) pour suivre son coût matière global.
+            </p>
+          ) : (
+            menuBoard.map((menu) => (
+              <Card key={menu.menuId} data-testid={`menu-card-${menu.name}`}>
+                <CardHeader className="flex-row items-center justify-between space-y-0">
+                  <CardTitle>
+                    {menu.name}
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      prix de vente HT :
+                    </span>
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {canWrite ? (
+                      <>
+                        <MenuSalePriceForm
+                          menuId={menu.menuId}
+                          salePriceHT={menu.salePriceHT}
+                        />
+                        <DeleteMenuButton menuId={menu.menuId} />
+                      </>
+                    ) : (
+                      <span className="text-sm font-medium">
+                        {menu.salePriceHT ? formatEUR(menu.salePriceHT) : "—"}
+                      </span>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {menu.items.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Menu vide — ajoutez des produits et emballages.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Composant</TableHead>
+                          <TableHead className="text-right">Quantité</TableHead>
+                          {canWrite ? <TableHead /> : null}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {menu.items.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">
+                              {item.label}
+                              {item.kind === "INGREDIENT" ? (
+                                <Badge variant="secondary" className="ml-2 text-[10px]">
+                                  Emballage / ingrédient
+                                </Badge>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {item.kind === "PRODUIT"
+                                ? `× ${Number(item.quantity)}`
+                                : formatQuantity(item.quantity, item.unit ?? "PIECE")}
+                            </TableCell>
+                            {canWrite ? (
+                              <TableCell className="text-right">
+                                <RemoveMenuItemButton itemId={item.id} />
+                              </TableCell>
+                            ) : null}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+
+                  <div
+                    className="flex flex-wrap gap-4 text-sm"
+                    data-testid={`menu-costs-${menu.name}`}
+                  >
+                    {menu.costs.map((c) => (
+                      <div key={c.depotId} className="rounded-lg border px-3 py-2">
+                        <div className="text-xs uppercase text-muted-foreground">
+                          {c.depotCode}
+                        </div>
+                        {c.cost === null ? (
+                          <div className="text-muted-foreground">tarif manquant</div>
+                        ) : (
+                          <>
+                            <div className="font-semibold">{formatEUR(c.cost)}</div>
+                            {c.pct !== null ? (
+                              <div className="text-xs text-muted-foreground">
+                                {c.pct.replace(".", ",")} % du PV
+                              </div>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {canWrite ? (
+                    <MenuItemForm
+                      menuId={menu.menuId}
+                      products={products
+                        .filter((p) => p.isActive)
+                        .map((p) => ({ id: p.id, label: `${p.code} — ${p.name}` }))}
+                      ingredients={activeIngredients.map((i) => ({
+                        id: i.id,
+                        label: i.name,
+                        unit: i.unit,
+                      }))}
+                    />
+                  ) : null}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
 
         <TabsContent value="ecart" className="mt-4">
           <Card>

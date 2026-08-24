@@ -6,9 +6,14 @@ import { z } from "zod";
 import { nullable, safeFormAction } from "@/lib/actions/safe-action";
 import {
   createIngredient,
+  createMenu,
+  deleteMenu,
   getOrCreateRecipe,
+  removeMenuItem,
   removeRecipeItem,
   setIngredientPrice,
+  setMenuItem,
+  setMenuSalePrice,
   setProductSalePrice,
   setRecipeItemFromRaw,
   updateIngredient,
@@ -157,6 +162,97 @@ export const removeRecipeItemAction = safeFormAction(
     await removeRecipeItem(actor, input.itemId);
     revalidatePath("/foodcost");
     return "Ingrédient retiré de la recette.";
+  }
+);
+
+// ── Menus / formules ─────────────────────────────────────────────
+
+export const createMenuAction = safeFormAction(
+  {
+    permission: "foodcost:write",
+    schema: z.object({
+      name: z.string().trim().min(1, "Nom requis"),
+      salePriceHT: amountString.nullable(),
+    }),
+    prepare: (formData) => ({
+      name: formData.get("name"),
+      salePriceHT: nullable(formData.get("salePriceHT")),
+    }),
+  },
+  async (input, actor) => {
+    await createMenu(actor, input);
+    revalidatePath("/foodcost");
+    return "Menu créé — ajoutez ses produits et emballages.";
+  }
+);
+
+// La sélection encode « p:<id> » (produit) ou « i:<id> » (ingrédient).
+const menuComponentString = z
+  .string()
+  .regex(/^[pi]:[0-9a-f-]{36}$/, "Choisissez un produit ou un ingrédient");
+
+export const setMenuItemAction = safeFormAction(
+  {
+    permission: "foodcost:write",
+    schema: z.object({
+      menuId: z.string().uuid(),
+      component: menuComponentString,
+      rawQuantity: rawQuantityString,
+    }),
+  },
+  async (input, actor) => {
+    const isProduct = input.component.startsWith("p:");
+    const id = input.component.slice(2);
+    await setMenuItem(actor, input.menuId, {
+      productId: isProduct ? id : null,
+      ingredientId: isProduct ? null : id,
+      rawQuantity: input.rawQuantity,
+    });
+    revalidatePath("/foodcost");
+    return "Ligne du menu enregistrée.";
+  }
+);
+
+export const removeMenuItemAction = safeFormAction(
+  {
+    permission: "foodcost:write",
+    schema: z.object({ itemId: z.string().uuid() }),
+  },
+  async (input, actor) => {
+    await removeMenuItem(actor, input.itemId);
+    revalidatePath("/foodcost");
+    return "Ligne retirée du menu.";
+  }
+);
+
+export const setMenuSalePriceAction = safeFormAction(
+  {
+    permission: "foodcost:write",
+    schema: z.object({
+      menuId: z.string().uuid(),
+      salePriceHT: amountString.nullable(),
+    }),
+    prepare: (formData) => ({
+      menuId: formData.get("menuId"),
+      salePriceHT: nullable(formData.get("salePriceHT")),
+    }),
+  },
+  async (input, actor) => {
+    await setMenuSalePrice(actor, input.menuId, input.salePriceHT);
+    revalidatePath("/foodcost");
+    return "Prix de vente du menu enregistré.";
+  }
+);
+
+export const deleteMenuAction = safeFormAction(
+  {
+    permission: "foodcost:write",
+    schema: z.object({ menuId: z.string().uuid() }),
+  },
+  async (input, actor) => {
+    await deleteMenu(actor, input.menuId);
+    revalidatePath("/foodcost");
+    return "Menu supprimé.";
   }
 );
 

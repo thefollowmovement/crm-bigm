@@ -7,6 +7,8 @@ import {
   depots,
   ingredientPrices,
   ingredients,
+  menuItems,
+  menus,
   products,
   recipeItems,
   recipes,
@@ -15,7 +17,13 @@ import { auditedDelete, auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import { assertCan } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
 import { todayParis } from "@/lib/dates";
-import { computeRecipeCost, convertToBaseUnit, foodCostPct } from "@/lib/foodcost";
+import {
+  computeRecipeCost,
+  convertToBaseUnit,
+  foodCostPct,
+  scaleAmount,
+} from "@/lib/foodcost";
+import { addAmounts } from "@/lib/money";
 
 // Module Food Cost (cdc §6) : ingrédients, tarifs par dépôt historisés par
 // date d'effet, recettes par produit, coût matière calculé — jamais stocké.
@@ -293,6 +301,229 @@ export async function getFoodCostBoard(
         name: recipe.product.name,
         salePriceHT: recipe.product.salePriceHT,
         missingPrices,
+        costs,
+      };
+    });
+}
+
+// ── Menus / formules (burger + frites + boisson + emballages) ────
+
+export async function listMenus(actor: SessionUser) {
+  assertCan(actor, "foodcost:read");
+  return db.query.menus.findMany({
+    orderBy: [asc(menus.name)],
+    with: {
+      items: {
+        with: {
+          product: { columns: { id: true, code: true, name: true } },
+          ingredient: { columns: { id: true, name: true, unit: true } },
+        },
+      },
+    },
+  });
+}
+
+export async function createMenu(
+  actor: SessionUser,
+  input: { name: string; salePriceHT: string | null }
+) {
+  assertCan(actor, "foodcost:write");
+  const name = input.name.trim();
+  if (!name) throw new Error("Le nom du menu est obligatoire.");
+  const existing = await db.query.menus.findFirst({ where: eq(menus.name, name) });
+  if (existing) throw new Error(`Le menu « ${name} » existe déjà.`);
+  return auditedInsert({ id: actor.id }, menus, {
+    name,
+    salePriceHT: input.salePriceHT,
+  });
+}
+
+export async function setMenuSalePrice(
+  actor: SessionUser,
+  menuId: string,
+  salePriceHT: string | null
+) {
+  assertCan(actor, "foodcost:write");
+  return auditedUpdate({ id: actor.id }, menus, menuId, { salePriceHT });
+}
+
+// Ajoute (ou remplace) une ligne du menu : un produit (quantité = nombre
+// d'unités) OU un ingrédient direct type emballage (quantité en g/ml/pièces,
+// convertie vers l'unité de base).
+export async function setMenuItem(
+  actor: SessionUser,
+  menuId: string,
+  input: { productId?: string | null; ingredientId?: string | null; rawQuantity: string }
+) {
+  assertCan(actor, "foodcost:write");
+  const menu = await db.query.menus.findFirst({ where: eq(menus.id, menuId) });
+  if (!menu) throw new Error("Menu introuvable.");
+  const hasProduct = Boolean(input.productId);
+  const hasIngredient = Boolean(input.ingredientId);
+  if (hasProduct === hasIngredient) {
+    throw new Error("Choisissez un produit OU un ingrédient d'emballage.");
+  }
+
+  let quantity: string;
+  if (hasProduct) {
+    const product = await db.query.products.findFirst({
+      where: eq(products.id, input.productId!),
+    });
+    if (!product || !product.isActive) throw new Error("Produit introuvable.");
+    if (!/^\d{1,3}$/.test(input.rawQuantity) || Number(input.rawQuantity) === 0) {
+      throw new Error("Quantité invalide (nombre d'unités entier, ex. 1).");
+    }
+    quantity = `${input.rawQuantity}.0000`;
+  } else {
+    const ingredient = await db.query.ingredients.findFirst({
+      where: eq(ingredients.id, input.ingredientId!),
+    });
+    if (!ingredient || !ingredient.isActive) {
+      throw new Error("Ingrédient introuvable.");
+    }
+    quantity = convertToBaseUnit(input.rawQuantity, ingredient.unit);
+  }
+
+  const existing = await db.query.menuItems.findFirst({
+    where: and(
+      eq(menuItems.menuId, menuId),
+      hasProduct
+        ? eq(menuItems.productId, input.productId!)
+        : eq(menuItems.ingredientId, input.ingredientId!)
+    ),
+  });
+  if (existing) {
+    return auditedUpdate({ id: actor.id }, menuItems, existing.id, { quantity });
+  }
+  return auditedInsert({ id: actor.id }, menuItems, {
+    menuId,
+    productId: hasProduct ? input.productId : null,
+    ingredientId: hasIngredient ? input.ingredientId : null,
+    quantity,
+  });
+}
+
+export async function removeMenuItem(actor: SessionUser, itemId: string) {
+  assertCan(actor, "foodcost:write");
+  const item = await db.query.menuItems.findFirst({
+    where: eq(menuItems.id, itemId),
+  });
+  if (!item) throw new Error("Ligne de menu introuvable.");
+  await auditedDelete({ id: actor.id }, menuItems, itemId);
+}
+
+export async function deleteMenu(actor: SessionUser, menuId: string) {
+  assertCan(actor, "foodcost:write");
+  const menu = await db.query.menus.findFirst({
+    where: eq(menus.id, menuId),
+    with: { items: { columns: { id: true } } },
+  });
+  if (!menu) throw new Error("Menu introuvable.");
+  // Lignes supprimées une à une (audit), puis le menu.
+  for (const item of menu.items) {
+    await auditedDelete({ id: actor.id }, menuItems, item.id);
+  }
+  await auditedDelete({ id: actor.id }, menus, menuId);
+}
+
+export type MenuBoardRow = {
+  menuId: string;
+  name: string;
+  salePriceHT: string | null;
+  items: {
+    id: string;
+    label: string;
+    kind: "PRODUIT" | "INGREDIENT";
+    quantity: string;
+    unit: "KG" | "L" | "PIECE" | null;
+  }[];
+  costs: {
+    depotId: string;
+    depotCode: string;
+    cost: string | null; // null si un composant est incalculable pour ce dépôt
+    pct: string | null;
+  }[];
+};
+
+// Coût matière des menus par dépôt : Σ (coût produit × quantité) + coût des
+// ingrédients directs — dérivé du tableau produits, jamais stocké.
+export async function getMenuBoard(
+  actor: SessionUser,
+  atDate?: string
+): Promise<MenuBoardRow[]> {
+  assertCan(actor, "foodcost:read");
+  const [menuList, board, activeDepots, priceMap] = await Promise.all([
+    listMenus(actor),
+    getFoodCostBoard(actor, atDate),
+    db.query.depots.findMany({
+      where: eq(depots.isActive, true),
+      orderBy: [asc(depots.code)],
+    }),
+    getApplicablePrices(actor, atDate),
+  ]);
+  // coût produit par dépôt, depuis la synthèse produits
+  const productCosts = new Map<string, Map<string, string | null>>();
+  for (const row of board) {
+    productCosts.set(row.productId, new Map(row.costs.map((c) => [c.depotId, c.cost])));
+  }
+
+  return menuList
+    .filter((m) => m.isActive)
+    .map((menu) => {
+      const costs = activeDepots.map((depot) => {
+        if (menu.items.length === 0) {
+          return { depotId: depot.id, depotCode: depot.code, cost: null, pct: null };
+        }
+        const prices = priceMap.get(depot.id);
+        let total = "0.00";
+        for (const item of menu.items) {
+          if (item.productId) {
+            const cost = productCosts.get(item.productId)?.get(depot.id) ?? null;
+            if (cost === null) {
+              return {
+                depotId: depot.id,
+                depotCode: depot.code,
+                cost: null,
+                pct: null,
+              };
+            }
+            total = addAmounts(total, scaleAmount(cost, item.quantity));
+          } else if (item.ingredientId) {
+            const price = prices?.get(item.ingredientId);
+            if (!price) {
+              return {
+                depotId: depot.id,
+                depotCode: depot.code,
+                cost: null,
+                pct: null,
+              };
+            }
+            total = addAmounts(
+              total,
+              computeRecipeCost([{ quantity: item.quantity, pricePerUnit: price }])
+            );
+          }
+        }
+        return {
+          depotId: depot.id,
+          depotCode: depot.code,
+          cost: total,
+          pct: foodCostPct(total, menu.salePriceHT),
+        };
+      });
+      return {
+        menuId: menu.id,
+        name: menu.name,
+        salePriceHT: menu.salePriceHT,
+        items: menu.items.map((item) => ({
+          id: item.id,
+          label: item.product
+            ? `${item.product.code} — ${item.product.name}`
+            : item.ingredient!.name,
+          kind: item.product ? ("PRODUIT" as const) : ("INGREDIENT" as const),
+          quantity: item.quantity,
+          unit: item.ingredient?.unit ?? null,
+        })),
         costs,
       };
     });
