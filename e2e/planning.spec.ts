@@ -31,6 +31,50 @@ test("l'admin planifie un créneau, l'animateur le voit et est notifié", async 
   ).toBeVisible();
 });
 
+test("vues jour et mois, puis déplacement d'un créneau par glisser-déposer", async ({
+  page,
+}) => {
+  await login(page, ACCOUNTS.animateur);
+  await page.goto("/animation/planning");
+  await expect(page.getByTestId("planning-grid")).toBeVisible();
+  // D'autres specs créent des animateurs : on raisonne sur la ligne d'Antoine.
+  const antoineRow = page.getByRole("row").filter({ hasText: "Antoine" });
+  await expect(antoineRow.getByTestId(/^day-cell-/)).toHaveCount(7);
+
+  // Vue jour : une seule colonne.
+  await page.getByTestId("view-jour").click();
+  await expect(antoineRow.getByTestId(/^day-cell-/)).toHaveCount(1);
+
+  // Vue mois : grille calendaire avec les créneaux du seed, cliquables.
+  await page.getByTestId("view-mois").click();
+  await expect(page.getByTestId("month-grid")).toBeVisible();
+  const chip = page.getByTestId("month-grid").getByText("Antoine").first();
+  await expect(chip).toBeVisible();
+  await chip.click();
+  await expect(page.getByTestId("planning-grid")).toBeVisible();
+
+  // Glisser-déposer : la réunion du lundi après-midi part au mardi (vide).
+  const reunion = page
+    .getByTestId("planning-entry")
+    .filter({ hasText: "Réunion" })
+    .first();
+  await reunion.dragTo(antoineRow.getByTestId(/^day-cell-/).nth(1));
+  await expect(page.getByText("Créneau déplacé.")).toBeVisible();
+  await expect(
+    antoineRow.getByTestId(/^day-cell-/).nth(1).getByText("Réunion")
+  ).toBeVisible();
+
+  // Vers le mercredi (« Journée » d'audit) : conflit refusé.
+  const visite = page
+    .getByTestId("planning-entry")
+    .filter({ hasText: "Visite" })
+    .first();
+  await visite.dragTo(antoineRow.getByTestId(/^day-cell-/).nth(2));
+  await expect(
+    page.getByText(/Impossible de déplacer : un créneau en conflit/)
+  ).toBeVisible();
+});
+
 test("fiche animateur : profil du seed, statistiques et boutiques suivies", async ({
   page,
 }) => {

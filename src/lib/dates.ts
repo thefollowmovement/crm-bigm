@@ -57,3 +57,28 @@ export function formatDateFr(iso: string | null | undefined): string {
     new Date(`${iso}T00:00:00`)
   );
 }
+
+// Premier jour ("YYYY-MM-01") du mois contenant la date.
+export function startOfMonthIso(iso: string): string {
+  return `${iso.slice(0, 7)}-01`;
+}
+
+// Grille calendaire du mois : semaines complètes lundi → dimanche, en dates
+// ISO — les jours des mois voisins complètent la première et la dernière
+// semaine (comme un calendrier mural).
+export function monthGridDays(iso: string): string[][] {
+  const first = startOfMonthIso(iso);
+  const start = startOfWeekIso(first);
+  const nextMonth = startOfMonthIso(addMonthsIso(first, 1));
+  const weeks: string[][] = [];
+  let cursor = start;
+  do {
+    const week: string[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      week.push(cursor);
+      cursor = addDaysIso(cursor, 1);
+    }
+    weeks.push(week);
+  } while (cursor < nextMonth);
+  return weeks;
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,7 +26,7 @@ import {
 import { PLAN_ACTIVITY_LABELS, PLAN_PERIOD_LABELS } from "@/lib/labels";
 import type { ActionState } from "@/lib/actions/safe-action";
 
-import { deleteEntryAction, upsertEntryAction } from "./actions";
+import { deleteEntryAction, moveEntryAction, upsertEntryAction } from "./actions";
 
 type Entry = {
   id: string;
@@ -62,6 +63,26 @@ export function PlanningGrid({
   stores: Option[];
 }) {
   const [dialog, setDialog] = useState<DialogState>(null);
+  // Glisser-déposer d'un créneau vers un autre jour (même animateur).
+  const [dragged, setDragged] = useState<Entry | null>(null);
+  const [, startMove] = useTransition();
+  const router = useRouter();
+
+  function dropOn(animateurId: string, date: string) {
+    if (!dragged || dragged.animateurId !== animateurId || dragged.date === date) {
+      return;
+    }
+    const entryId = dragged.id;
+    setDragged(null);
+    startMove(async () => {
+      const result = await moveEntryAction({ entryId, date });
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success(result.success ?? "Créneau déplacé.");
+        router.refresh();
+      }
+    });
+  }
   const [upsertState, upsertAction, upserting] = useActionState<
     ActionState,
     FormData
@@ -117,13 +138,37 @@ export function PlanningGrid({
                 {days.map((day) => {
                   const list = cellEntries(animateur.id, day.date);
                   return (
-                    <td key={day.date} className="min-w-32 p-1.5 align-top">
+                    <td
+                      key={day.date}
+                      className="min-w-32 p-1.5 align-top"
+                      data-testid={`day-cell-${animateur.id}-${day.date}`}
+                      onDragOver={(e) => {
+                        if (
+                          dragged &&
+                          dragged.animateurId === animateur.id &&
+                          dragged.date !== day.date
+                        ) {
+                          e.preventDefault();
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        dropOn(animateur.id, day.date);
+                      }}
+                    >
                       <div className="space-y-1">
                         {list.map((entry) => (
                           <button
                             key={entry.id}
                             type="button"
                             disabled={!animateur.canEdit}
+                            draggable={animateur.canEdit}
+                            onDragStart={(e) => {
+                              setDragged(entry);
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", entry.id);
+                            }}
+                            onDragEnd={() => setDragged(null)}
                             onClick={() =>
                               setDialog({
                                 animateurId: animateur.id,
@@ -131,7 +176,7 @@ export function PlanningGrid({
                                 entry,
                               })
                             }
-                            className="block w-full rounded-md border bg-background p-1.5 text-left text-xs hover:border-brand disabled:cursor-default"
+                            className="block w-full cursor-grab rounded-md border bg-background p-1.5 text-left text-xs hover:border-brand disabled:cursor-default active:cursor-grabbing"
                             data-testid="planning-entry"
                           >
                             <div className="flex items-center gap-1">

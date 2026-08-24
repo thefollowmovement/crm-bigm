@@ -43,6 +43,12 @@ export function hasPeriodConflict(existing: Period[], next: Period): boolean {
   return existing.includes("JOURNEE");
 }
 
+// Déplacement (glisser-déposer) vers un autre jour : refuse si la même
+// période y est déjà posée, ou si « Journée » entre en conflit.
+export function hasDayConflict(existing: Period[], next: Period): boolean {
+  return existing.includes(next) || hasPeriodConflict(existing, next);
+}
+
 // ── Fiches animateurs ────────────────────────────────────────────
 
 export async function listAnimateurs(actor: SessionUser) {
@@ -123,29 +129,41 @@ export async function upsertProfile(
 
 // ── Planning hebdomadaire ────────────────────────────────────────
 
-// Entrées de la semaine (lundi → dimanche) pour tous les animateurs actifs,
-// ou un seul si `animateurId` est fourni.
-export async function getWeek(
+// Entrées entre deux dates incluses (vue jour, semaine ou mois), pour tous
+// les animateurs actifs, ou un seul si `animateurId` est fourni.
+export async function getRange(
   actor: SessionUser,
-  input: { weekStart: string; animateurId?: string }
+  input: { from: string; to: string; animateurId?: string }
 ) {
   assertCan(actor, "planning:read");
-  const monday = startOfWeekIso(input.weekStart);
-  const sunday = addDaysIso(monday, 6);
   const conditions = [
-    gte(animatorPlanEntries.date, monday),
-    lte(animatorPlanEntries.date, sunday),
+    gte(animatorPlanEntries.date, input.from),
+    lte(animatorPlanEntries.date, input.to),
   ];
   if (input.animateurId) {
     conditions.push(eq(animatorPlanEntries.animateurId, input.animateurId));
   }
-  const entries = await db.query.animatorPlanEntries.findMany({
+  return db.query.animatorPlanEntries.findMany({
     where: and(...conditions),
     orderBy: [asc(animatorPlanEntries.date), asc(animatorPlanEntries.period)],
     with: {
       store: { columns: { id: true, code: true, name: true } },
       animateur: { columns: { id: true, firstName: true, lastName: true } },
     },
+  });
+}
+
+// Entrées de la semaine (lundi → dimanche).
+export async function getWeek(
+  actor: SessionUser,
+  input: { weekStart: string; animateurId?: string }
+) {
+  const monday = startOfWeekIso(input.weekStart);
+  const sunday = addDaysIso(monday, 6);
+  const entries = await getRange(actor, {
+    from: monday,
+    to: sunday,
+    animateurId: input.animateurId,
   });
   return { monday, sunday, entries };
 }
@@ -222,6 +240,47 @@ export async function upsertEntry(actor: SessionUser, input: PlanEntryInput) {
     });
   }
   return result;
+}
+
+// Déplace un créneau vers un autre jour (glisser-déposer) en conservant sa
+// période et son contenu. Même règle de notification que la modification.
+export async function moveEntry(actor: SessionUser, entryId: string, date: string) {
+  assertCan(actor, "planning:write");
+  const entry = await db.query.animatorPlanEntries.findFirst({
+    where: eq(animatorPlanEntries.id, entryId),
+  });
+  if (!entry) throw new Error("Créneau introuvable.");
+  if (!canEditPlanning(actor, entry.animateurId)) {
+    throw new ForbiddenError(
+      "Vous ne pouvez modifier que votre propre planning."
+    );
+  }
+  if (entry.date === date) return entry;
+
+  const targetDay = await db.query.animatorPlanEntries.findMany({
+    where: and(
+      eq(animatorPlanEntries.animateurId, entry.animateurId),
+      eq(animatorPlanEntries.date, date)
+    ),
+  });
+  if (hasDayConflict(targetDay.map((e) => e.period), entry.period)) {
+    throw new Error(
+      "Impossible de déplacer : un créneau en conflit existe déjà ce jour-là."
+    );
+  }
+
+  const moved = await auditedUpdate({ id: actor.id }, animatorPlanEntries, entryId, {
+    date,
+  });
+  if (actor.id !== entry.animateurId) {
+    await notify([entry.animateurId], {
+      type: "PLANNING",
+      title: `Un créneau du ${entry.date} a été déplacé au ${date}`,
+      body: `Par ${actor.firstName} ${actor.lastName}.`,
+      link: `/animation/planning?semaine=${startOfWeekIso(date)}`,
+    });
+  }
+  return moved;
 }
 
 export async function deleteEntry(actor: SessionUser, entryId: string) {

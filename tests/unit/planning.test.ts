@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { canEditPlanning, hasPeriodConflict } from "@/services/planning.service";
+import {
+  canEditPlanning,
+  hasDayConflict,
+  hasPeriodConflict,
+} from "@/services/planning.service";
 import { startOfWeekIso } from "@/lib/dates";
 
 describe("canEditPlanning", () => {
@@ -25,6 +29,17 @@ describe("hasPeriodConflict", () => {
     expect(hasPeriodConflict(["APRES_MIDI"], "JOURNEE")).toBe(true);
     expect(hasPeriodConflict(["JOURNEE"], "MATIN")).toBe(true);
     expect(hasPeriodConflict(["JOURNEE"], "APRES_MIDI")).toBe(true);
+  });
+});
+
+describe("hasDayConflict (glisser-déposer)", () => {
+  it("refuse la même période ou un conflit Journée sur le jour cible", () => {
+    expect(hasDayConflict([], "MATIN")).toBe(false);
+    expect(hasDayConflict([], "JOURNEE")).toBe(false);
+    expect(hasDayConflict(["MATIN"], "APRES_MIDI")).toBe(false);
+    expect(hasDayConflict(["MATIN"], "MATIN")).toBe(true);
+    expect(hasDayConflict(["MATIN"], "JOURNEE")).toBe(true);
+    expect(hasDayConflict(["JOURNEE"], "APRES_MIDI")).toBe(true);
   });
 });
 

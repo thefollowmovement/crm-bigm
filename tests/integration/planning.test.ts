@@ -8,7 +8,9 @@ import { ForbiddenError } from "@/lib/authz/guards";
 import {
   deleteEntry,
   getAnimateurStats,
+  getRange,
   getWeek,
+  moveEntry,
   upsertEntry,
   upsertProfile,
 } from "@/services/planning.service";
@@ -127,6 +129,71 @@ describe("planning des animateurs", () => {
         where: eq(notifications.userId, animateur.id),
       })
     ).toHaveLength(2);
+  });
+
+  it("déplacement d'un créneau : conflit refusé, périmètre respecté, tiers notifié", async () => {
+    const direction = asSession(await createTestUser({ role: "DIRECTION" }));
+    const animateur = asSession(await createTestUser({ role: "ANIMATION" }));
+    const collegue = asSession(await createTestUser({ role: "ANIMATION" }));
+
+    await upsertEntry(animateur, {
+      animateurId: animateur.id,
+      date: "2026-08-17",
+      period: "MATIN",
+      activity: "VISITE",
+      storeId: null,
+      label: null,
+      kmEstimated: null,
+      notes: null,
+    });
+    await upsertEntry(animateur, {
+      animateurId: animateur.id,
+      date: "2026-08-19",
+      period: "JOURNEE",
+      activity: "AUDIT",
+      storeId: null,
+      label: "Audit BM-042",
+      kmEstimated: null,
+      notes: null,
+    });
+    const week = await getWeek(animateur, { weekStart: "2026-08-17" });
+    const visite = week.entries.find((e) => e.activity === "VISITE")!;
+
+    // Mercredi porte une « Journée » : le déplacement y est refusé.
+    await expect(moveEntry(animateur, visite.id, "2026-08-19")).rejects.toThrow(
+      /Impossible de déplacer/
+    );
+
+    // Un collègue ne déplace pas les créneaux d'autrui.
+    await expect(moveEntry(collegue, visite.id, "2026-08-18")).rejects.toThrow(
+      ForbiddenError
+    );
+
+    // La direction déplace, l'animateur est notifié.
+    const moved = await moveEntry(direction, visite.id, "2026-08-18");
+    expect(moved.date).toBe("2026-08-18");
+    const notifs = await db.query.notifications.findMany({
+      where: eq(notifications.userId, animateur.id),
+    });
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].title).toContain("déplacé");
+
+    // getRange retrouve le créneau sur sa nouvelle date, avec ses relations.
+    const range = await getRange(animateur, {
+      from: "2026-08-18",
+      to: "2026-08-18",
+    });
+    expect(range).toHaveLength(1);
+    expect(range[0].activity).toBe("VISITE");
+    expect(range[0].animateur.id).toBe(animateur.id);
+
+    // Déplacement vers sa propre date : no-op sans erreur ni notification.
+    await moveEntry(direction, moved.id, "2026-08-18");
+    expect(
+      await db.query.notifications.findMany({
+        where: eq(notifications.userId, animateur.id),
+      })
+    ).toHaveLength(1);
   });
 
   it("les statistiques croisent km planifiés, coût du profil et visites finalisées", async () => {
