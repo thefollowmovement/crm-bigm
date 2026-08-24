@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { TimeSeriesChart } from "@/components/charts/charts";
 
+import { DashboardAgenda } from "./dashboard-agenda";
 import { RegionFilter, StoreFilter } from "./dashboard-filters";
 
 export const metadata: Metadata = { title: "Tableau de bord" };
@@ -239,6 +240,8 @@ async function FranchiseDashboard({
         storeId={storeId}
         title={`Évolution du CA — ${store.code}`}
       />
+
+      <DashboardAgenda user={user} />
     </div>
   );
 }
@@ -324,6 +327,8 @@ async function AnimateurDashboard({ user }: { user: SessionUser }) {
       </Card>
 
       <MonthChart user={user} title="Évolution du CA réseau" />
+
+      <DashboardAgenda user={user} />
     </div>
   );
 }
@@ -437,6 +442,8 @@ async function NetworkDashboard({
           title={`Évolution du CA ${region ?? "réseau"}`}
         />
       ) : null}
+
+      <DashboardAgenda user={user} />
     </div>
   );
 }
