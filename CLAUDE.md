@@ -191,7 +191,24 @@ formations, contrats, factures, plans, jalons, tâches com, congés — filtrée
 par `can()` + périmètre franchisé ; bloc `DashboardAgenda` = mois en cours +
 liste 30 jours sur les 3 dashboards, absent du rôle SALARIE).
 
-**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-40).**
+**AMÉLIORATIONS POST-V1, 3ᵉ VAGUE LIVRÉE** (commits « Étape 41 » à
+« Étape 43 ») : saisie du CA en tableau (dialogue unique : une ligne par
+canal — brut/net/commandes —, seuls les canaux renseignés sont écrits,
+service `upsertDayEntries` en boucle auditée) · menus Food Cost (`menus` +
+`menuItems` : produits du référentiel × quantité ET/OU ingrédients directs
+type emballage, contrainte un-seul-référent ; coût matière du menu dérivé =
+Σ coût produit × qté + emballages au tarif du dépôt, % du PV du menu,
+onglet « Menus » sur /foodcost, helper pur `scaleAmount`) · e-mails
+(`/admin/emails`, permission `email:manage` ADMIN+DIRECTION : SMTP en base
+avec mot de passe chiffré VAULT_KEY — `passwordEncrypted` dans
+SENSITIVE_FIELDS —, header/signature/footer HTML, e-mail de test, modèles
+de relance par niveau 1-3 avec variables `{{…}}` (`lib/email/render.ts`
+pur : valeurs échappées, variables inconnues visibles), aperçu iframe
+sandbox ; relance facture canal EMAIL = case « envoyer l'e-mail » →
+nodemailer (SEULE nouvelle dépendance), envoi AVANT enregistrement (échec →
+aucune trace), destinataire dans `reminders.emailSentTo`).
+
+**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-43).**
 Reste hors périmètre : la « V2 » (pôle 15 « Modules complémentaires » du cdc
 §24 : HACCP, litiges, assurances, maintenance, parc matériel, notes
 plateformes…) — nouveau devis.

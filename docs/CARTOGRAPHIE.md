@@ -3,18 +3,18 @@
 > Document de référence : où est chaque module, qui y a droit, comment tout
 > s'articule. Complète le `CLAUDE.md` (état du projet + process de dev).
 > Mise à jour : feuille de route client (phases 0 à 5, étapes 1 à 27)
-> + améliorations post-V1 (étapes 28 à 33, puis 34 à 40).
+> + améliorations post-V1 (étapes 28 à 33, 34 à 40, puis 41 à 43).
 
 ## Vue d'ensemble
 
 - **Stack** : Next.js 15 (App Router, TypeScript strict) · PostgreSQL 16 ·
   Drizzle ORM · Tailwind v4 · composants shadcn maison · recharts (graphiques).
-- **Volumétrie** : 65 tables · 50 enums · 23 migrations · 40 services ·
-  61 pages · 63 permissions · 9 rôles (+ rôles personnalisés dynamiques) ·
-  10 jobs cron · 151 tests unitaires · 143 tests d'intégration ·
-  89 parcours e2e Playwright.
+- **Volumétrie** : 69 tables · 50 enums · 25 migrations · 41 services ·
+  62 pages · 64 permissions · 9 rôles (+ rôles personnalisés dynamiques) ·
+  10 jobs cron · 158 tests unitaires · 148 tests d'intégration ·
+  92 parcours e2e Playwright.
 - **Branche de travail** : `claude/crm-interne-plan-docker-s3neyk`
-  (commits « Étape 1 » à « Étape 40 », un commit par étape, gate complet vert
+  (commits « Étape 1 » à « Étape 43 », un commit par étape, gate complet vert
   avant chacun).
 
 ## Architecture en couches (règles non négociables du CLAUDE.md)
@@ -80,10 +80,10 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 ### Finances
 | Page | Permission | Contenu |
 |---|---|---|
-| `/finances` | `finance:read` (compta+dir) | Factures `F<année>-XXXX`, paiements, relances 1-3. |
-| `/ca` | `revenue:read` | Saisie/import CSV, évolution, N vs N-1, produits & familles, panier moyen. |
+| `/finances` | `finance:read` (compta+dir) | Factures `F<année>-XXXX`, paiements, relances 1-3 — canal E-mail : envoi réel au franchisé (modèle du niveau, SMTP de /admin/emails, destinataire tracé). |
+| `/ca` | `revenue:read` | Saisie en TABLEAU (tous les canaux d'un jour en une fois, seuls les canaux renseignés sont écrits), import CSV, évolution, N vs N-1, produits & familles, panier moyen. |
 | `/achats` (+dépôts) | `purchase:read` | Achats DPS, ratio achats/CA, import CSV. |
-| `/foodcost` | `foodcost:read` (siège sauf franchisé) | Ingrédients, tarifs par dépôt à date (dépôt créable à la volée depuis le formulaire de tarif avec `purchase:write`), recettes, synthèse, écart matière. |
+| `/foodcost` | `foodcost:read` (siège sauf franchisé) | Ingrédients, tarifs par dépôt à date (dépôt créable à la volée depuis le formulaire de tarif avec `purchase:write`), recettes, synthèse, MENUS (formules produits × qté + emballages/ingrédients directs, coût et % du PV par dépôt), écart matière. |
 
 ### Développement
 | Page | Permission | Contenu |
@@ -113,6 +113,7 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 | `/admin/utilisateurs` | `user:manage` | Comptes + rôles + « Se connecter en tant que » (ADMIN seul, audité). |
 | `/admin/permissions` | `permission:manage` (ADMIN seul) | Matrice des droits modifiable à chaud par rôle (écarts stockés, ADMIN immunisé) + rôles PERSONNALISÉS : base ≠ ADMIN, chaque droit épinglé explicitement (un pin bat matrice et écarts du rôle de base), assignables aux utilisateurs, suppression bloquée tant qu'assignés. |
 | `/admin/sauvegardes` | `backup:manage` | Sauvegardes pg_dump : quotidienne 05h30 + manuelle, téléchargement audité, rétention, envoi FTP optionnel. |
+| `/admin/emails` | `email:manage` (admin+dir) | Paramètres SMTP (mot de passe chiffré VAULT_KEY), header/signature/footer HTML, e-mail de test, modèles de relance 1-3 avec variables `{{…}}` et aperçu. |
 | `/admin/produits` | `product:manage` | Référentiel produits/familles. |
 | `/admin/logiciels` | `software:read` (siège) / write dir | Registre des logiciels + personnes autorisées. |
 | `/admin/coffre` | `vault:read` (admin+dir SEULS) | Secrets AES-256-GCM, révélation à l'unité auditée REVEAL. |
@@ -148,14 +149,16 @@ du siège Big M CIE (`employees.storeId` NULL).
   permissionOverrides, customRoles, customRolePermissions, backups.
 - **Échanges & tickets** : exchanges, exchangeMessages, tickets (extraPoles),
   ticketComments, ticketAssignees.
-- **Finances réseau** : invoices, payments, reminders.
+- **Finances réseau** : invoices, payments, reminders (emailSentTo).
+- **E-mails** : emailSettings (SMTP, mot de passe chiffré), emailTemplates
+  (modèles de relance par niveau).
 - **CA & ventes** : revenueEntries (orderCount), productFamilies, products,
   productSales.
 - **Animation** : auditCriteria, storeVisits, auditItems, actionPlans,
   actionPlanComments, animatorProfiles, animatorPlanEntries, trainings,
   trainingParticipants, trainingDocuments.
 - **Achats & food cost** : depots, dpsPurchases, ingredients, ingredientPrices,
-  recipes, recipeItems.
+  recipes, recipeItems, menus, menuItems.
 - **Communication** : partners, partnerStores, commTasks, commTaskComments.
 - **RH** : employees, leaveRequests, clockEntries (index unique partiel « un
   badge ouvert »).
@@ -199,6 +202,10 @@ P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
   en calendrier par boutique · dépôt à la volée + icônes d'information
   (seuils env et valeurs dérivées) · agenda des 30 prochains jours sur les
   tableaux de bord.
+- ✅ **Améliorations post-V1, 3ᵉ vague** — étapes 41 à 43 : saisie du CA en
+  tableau multi-canaux · menus Food Cost (formules + emballages, coût par
+  dépôt) · e-mails (SMTP chiffré, modèles de relance avec variables,
+  header/signature/footer, envoi réel des relances — nodemailer).
 - ⬜ **V2 (hors périmètre — nouveau devis)** : HACCP/hygiène, contrôles
   officiels, litiges, assurances/sinistres, maintenance/travaux, parc
   matériel, fournisseurs/ruptures, notes Google/Uber Eats/Deliveroo,
