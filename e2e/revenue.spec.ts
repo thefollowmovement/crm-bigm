@@ -8,12 +8,14 @@ test("saisie manuelle puis import CSV avec prévisualisation et idempotence", as
   await login(page, ACCOUNTS.compta);
   await page.goto("/ca");
 
-  // Saisie manuelle sur la première boutique (BM-001)
+  // Saisie manuelle en tableau sur la première boutique (BM-001)
   await page.getByTestId("new-revenue-button").click();
   await page.getByLabel("Date").fill("2026-08-03");
-  await page.getByLabel("Montant brut (€)").fill("1500,00");
+  await page.getByTestId("revenue-gross-SUR_PLACE").fill("1500,00");
   await page.getByTestId("revenue-submit").click();
-  await expect(page.getByText("Chiffre d'affaires enregistré.")).toBeVisible();
+  await expect(
+    page.getByText("Chiffre d'affaires enregistré (1 canal).")
+  ).toBeVisible();
 
   await page.goto("/ca?mois=2026-08");
   await expect(page.getByTestId("revenue-total")).toContainText("1 500,00");
@@ -66,16 +68,21 @@ test("le franchisé saisit le CA de sa boutique, sans import CSV", async ({
   // Pas de carte d'import (revenue:import réservé compta/direction)
   await expect(page.getByTestId("csv-file-input")).toHaveCount(0);
 
+  // Plusieurs canaux saisis d'un coup dans le tableau.
   await page.getByTestId("new-revenue-button").click();
   await page.getByLabel("Date").fill("2026-08-06");
-  await page.getByTestId("revenue-channel").click();
-  await page.getByRole("option", { name: "À emporter" }).click();
-  await page.getByLabel("Montant brut (€)").fill("820,50");
+  await page.getByTestId("revenue-gross-EMPORTE").fill("820,50");
+  await page.getByTestId("revenue-gross-DELIVEROO").fill("300,00");
+  await page.getByTestId("revenue-net-DELIVEROO").fill("270,00");
+  await page.getByTestId("revenue-orders-EMPORTE").fill("45");
   await page.getByTestId("revenue-submit").click();
-  await expect(page.getByText("Chiffre d'affaires enregistré.")).toBeVisible();
+  await expect(
+    page.getByText("Chiffre d'affaires enregistré (2 canaux).")
+  ).toBeVisible();
 
   await page.goto("/ca?mois=2026-08");
   await expect(page.getByTestId("channel-totals")).toContainText("À emporter");
+  await expect(page.getByTestId("channel-totals")).toContainText("Deliveroo");
 });
 
 test("l'animateur consulte sans pouvoir saisir", async ({ page }) => {

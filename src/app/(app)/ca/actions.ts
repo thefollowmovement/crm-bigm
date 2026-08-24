@@ -11,7 +11,7 @@ import {
   type ParseError,
   type ParsedRevenueRow,
 } from "@/lib/csv/revenue-import";
-import { importRows, upsertEntry } from "@/services/revenue.service";
+import { importRows, upsertDayEntries } from "@/services/revenue.service";
 
 const amountString = z
   .string()
@@ -19,43 +19,57 @@ const amountString = z
   .regex(/^\d+(?:[.,]\d{1,2})?$/, "Montant invalide (ex. 1234,56)")
   .transform((v) => v.replace(",", "."));
 
-export const upsertEntryAction = safeFormAction(
+const CHANNELS = [
+  "SUR_PLACE",
+  "EMPORTE",
+  "TABLETTE",
+  "UBER_EATS",
+  "DELIVEROO",
+  "AUTRE",
+] as const;
+
+// Saisie « tableau » : une ligne par canal, seuls les canaux dont le brut est
+// renseigné sont transmis (et donc écrits/remplacés).
+export const upsertDayEntriesAction = safeFormAction(
   {
     permission: "revenue:write",
     schema: z.object({
       storeId: z.string().uuid(),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide"),
-      channel: z.enum([
-        "SUR_PLACE",
-        "EMPORTE",
-        "TABLETTE",
-        "UBER_EATS",
-        "DELIVEROO",
-        "AUTRE",
-      ]),
-      channelLabel: z.string().trim().nullable(),
-      grossAmount: amountString,
-      netAmount: amountString.nullable(),
-      orderCount: z.coerce
-        .number()
-        .int("Nombre de commandes invalide")
-        .min(0, "Nombre de commandes invalide")
-        .nullable(),
+      rows: z
+        .array(
+          z.object({
+            channel: z.enum(CHANNELS),
+            channelLabel: z.string().trim().nullable(),
+            grossAmount: amountString,
+            netAmount: amountString.nullable(),
+            orderCount: z.coerce
+              .number()
+              .int("Nombre de commandes invalide")
+              .min(0, "Nombre de commandes invalide")
+              .nullable(),
+          })
+        )
+        .min(1, "Renseignez le montant d'au moins un canal."),
     }),
     prepare: (formData) => ({
       storeId: formData.get("storeId"),
       date: formData.get("date"),
-      channel: formData.get("channel"),
-      channelLabel: nullable(formData.get("channelLabel")),
-      grossAmount: formData.get("grossAmount"),
-      netAmount: nullable(formData.get("netAmount")),
-      orderCount: nullable(formData.get("orderCount")),
+      rows: CHANNELS.filter(
+        (c) => String(formData.get(`gross_${c}`) ?? "").trim() !== ""
+      ).map((c) => ({
+        channel: c,
+        channelLabel: nullable(formData.get(`label_${c}`)),
+        grossAmount: formData.get(`gross_${c}`),
+        netAmount: nullable(formData.get(`net_${c}`)),
+        orderCount: nullable(formData.get(`orders_${c}`)),
+      })),
     }),
   },
   async (input, actor) => {
-    await upsertEntry(actor, input);
+    const written = await upsertDayEntries(actor, input);
     revalidatePath("/ca");
-    return "Chiffre d'affaires enregistré.";
+    return `Chiffre d'affaires enregistré (${written} ${written > 1 ? "canaux" : "canal"}).`;
   }
 );
 

@@ -38,7 +38,7 @@ import type { ActionState } from "@/lib/actions/safe-action";
 import {
   confirmImportAction,
   parseCsvAction,
-  upsertEntryAction,
+  upsertDayEntriesAction,
   type CsvPreviewState,
 } from "./actions";
 
@@ -96,9 +96,8 @@ export function RevenueEntryDialog({
   storeLabel: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [channel, setChannel] = useState("SUR_PLACE");
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
-    upsertEntryAction,
+    upsertDayEntriesAction,
     {}
   );
 
@@ -117,84 +116,97 @@ export function RevenueEntryDialog({
           <Plus /> Saisir le CA
         </Button>
       </DialogTrigger>
-      <DialogContent data-testid="revenue-entry-dialog">
+      <DialogContent className="sm:max-w-3xl" data-testid="revenue-entry-dialog">
         <DialogHeader>
-          <DialogTitle>Saisir le chiffre d&apos;affaires</DialogTitle>
+          <DialogTitle>Saisir le chiffre d&apos;affaires du jour</DialogTitle>
           <DialogDescription>
-            {storeLabel}. Une saisie existante pour le même jour et le même canal
-            est remplacée.
+            {storeLabel}. Tous les canaux d&apos;un coup : seuls ceux dont le
+            brut est renseigné sont enregistrés — une saisie existante (même
+            jour, même canal) est remplacée.
           </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="storeId" value={storeId} />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="revenue-date">Date</Label>
-              <Input id="revenue-date" name="date" type="date" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Canal</Label>
-              <Select name="channel" value={channel} onValueChange={setChannel}>
-                <SelectTrigger data-testid="revenue-channel">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(REVENUE_CHANNEL_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="revenue-gross">Montant brut (€)</Label>
-              <Input
-                id="revenue-gross"
-                name="grossAmount"
-                required
-                inputMode="decimal"
-                placeholder="1500,00"
-              />
-            </div>
-            {NET_CHANNELS.has(channel) ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="revenue-net">Montant net (€)</Label>
-                <Input
-                  id="revenue-net"
-                  name="netAmount"
-                  inputMode="decimal"
-                  placeholder="après commission"
-                />
-              </div>
-            ) : (
-              <input type="hidden" name="netAmount" value="" />
-            )}
-          </div>
           <div className="space-y-1.5">
-            <Label htmlFor="revenue-orders">Nb commandes (facultatif)</Label>
+            <Label htmlFor="revenue-date">Date</Label>
             <Input
-              id="revenue-orders"
-              name="orderCount"
-              inputMode="numeric"
-              placeholder="ex. 120"
+              id="revenue-date"
+              name="date"
+              type="date"
+              required
+              className="w-44"
             />
           </div>
-          {channel === "AUTRE" ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="revenue-channel-label">Libellé du canal</Label>
-              <Input id="revenue-channel-label" name="channelLabel" required />
-            </div>
-          ) : (
-            <input type="hidden" name="channelLabel" value="" />
-          )}
+          <div className="overflow-x-auto rounded-lg border">
+            <Table data-testid="revenue-entry-grid">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Canal</TableHead>
+                  <TableHead>Brut (€)</TableHead>
+                  <TableHead>Net (€)</TableHead>
+                  <TableHead>Commandes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(REVENUE_CHANNEL_LABELS).map(([channel, label]) => (
+                  <TableRow key={channel}>
+                    <TableCell className="font-medium">
+                      {label}
+                      {channel === "AUTRE" ? (
+                        <Input
+                          name="label_AUTRE"
+                          placeholder="Libellé (ex. Traiteur)"
+                          className="mt-1 h-8 w-40"
+                          data-testid="revenue-label-AUTRE"
+                        />
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        name={`gross_${channel}`}
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        className="h-8 w-28"
+                        aria-label={`Brut ${label}`}
+                        data-testid={`revenue-gross-${channel}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {NET_CHANNELS.has(channel) ? (
+                        <Input
+                          name={`net_${channel}`}
+                          inputMode="decimal"
+                          placeholder="après commission"
+                          className="h-8 w-32"
+                          aria-label={`Net ${label}`}
+                          data-testid={`revenue-net-${channel}`}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        name={`orders_${channel}`}
+                        inputMode="numeric"
+                        placeholder="ex. 120"
+                        className="h-8 w-24"
+                        aria-label={`Commandes ${label}`}
+                        data-testid={`revenue-orders-${channel}`}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
           <Button
             type="submit"
             className="w-full"
             disabled={pending}
             data-testid="revenue-submit"
           >
-            {pending ? "Enregistrement…" : "Enregistrer"}
+            {pending ? "Enregistrement…" : "Enregistrer la journée"}
           </Button>
         </form>
       </DialogContent>

@@ -57,6 +57,38 @@ export async function upsertEntry(actor: SessionUser, input: RevenueEntryInput) 
   });
 }
 
+export type DayEntriesInput = {
+  storeId: string;
+  date: string;
+  rows: Array<Omit<RevenueEntryInput, "storeId" | "date">>;
+};
+
+// Saisie « tableau » : tous les canaux d'une même journée en une fois.
+// On boucle sur upsertEntry (audit ligne à ligne — règle CLAUDE.md n°3),
+// seuls les canaux transmis sont écrits/remplacés. Retourne le nb de lignes.
+export async function upsertDayEntries(
+  actor: SessionUser,
+  input: DayEntriesInput
+): Promise<number> {
+  assertCan(actor, "revenue:write");
+  await assertStoreAccess(actor, input.storeId);
+  if (input.rows.length === 0) {
+    throw new Error("Renseignez le montant d'au moins un canal.");
+  }
+  const seen = new Set<string>();
+  let written = 0;
+  for (const row of input.rows) {
+    if (seen.has(row.channel)) continue;
+    seen.add(row.channel);
+    if (row.channel === "AUTRE" && !row.channelLabel) {
+      throw new Error("Libellé requis pour le canal « Autre ».");
+    }
+    await upsertEntry(actor, { storeId: input.storeId, date: input.date, ...row });
+    written += 1;
+  }
+  return written;
+}
+
 export type ImportResult = {
   imported: number;
   updated: number;

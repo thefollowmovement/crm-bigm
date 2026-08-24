@@ -9,6 +9,7 @@ import {
   getNetworkSummary,
   getStoreMonth,
   importRows,
+  upsertDayEntries,
   upsertEntry,
 } from "@/services/revenue.service";
 import { resetDb } from "./setup/reset-db";
@@ -63,6 +64,74 @@ describe("saisie du chiffre d'affaires", () => {
     const rows = await db.query.revenueEntries.findMany();
     expect(rows).toHaveLength(1);
     expect(rows[0].grossAmount).toBe("1200.00");
+  });
+
+  it("saisie tableau : plusieurs canaux d'un jour en une fois, canaux vides ignorés", async () => {
+    const compta = asSession(await createTestUser({ role: "COMPTABILITE" }));
+    const store = await createTestStore();
+
+    const written = await upsertDayEntries(compta, {
+      storeId: store.id,
+      date: "2026-08-10",
+      rows: [
+        {
+          channel: "SUR_PLACE",
+          channelLabel: null,
+          grossAmount: "1500.00",
+          netAmount: null,
+          orderCount: 120,
+        },
+        {
+          channel: "UBER_EATS",
+          channelLabel: null,
+          grossAmount: "500.00",
+          netAmount: "450.00",
+          orderCount: null,
+        },
+      ],
+    });
+    expect(written).toBe(2);
+    const rows = await db.query.revenueEntries.findMany();
+    expect(rows).toHaveLength(2);
+
+    // Re-saisie du même jour : remplace SUR_PLACE, laisse UBER_EATS intact.
+    await upsertDayEntries(compta, {
+      storeId: store.id,
+      date: "2026-08-10",
+      rows: [
+        {
+          channel: "SUR_PLACE",
+          channelLabel: null,
+          grossAmount: "1600.00",
+          netAmount: null,
+          orderCount: null,
+        },
+      ],
+    });
+    const after = await db.query.revenueEntries.findMany();
+    expect(after).toHaveLength(2);
+    expect(after.find((r) => r.channel === "SUR_PLACE")?.grossAmount).toBe("1600.00");
+    expect(after.find((r) => r.channel === "UBER_EATS")?.grossAmount).toBe("500.00");
+
+    // Aucun canal renseigné → erreur ; AUTRE sans libellé → erreur.
+    await expect(
+      upsertDayEntries(compta, { storeId: store.id, date: "2026-08-11", rows: [] })
+    ).rejects.toThrow(/au moins un canal/);
+    await expect(
+      upsertDayEntries(compta, {
+        storeId: store.id,
+        date: "2026-08-11",
+        rows: [
+          {
+            channel: "AUTRE",
+            channelLabel: null,
+            grossAmount: "100.00",
+            netAmount: null,
+            orderCount: null,
+          },
+        ],
+      })
+    ).rejects.toThrow(/Libellé requis/);
   });
 
   it("le franchisé saisit SA boutique, jamais celle des autres ; l'animateur ne saisit pas", async () => {
