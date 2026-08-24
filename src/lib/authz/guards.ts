@@ -23,6 +23,13 @@ export function assertCan(user: SessionUser, permission: Permission): void {
   }
 }
 
+// Entité FRANCHISEUR « Big M CIE » (étape 34) : les dossiers RH rattachés au
+// siège (employee.storeId null) ne sont visibles que de ses membres.
+// L'ADMIN est toujours membre d'office (pas de verrouillage possible).
+export function isFranchisorMember(user: SessionUser): boolean {
+  return user.role === "ADMIN" || user.franchisorMember === true;
+}
+
 // Ids des boutiques accessibles par un utilisateur FRANCHISE.
 // Pour les autres rôles, retourne null (= pas de restriction).
 export async function accessibleStoreIds(

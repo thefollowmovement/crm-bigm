@@ -1,11 +1,11 @@
 import "server-only";
 
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { employees, fileAttachments, users } from "@/db/schema";
 import { auditedInsert, auditedUpdate } from "@/lib/db/audited";
-import { assertCan } from "@/lib/authz/guards";
+import { ForbiddenError, assertCan, isFranchisorMember } from "@/lib/authz/guards";
 import { can } from "@/lib/authz/permissions";
 import type { SessionUser } from "@/lib/auth/session";
 import { saveUpload } from "@/lib/files/storage";
@@ -28,13 +28,28 @@ export function toEmployeeDTO(actor: SessionUser, row: EmployeeRow): EmployeeDTO
   return dto;
 }
 
+// Garde de l'entité FRANCHISEUR : une fiche du siège (storeId null) est
+// réservée aux membres de Big M CIE.
+function assertHeadquartersAccess(actor: SessionUser, storeId: string | null) {
+  if (storeId === null && !isFranchisorMember(actor)) {
+    throw new ForbiddenError(
+      "Dossier du siège Big M CIE : réservé aux membres de l'entité FRANCHISEUR."
+    );
+  }
+}
+
 export async function listEmployees(
   actor: SessionUser,
   filters: { includeInactive?: boolean } = {}
 ) {
   assertCan(actor, "hr:read");
+  const conditions = [
+    filters.includeInactive ? undefined : eq(employees.isActive, true),
+    // Les salariés du siège Big M CIE n'apparaissent que pour ses membres.
+    isFranchisorMember(actor) ? undefined : isNotNull(employees.storeId),
+  ].filter((c): c is NonNullable<typeof c> => c !== undefined);
   const rows = await db.query.employees.findMany({
-    where: filters.includeInactive ? undefined : eq(employees.isActive, true),
+    where: conditions.length ? and(...conditions) : undefined,
     with: {
       store: { columns: { id: true, code: true, name: true } },
       user: { columns: { id: true, email: true } },
@@ -46,13 +61,15 @@ export async function listEmployees(
 
 export async function getEmployee(actor: SessionUser, id: string) {
   assertCan(actor, "hr:read");
-  return db.query.employees.findFirst({
+  const row = await db.query.employees.findFirst({
     where: eq(employees.id, id),
     with: {
       store: { columns: { id: true, code: true, name: true } },
       user: { columns: { id: true, email: true, isActive: true } },
     },
   });
+  if (row) assertHeadquartersAccess(actor, row.storeId);
+  return row;
 }
 
 // Fiche du salarié connecté (mon-espace) — sans salaire ni notes RH.
@@ -116,6 +133,7 @@ async function assertValidInput(input: EmployeeInput, currentId?: string) {
 
 export async function createEmployee(actor: SessionUser, input: EmployeeInput) {
   assertCan(actor, "hr:write");
+  assertHeadquartersAccess(actor, input.storeId);
   await assertValidInput(input);
   return auditedInsert({ id: actor.id }, employees, { ...input });
 }
@@ -128,6 +146,8 @@ export async function updateEmployee(
   assertCan(actor, "hr:write");
   const existing = await db.query.employees.findFirst({ where: eq(employees.id, id) });
   if (!existing) throw new Error("Fiche salarié introuvable.");
+  assertHeadquartersAccess(actor, existing.storeId);
+  assertHeadquartersAccess(actor, input.storeId);
   await assertValidInput(input, id);
   return auditedUpdate({ id: actor.id }, employees, id, { ...input });
 }
@@ -144,6 +164,7 @@ export async function attachEmployeeFiles(
     where: eq(employees.id, employeeId),
   });
   if (!employee) throw new Error("Fiche salarié introuvable.");
+  assertHeadquartersAccess(actor, employee.storeId);
   for (const file of files) {
     await saveUpload(actor, file, { entityType: "EMPLOYEE", entityId: employeeId });
   }
@@ -151,6 +172,11 @@ export async function attachEmployeeFiles(
 
 export async function listEmployeeFiles(actor: SessionUser, employeeId: string) {
   assertCan(actor, "hr:read");
+  const employee = await db.query.employees.findFirst({
+    where: eq(employees.id, employeeId),
+    columns: { storeId: true },
+  });
+  if (employee) assertHeadquartersAccess(actor, employee.storeId);
   return db.query.fileAttachments.findMany({
     where: and(
       eq(fileAttachments.entityType, "EMPLOYEE"),

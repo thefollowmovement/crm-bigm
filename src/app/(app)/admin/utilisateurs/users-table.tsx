@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +59,7 @@ type UserRow = {
   pole: string | null;
   franchiseeId: string | null;
   franchiseeName: string | null;
+  franchisorMember: boolean;
   isActive: boolean;
 };
 
@@ -137,6 +139,23 @@ function RoleFields({
           </Select>
         </div>
       </div>
+      <label
+        className="flex items-start gap-2 text-sm"
+        data-testid="franchisor-member-field"
+      >
+        <Checkbox
+          name="franchisorMember"
+          value="true"
+          defaultChecked={defaults?.franchisorMember ?? false}
+          className="mt-0.5"
+        />
+        <span>
+          Membre de l&apos;entité FRANCHISEUR (Big M CIE)
+          <span className="block text-xs text-muted-foreground">
+            Donne accès aux dossiers RH rattachés au siège (avec les droits RH).
+          </span>
+        </span>
+      </label>
       {role === "FRANCHISE" ? (
         <div className="space-y-1.5">
           <Label>Franchisé rattaché</Label>

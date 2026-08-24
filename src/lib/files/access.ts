@@ -20,7 +20,7 @@ import {
 } from "@/db/schema";
 import type { SessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz/permissions";
-import { accessibleStoreIds } from "@/lib/authz/guards";
+import { accessibleStoreIds, isFranchisorMember } from "@/lib/authz/guards";
 
 type Attachment = typeof fileAttachments.$inferSelect;
 
@@ -175,10 +175,18 @@ export async function canDownloadFile(
     }
     case "EMPLOYEE": {
       // Dossier RH : RH/direction, ou le salarié lui-même (compte lié).
+      // Fiche du siège Big M CIE : membres de l'entité FRANCHISEUR seulement.
       const employee = await db.query.employees.findFirst({
         where: eq(employees.id, attachment.entityId ?? ""),
       });
       if (!employee) return deny;
+      if (
+        employee.storeId === null &&
+        employee.userId !== user.id &&
+        !isFranchisorMember(user)
+      ) {
+        return deny;
+      }
       if (can(user, "hr:read") || employee.userId === user.id) {
         return { allowed: true, audit: true };
       }

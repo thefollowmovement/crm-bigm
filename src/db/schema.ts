@@ -271,6 +271,9 @@ export const users = pgTable(
     role: roleEnum("role").notNull(),
     pole: poleEnum("pole"),
     franchiseeId: uuid("franchisee_id").references(() => franchisees.id),
+    // Membre de l'entité FRANCHISEUR « Big M CIE » (étape 34) : seul un membre
+    // (ou un ADMIN) voit les dossiers RH rattachés au siège.
+    franchisorMember: boolean("franchisor_member").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

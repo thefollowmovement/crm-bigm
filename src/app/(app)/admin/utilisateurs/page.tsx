@@ -42,6 +42,7 @@ export default async function UtilisateursPage() {
           pole: u.pole,
           franchiseeId: u.franchiseeId,
           franchiseeName: u.franchisee?.companyName ?? null,
+          franchisorMember: u.franchisorMember,
           isActive: u.isActive,
         }))}
         franchisees={allFranchisees}

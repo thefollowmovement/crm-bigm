@@ -62,6 +62,9 @@ export type SessionUser = {
   impersonatorUserId?: string | null;
   // Écarts de droits posés à chaud pour le rôle (étape 30) — voir can().
   permissionOverrides?: PermissionOverrideMap;
+  // Membre de l'entité FRANCHISEUR « Big M CIE » (étape 34) : accès aux
+  // dossiers RH rattachés au siège.
+  franchisorMember?: boolean;
 };
 
 export async function validateSessionToken(
@@ -96,6 +99,7 @@ export async function validateSessionToken(
     role: user.role,
     pole: user.pole,
     franchiseeId: user.franchiseeId,
+    franchisorMember: user.franchisorMember,
     impersonatorUserId: row.impersonatorUserId ?? null,
     permissionOverrides: await loadPermissionOverrides(user.role),
   };

@@ -45,7 +45,9 @@ describe("RH — salariés, congés, pointeuse", () => {
   });
 
   it("fiche salarié : champs sensibles réservés à hr:read, écriture réservée à la RH", async () => {
-    const rh = asSession(await createTestUser({ role: "RH", pole: "RH" }));
+    const rh = asSession(
+      await createTestUser({ role: "RH", pole: "RH", franchisorMember: true })
+    );
     const animateur = asSession(await createTestUser({ role: "ANIMATION" }));
 
     const employee = await createEmployee(rh, {
@@ -127,7 +129,9 @@ describe("RH — salariés, congés, pointeuse", () => {
   });
 
   it("congés : demande du salarié, refus des chevauchements, décision RH notifiée, annulation", async () => {
-    const rh = asSession(await createTestUser({ role: "RH", pole: "RH" }));
+    const rh = asSession(
+      await createTestUser({ role: "RH", pole: "RH", franchisorMember: true })
+    );
     const compte = await createTestUser({ role: "SALARIE" });
     const salarie = asSession(compte);
     await createTestEmployee({ userId: compte.id });

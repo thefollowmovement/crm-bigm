@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth/current-user";
 import { can } from "@/lib/authz/permissions";
+import { ForbiddenError, isFranchisorMember } from "@/lib/authz/guards";
 import { addDaysIso, formatDateFr, todayParis } from "@/lib/dates";
 import { EMPLOYEE_CONTRACT_TYPE_LABELS, LEAVE_STATUS_LABELS, LEAVE_TYPE_LABELS } from "@/lib/labels";
 import {
@@ -40,7 +41,14 @@ export default async function EmployeeDetailPage({
   if (!can(user, "hr:read")) return <AccessDenied />;
 
   const { id } = await params;
-  const employee = await getEmployee(user, id);
+  let employee;
+  try {
+    employee = await getEmployee(user, id);
+  } catch (e) {
+    // Fiche du siège Big M CIE hors entité FRANCHISEUR → accès refusé.
+    if (e instanceof ForbiddenError) return <AccessDenied />;
+    throw e;
+  }
   if (!employee) notFound();
 
   const canWrite = can(user, "hr:write");
@@ -88,6 +96,7 @@ export default async function EmployeeDetailPage({
           <CardContent>
             {canWrite ? (
               <EditEmployeeForm
+                canHeadquarters={isFranchisorMember(user)}
                 employeeId={employee.id}
                 isActive={employee.isActive}
                 stores={stores.map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` }))}

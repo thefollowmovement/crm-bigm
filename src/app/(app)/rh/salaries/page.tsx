@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { requireUser } from "@/lib/auth/current-user";
 import { can } from "@/lib/authz/permissions";
+import { isFranchisorMember } from "@/lib/authz/guards";
 import { formatDateFr } from "@/lib/dates";
 import { EMPLOYEE_CONTRACT_TYPE_LABELS } from "@/lib/labels";
 import {
@@ -47,6 +48,7 @@ export default async function EmployeesPage() {
         </div>
         {canWrite ? (
           <CreateEmployeeDialog
+            canHeadquarters={isFranchisorMember(user)}
             stores={stores.map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` }))}
             linkableUsers={linkableUsers.map((u) => ({
               id: u.id,
@@ -90,7 +92,7 @@ export default async function EmployeesPage() {
                   <TableCell className="text-muted-foreground">
                     {employee.store
                       ? `${employee.store.code} — ${employee.store.name}`
-                      : "Siège"}
+                      : "Siège — Big M CIE"}
                   </TableCell>
                   <TableCell>
                     {EMPLOYEE_CONTRACT_TYPE_LABELS[employee.contractType]}

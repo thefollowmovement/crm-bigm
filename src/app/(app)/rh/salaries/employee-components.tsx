@@ -64,10 +64,13 @@ function EmployeeFields({
   stores,
   linkableUsers,
   values,
+  canHeadquarters,
 }: {
   stores: Option[];
   linkableUsers: Option[];
   values?: EmployeeFormValues;
+  // Membre de l'entité FRANCHISEUR : peut affecter au siège Big M CIE.
+  canHeadquarters: boolean;
 }) {
   return (
     <>
@@ -116,12 +119,17 @@ function EmployeeFields({
         </div>
         <div className="space-y-1.5">
           <Label>Affectation</Label>
-          <Select name="storeId" defaultValue={values?.storeId ?? "none"}>
+          <Select
+            name="storeId"
+            defaultValue={values?.storeId ?? (canHeadquarters ? "none" : (stores[0]?.id ?? "none"))}
+          >
             <SelectTrigger data-testid="emp-store-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Siège</SelectItem>
+              {canHeadquarters ? (
+                <SelectItem value="none">Siège — Big M CIE</SelectItem>
+              ) : null}
               {stores.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.label}
@@ -205,9 +213,11 @@ function EmployeeFields({
 }
 
 export function CreateEmployeeDialog({
+  canHeadquarters,
   stores,
   linkableUsers,
 }: {
+  canHeadquarters: boolean;
   stores: Option[];
   linkableUsers: Option[];
 }) {
@@ -233,7 +243,11 @@ export function CreateEmployeeDialog({
           </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="space-y-4">
-          <EmployeeFields stores={stores} linkableUsers={linkableUsers} />
+          <EmployeeFields
+            stores={stores}
+            linkableUsers={linkableUsers}
+            canHeadquarters={canHeadquarters}
+          />
           <Button
             type="submit"
             className="w-full"
@@ -249,12 +263,14 @@ export function CreateEmployeeDialog({
 }
 
 export function EditEmployeeForm({
+  canHeadquarters,
   employeeId,
   isActive,
   stores,
   linkableUsers,
   values,
 }: {
+  canHeadquarters: boolean;
   employeeId: string;
   isActive: boolean;
   stores: Option[];
@@ -269,7 +285,12 @@ export function EditEmployeeForm({
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="employeeId" value={employeeId} />
-      <EmployeeFields stores={stores} linkableUsers={linkableUsers} values={values} />
+      <EmployeeFields
+        stores={stores}
+        linkableUsers={linkableUsers}
+        values={values}
+        canHeadquarters={canHeadquarters}
+      />
       <div className="space-y-1.5">
         <Label>Statut</Label>
         <Select name="isActive" defaultValue={isActive ? "true" : "false"}>

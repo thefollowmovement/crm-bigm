@@ -5,7 +5,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { employees, leaveRequests, users } from "@/db/schema";
 import { auditedInsert, auditedUpdate } from "@/lib/db/audited";
-import { ForbiddenError, assertCan } from "@/lib/authz/guards";
+import { ForbiddenError, assertCan, isFranchisorMember } from "@/lib/authz/guards";
 import { can } from "@/lib/authz/permissions";
 import type { SessionUser } from "@/lib/auth/session";
 import { notify } from "@/services/notifications.service";
@@ -61,7 +61,7 @@ export async function listLeaves(
     conditions.push(eq(leaveRequests.employeeId, own.id));
   }
 
-  return db.query.leaveRequests.findMany({
+  const rows = await db.query.leaveRequests.findMany({
     where: conditions.length > 0 ? and(...conditions) : undefined,
     with: {
       employee: {
@@ -72,6 +72,12 @@ export async function listLeaves(
     },
     orderBy: [desc(leaveRequests.createdAt)],
   });
+  // Congés du siège Big M CIE : réservés aux membres de l'entité (sauf les
+  // siens, déjà scopés plus haut pour un salarié).
+  if (can(actor, "hr:read") && !isFranchisorMember(actor)) {
+    return rows.filter((r) => r.employee.storeId !== null);
+  }
+  return rows;
 }
 
 // ── Écritures ────────────────────────────────────────────────────
@@ -133,9 +139,20 @@ export async function requestLeave(actor: SessionUser, input: LeaveInput) {
 
   const employee = await db.query.employees.findFirst({
     where: eq(employees.id, employeeId),
-    columns: { id: true, firstName: true, lastName: true },
+    columns: { id: true, firstName: true, lastName: true, storeId: true, userId: true },
   });
   if (!employee) throw new Error("Fiche salarié introuvable.");
+  // Saisie POUR un salarié du siège Big M CIE : membres de l'entité seulement
+  // (le salarié du siège reste libre de demander pour lui-même).
+  if (
+    employee.storeId === null &&
+    employee.userId !== actor.id &&
+    !isFranchisorMember(actor)
+  ) {
+    throw new ForbiddenError(
+      "Dossier du siège Big M CIE : réservé aux membres de l'entité FRANCHISEUR."
+    );
+  }
 
   const leave = await auditedInsert({ id: actor.id }, leaveRequests, {
     employeeId,
@@ -162,9 +179,18 @@ export async function decideLeave(
   assertCan(actor, "hr:write");
   const leave = await db.query.leaveRequests.findFirst({
     where: eq(leaveRequests.id, leaveId),
-    with: { employee: { columns: { userId: true, firstName: true, lastName: true } } },
+    with: {
+      employee: {
+        columns: { userId: true, firstName: true, lastName: true, storeId: true },
+      },
+    },
   });
   if (!leave) throw new Error("Demande introuvable.");
+  if (leave.employee.storeId === null && !isFranchisorMember(actor)) {
+    throw new ForbiddenError(
+      "Dossier du siège Big M CIE : réservé aux membres de l'entité FRANCHISEUR."
+    );
+  }
   if (leave.status !== "DEMANDEE") {
     throw new Error("Cette demande a déjà été tranchée.");
   }

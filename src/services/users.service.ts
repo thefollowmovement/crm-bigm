@@ -32,6 +32,7 @@ export async function createUser(
     role: Role;
     pole: Pole | null;
     franchiseeId: string | null;
+    franchisorMember?: boolean;
   }
 ) {
   assertCan(actor, "user:manage");
@@ -50,6 +51,7 @@ export async function createUser(
     role: input.role,
     pole: input.pole,
     franchiseeId: input.franchiseeId,
+    franchisorMember: input.franchisorMember ?? false,
   });
 }
 
@@ -62,6 +64,7 @@ export async function updateUser(
     role: Role;
     pole: Pole | null;
     franchiseeId: string | null;
+    franchisorMember?: boolean;
   }
 ) {
   assertCan(actor, "user:manage");

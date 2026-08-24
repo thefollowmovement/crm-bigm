@@ -66,6 +66,7 @@ async function upsertUser(input: {
   role: Role;
   pole?: "DIRECTION" | "COMPTABILITE" | "RH" | "ANIMATION" | "COMMUNICATION" | "DEVELOPPEMENT";
   franchiseeId?: string;
+  franchisorMember?: boolean;
 }) {
   const existing = await db.query.users.findFirst({
     where: eq(users.email, input.email),
@@ -81,6 +82,7 @@ async function upsertUser(input: {
       role: input.role,
       pole: input.pole ?? null,
       franchiseeId: input.franchiseeId ?? null,
+      franchisorMember: input.franchisorMember ?? false,
     })
     .returning();
   console.log(`Utilisateur créé : ${input.email} (${input.role})`);
@@ -119,6 +121,8 @@ async function main() {
     lastName: "Direction",
     role: "DIRECTION",
     pole: "DIRECTION",
+    // Membre de l'entité FRANCHISEUR : voit les dossiers RH du siège.
+    franchisorMember: true,
   });
   await upsertUser({
     email: "compta@bigm.fr",

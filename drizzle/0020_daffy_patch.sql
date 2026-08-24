@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "franchisor_member" boolean DEFAULT false NOT NULL;

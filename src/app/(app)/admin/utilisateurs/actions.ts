@@ -52,6 +52,8 @@ const baseUserSchema = z.object({
   role: roleSchema,
   pole: poleSchema.nullable(),
   franchiseeId: z.string().uuid().nullable(),
+  // Membre de l'entité FRANCHISEUR « Big M CIE » (dossiers RH du siège)
+  franchisorMember: z.boolean(),
 });
 
 const passwordSchema = z
@@ -86,6 +88,7 @@ export async function createUserAction(
       role: formData.get("role"),
       pole: parseNullable(formData.get("pole")),
       franchiseeId: parseNullable(formData.get("franchiseeId")),
+      franchisorMember: formData.get("franchisorMember") === "true",
     });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Saisie invalide" };
@@ -114,6 +117,7 @@ export async function updateUserAction(
       role: formData.get("role"),
       pole: parseNullable(formData.get("pole")),
       franchiseeId: parseNullable(formData.get("franchiseeId")),
+      franchisorMember: formData.get("franchisorMember") === "true",
     });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Saisie invalide" };
