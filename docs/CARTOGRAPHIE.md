@@ -3,17 +3,18 @@
 > Document de référence : où est chaque module, qui y a droit, comment tout
 > s'articule. Complète le `CLAUDE.md` (état du projet + process de dev).
 > Mise à jour : feuille de route client (phases 0 à 5, étapes 1 à 27)
-> + améliorations post-V1 (étapes 28 à 33).
+> + améliorations post-V1 (étapes 28 à 33, puis 34 à 40).
 
 ## Vue d'ensemble
 
 - **Stack** : Next.js 15 (App Router, TypeScript strict) · PostgreSQL 16 ·
   Drizzle ORM · Tailwind v4 · composants shadcn maison · recharts (graphiques).
-- **Volumétrie** : 62 tables · 50 enums · 20 migrations · 38 services ·
-  60 pages · 63 permissions · 9 rôles · 10 jobs cron · 146 tests unitaires ·
-  82 parcours e2e Playwright.
+- **Volumétrie** : 65 tables · 50 enums · 23 migrations · 40 services ·
+  61 pages · 63 permissions · 9 rôles (+ rôles personnalisés dynamiques) ·
+  10 jobs cron · 151 tests unitaires · 143 tests d'intégration ·
+  89 parcours e2e Playwright.
 - **Branche de travail** : `claude/crm-interne-plan-docker-s3neyk`
-  (commits « Étape 1 » à « Étape 33 », un commit par étape, gate complet vert
+  (commits « Étape 1 » à « Étape 40 », un commit par étape, gate complet vert
   avant chacun).
 
 ## Architecture en couches (règles non négociables du CLAUDE.md)
@@ -38,14 +39,16 @@ FRANCHISE) · `src/lib/money.ts` (centimes entiers, jamais de float) ·
 Europe/Paris) · `src/lib/files/` (fichiers servis uniquement via
 `/api/files/[id]`) · `src/lib/vault/crypto.ts` (AES-256-GCM, clé env
 `VAULT_KEY`) · `src/lib/backup/` (pg_dump quotidien + manuel, rétention,
-envoi FTP optionnel).
+envoi FTP optionnel) · `src/components/calendar-month.tsx` (grille mensuelle
+partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
+ℹ posée sur les valeurs pilotées par un réglage hors page ou dérivées).
 
 ## Cartographie fonctionnelle (navigation → pages → accès)
 
 ### Accueil
 | Page | Rôle(s) | Contenu |
 |---|---|---|
-| `/` | tous | Dashboard par rôle : boutique (franchisé), animateur, réseau+régions (siège), espace salarié. `data-testid="dashboard-title"` obligatoire partout. |
+| `/` | tous | Dashboard par rôle : boutique (franchisé), animateur, réseau+régions (siège), espace salarié. `data-testid="dashboard-title"` obligatoire partout. Bloc « Agenda — 30 prochains jours » (`agenda.service.ts` : visites, formations, contrats, factures, plans, jalons, tâches com, congés — filtré par permissions et périmètre ; absent du rôle SALARIE). |
 | `/notifications` | tous | Cloche de notifications (dedupeKey anti-doublons). |
 | `/mon-espace` | SALARIE (+ADMIN/DIRECTION) | Pointeuse Début/Pause/Reprise/Fin, feuille de temps, demandes de congés. |
 | `/mon-compte` | tous | Coordonnées (téléphone), changement d'e-mail et de mot de passe (mdp actuel exigé, autres appareils déconnectés). |
@@ -64,7 +67,7 @@ envoi FTP optionnel).
 |---|---|---|
 | `/animation/visites` (+grille) | `visit:read` (siège) | Audits/visites, grille de critères paramétrable, note % dérivée. |
 | `/animation/plans-action` | `actionplan:read` (siège+franchisé scopé) | Plans « PA-… », machine à états, validation créateur/direction. |
-| `/animation/planning` | `planning:read` (siège) | Créneaux hebdo animateurs (unique animateur+jour+période). |
+| `/animation/planning` | `planning:read` (siège) | Créneaux animateurs (unique animateur+jour+période), vues jour/semaine/mois (`?vue=`), glisser-déposer vers un autre jour (conflits refusés, animateur notifié si tiers). |
 | `/animation/animateurs` | `planning:read` | Fiches animateurs : zone, coût/km, stats km/visites. |
 | `/animation/formations` | `training:read` (tous, franchisé scopé) | Formations, REALISEE exige compte rendu, docs REMIS/SIGNE. |
 
@@ -80,7 +83,7 @@ envoi FTP optionnel).
 | `/finances` | `finance:read` (compta+dir) | Factures `F<année>-XXXX`, paiements, relances 1-3. |
 | `/ca` | `revenue:read` | Saisie/import CSV, évolution, N vs N-1, produits & familles, panier moyen. |
 | `/achats` (+dépôts) | `purchase:read` | Achats DPS, ratio achats/CA, import CSV. |
-| `/foodcost` | `foodcost:read` (siège sauf franchisé) | Ingrédients, tarifs par dépôt à date, recettes, synthèse, écart matière. |
+| `/foodcost` | `foodcost:read` (siège sauf franchisé) | Ingrédients, tarifs par dépôt à date (dépôt créable à la volée depuis le formulaire de tarif avec `purchase:write`), recettes, synthèse, écart matière. |
 
 ### Développement
 | Page | Permission | Contenu |
@@ -93,8 +96,8 @@ envoi FTP optionnel).
 ### Ressources humaines
 | Page | Permission | Contenu |
 |---|---|---|
-| `/rh/salaries` (+fiche) | `hr:read` (RH+dir) | Dossiers salariés (salaire/notes RH absents des DTO hors `hr:read`), congés, temps de travail, documents. |
-| `/rh/conges` | `hr:read` | Validation/refus des demandes. |
+| `/rh/salaries` (+fiche) | `hr:read` (RH+dir) | Dossiers salariés (salaire/notes RH absents des DTO hors `hr:read`), congés, temps de travail, documents. Salarié « siège » = `storeId` NULL : dossier visible des seuls membres de l'entité FRANCHISEUR (`users.franchisorMember`, ADMIN toujours membre). |
+| `/rh/conges` | `hr:read` | Validation/refus des demandes + vue calendrier mensuelle des absences (`?vue=calendrier`, filtre par boutique / « Siège — Big M CIE », chips Validée/Demandée). |
 
 ### Direction
 | Page | Permission | Contenu |
@@ -105,10 +108,10 @@ envoi FTP optionnel).
 ### Organisation & Administration
 | Page | Permission | Contenu |
 |---|---|---|
-| `/tickets` | `ticket:read` | Tickets inter-pôles « T-… », confiés à une personne précise (tous pôles) dès la création ou après. |
+| `/tickets` | `ticket:read` (ou tickets « à moi ») | Tickets inter-pôles, plusieurs pôles destinataires (`extraPoles`) et plusieurs responsables (`ticketAssignees`, premier = principal) — TOUT utilisateur actif est assignable ; un salarié/franchisé assigné accède à SES tickets sans `ticket:read` (liste forcée « les miens »). |
 | `/documents` | `document:read` | Bibliothèque versionnée, visibilité par rôle, dossiers de classement (création `document:folder`, délégable). |
 | `/admin/utilisateurs` | `user:manage` | Comptes + rôles + « Se connecter en tant que » (ADMIN seul, audité). |
-| `/admin/permissions` | `permission:manage` (ADMIN seul) | Matrice des droits modifiable à chaud par rôle (écarts stockés, ADMIN immunisé). |
+| `/admin/permissions` | `permission:manage` (ADMIN seul) | Matrice des droits modifiable à chaud par rôle (écarts stockés, ADMIN immunisé) + rôles PERSONNALISÉS : base ≠ ADMIN, chaque droit épinglé explicitement (un pin bat matrice et écarts du rôle de base), assignables aux utilisateurs, suppression bloquée tant qu'assignés. |
 | `/admin/sauvegardes` | `backup:manage` | Sauvegardes pg_dump : quotidienne 05h30 + manuelle, téléchargement audité, rétention, envoi FTP optionnel. |
 | `/admin/produits` | `product:manage` | Référentiel produits/familles. |
 | `/admin/logiciels` | `software:read` (siège) / write dir | Registre des logiciels + personnes autorisées. |
@@ -130,14 +133,21 @@ son projet d'ouverture). SALARIE : `self:clock` + `self:leave` uniquement
 
 Ces droits par défaut sont modifiables À CHAUD par l'admin via
 `/admin/permissions` (table `permissionOverrides` : seuls les écarts sont
-stockés ; le rôle ADMIN n'est jamais restreint).
+stockés ; le rôle ADMIN n'est jamais restreint). S'y ajoutent des **rôles
+personnalisés** (`customRoles` + `customRolePermissions` : rôle de base +
+droits épinglés un à un — un pin l'emporte sur la matrice ET sur les écarts
+du rôle de base) et l'**entité FRANCHISEUR** : `users.franchisorMember`
+(ADMIN inclus d'office) réserve les dossiers RH/congés/fichiers des salariés
+du siège Big M CIE (`employees.storeId` NULL).
 
-## Données (62 tables, par domaine)
+## Données (65 tables, par domaine)
 
-- **Socle** : users, sessions, franchisees, stores, storePlatforms, contracts,
-  documents, documentVersions, documentFolders, fileAttachments,
-  notifications, auditLogs, permissionOverrides, backups.
-- **Échanges & tickets** : exchanges, exchangeMessages, tickets, ticketComments.
+- **Socle** : users (franchisorMember, customRoleId), sessions, franchisees,
+  stores, storePlatforms, contracts, documents, documentVersions,
+  documentFolders, fileAttachments, notifications, auditLogs,
+  permissionOverrides, customRoles, customRolePermissions, backups.
+- **Échanges & tickets** : exchanges, exchangeMessages, tickets (extraPoles),
+  ticketComments, ticketAssignees.
 - **Finances réseau** : invoices, payments, reminders.
 - **CA & ventes** : revenueEntries (orderCount), productFamilies, products,
   productSales.
@@ -183,6 +193,12 @@ P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
   « en tant que » · photo & GPS des boutiques · droits d'accès modifiables à
   chaud · tickets confiés à une personne · dossiers documentaires ·
   sauvegardes BDD (quotidienne/manuelle/FTP).
+- ✅ **Améliorations post-V1, 2ᵉ vague** — étapes 34 à 40 : entité
+  FRANCHISEUR (siège Big M CIE) · rôles personnalisés · tickets multi-pôles
+  & multi-personnes · planning jour/semaine/mois + glisser-déposer · congés
+  en calendrier par boutique · dépôt à la volée + icônes d'information
+  (seuils env et valeurs dérivées) · agenda des 30 prochains jours sur les
+  tableaux de bord.
 - ⬜ **V2 (hors périmètre — nouveau devis)** : HACCP/hygiène, contrôles
   officiels, litiges, assurances/sinistres, maintenance/travaux, parc
   matériel, fournisseurs/ruptures, notes Google/Uber Eats/Deliveroo,

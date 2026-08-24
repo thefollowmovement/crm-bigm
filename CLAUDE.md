@@ -160,7 +160,38 @@ pg_dump ajouté à l'image Docker + volume `backups_data` ; Google Drive =
 client de synchro pointé sur BACKUP_DIR, documenté dans l'UI). 10 jobs cron
 (05h30→07h20).
 
-**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-33).**
+**AMÉLIORATIONS POST-V1, 2ᵉ VAGUE LIVRÉE** (commits « Étape 34 » à
+« Étape 40 ») : entité FRANCHISEUR (`users.franchisorMember`, salarié du
+siège = `employees.storeId` NULL, guard `isFranchisorMember` — ADMIN toujours
+membre — ; dossiers RH/congés/fichiers du siège réservés aux membres,
+libellé « Siège — Big M CIE », case dédiée dans /admin/utilisateurs) · rôles
+personnalisés (`customRoles`/`customRolePermissions` : base ≠ ADMIN + droits
+ÉPINGLÉS explicitement — un pin bat la matrice ET les écarts du rôle de
+base —, `users.customRoleId`, colonnes dans /admin/permissions, sélecteur
+« custom:<id> » à la création/édition d'utilisateur, suppression bloquée si
+assigné) · tickets multi-pôles & multi-personnes (`tickets.extraPoles`
+pole[], table `ticketAssignees`, premier assigné = principal, TOUT
+utilisateur actif assignable ; un salarié/franchisé assigné voit SES tickets
+sans `ticket:read` — listTickets force « les miens », getTicket sinon
+Forbidden) · planning en vues jour/semaine/mois (`?vue=`) + glisser-déposer
+(`moveEntry`, conflit jour cible `hasDayConflict`, notification si déplacé
+par un tiers) via composant partagé `src/components/calendar-month.tsx` +
+helpers `monthGridDays`/`startOfMonthIso` · congés en vue calendrier par
+boutique (`/rh/conges?vue=calendrier`, filtre boutique/« Siège », chips
+Validée verte / Demandée « ? » orange, `listLeaves({overlapping})`) ·
+Food Cost : création de dépôt à la volée dans le formulaire de tarif
+(sentinelle « NOUVEAU », `purchase:write` vérifié par le service achats) ·
+icônes d'information `src/components/info-hint.tsx` (title natif, server
+components) sur les seuils env (bornes achats/CA, écart matière, baisse CA,
+audit en retard, rétention sauvegardes — valeurs effectives affichées via
+`purchaseThresholds()`/`auditMaxDays()`/`dropThresholdPct()`/`retentionDays()`)
+et les valeurs dérivées (food cost % du PV, panier moyen) · agenda du
+tableau de bord (`services/agenda.service.ts` : 8 sources datées — visites,
+formations, contrats, factures, plans, jalons, tâches com, congés — filtrées
+par `can()` + périmètre franchisé ; bloc `DashboardAgenda` = mois en cours +
+liste 30 jours sur les 3 dashboards, absent du rôle SALARIE).
+
+**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-40).**
 Reste hors périmètre : la « V2 » (pôle 15 « Modules complémentaires » du cdc
 §24 : HACCP, litiges, assurances, maintenance, parc matériel, notes
 plateformes…) — nouveau devis.
