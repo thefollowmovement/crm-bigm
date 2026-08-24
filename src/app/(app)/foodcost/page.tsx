@@ -11,10 +11,12 @@ import {
   listIngredients,
   listRecipes,
 } from "@/services/foodcost.service";
+import { purchaseThresholds } from "@/lib/jobs/purchase-anomaly";
 import { getMaterialVariance } from "@/services/material-variance.service";
 import { listDepots } from "@/services/purchases.service";
 import { listProducts } from "@/services/products.service";
 import { AccessDenied } from "@/components/access-denied";
+import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -94,6 +96,7 @@ export default async function FoodCostPage() {
                 label: `${i.name} (${UNIT_LABELS[i.unit]})`,
               }))}
               depots={depots.map((d) => ({ id: d.id, label: `${d.code} — ${d.name}` }))}
+              canCreateDepot={can(user, "purchase:write")}
             />
           </div>
         ) : null}
@@ -117,7 +120,10 @@ export default async function FoodCostPage() {
           <Card>
             <CardHeader>
               <CardTitle>
-                Écart matière — {formatMonthFr(today.slice(0, 7))}
+                Écart matière — {formatMonthFr(today.slice(0, 7))}{" "}
+                <InfoHint
+                  text={`Un écart supérieur à ±${purchaseThresholds().maxVariancePct} % déclenche l'alerte « anomalie achats » du mois précédent (job quotidien de 07h20 — seuil réglable via la variable d'environnement MATERIAL_VARIANCE_MAX_PCT).`}
+                />
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -317,7 +323,10 @@ export default async function FoodCostPage() {
         <TabsContent value="synthese" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Coût matière par produit et par dépôt</CardTitle>
+              <CardTitle>
+                Coût matière par produit et par dépôt{" "}
+                <InfoHint text="Le « % du PV » (food cost) = coût matière de la recette au tarif du dépôt ÷ prix de vente HT du produit. Il n'est jamais stocké : il change dès qu'un tarif, un grammage ou un prix de vente change." />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {board.length === 0 ? (

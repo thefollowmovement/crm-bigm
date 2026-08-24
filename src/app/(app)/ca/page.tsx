@@ -18,7 +18,9 @@ import {
   getTopProducts,
 } from "@/services/product-sales.service";
 import { listStores } from "@/services/stores.service";
+import { dropThresholdPct } from "@/lib/jobs/revenue-drop";
 import { AccessDenied } from "@/components/access-denied";
+import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -197,7 +199,12 @@ export default async function CaPage({
         <TabsContent value="evolution" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Évolution du CA brut</CardTitle>
+              <CardTitle>
+                Évolution du CA brut{" "}
+                <InfoHint
+                  text={`Une baisse de plus de ${dropThresholdPct()} % du CA des 7 derniers jours par rapport à la même semaine N-1 déclenche l'alerte « baisse de CA » vers l'animateur et la direction (job quotidien de 06h30 — seuil réglable via la variable d'environnement REVENUE_DROP_THRESHOLD_PCT).`}
+                />
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <AnalyticsFilters
@@ -392,6 +399,7 @@ function MonthTab({
               <span className="font-semibold">
                 {formatEUR(monthData.averageBasket)}
               </span>{" "}
+              <InfoHint text="Panier moyen = CA brut du mois ÷ nombre de commandes saisi avec le CA (jamais stocké : il se recalcule à chaque saisie ou import)." />{" "}
               <span className="text-muted-foreground">
                 ({monthData.orderTotal} commande{monthData.orderTotal > 1 ? "s" : ""})
               </span>

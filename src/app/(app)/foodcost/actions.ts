@@ -13,6 +13,7 @@ import {
   setRecipeItemFromRaw,
   updateIngredient,
 } from "@/services/foodcost.service";
+import { createDepot } from "@/services/purchases.service";
 
 const priceString = z
   .string()
@@ -63,20 +64,56 @@ export const toggleIngredientAction = safeFormAction(
   }
 );
 
+const uuidString = z.string().uuid();
+
 export const setPriceAction = safeFormAction(
   {
     permission: "foodcost:write",
     schema: z.object({
       ingredientId: z.string().uuid("Choisissez un ingrédient"),
-      depotId: z.string().uuid("Choisissez un dépôt"),
+      // uuid d'un dépôt existant, ou « NOUVEAU » pour une création à la volée
+      depotId: z.string().min(1, "Choisissez un dépôt"),
+      newDepotCode: z.string().trim().nullable(),
+      newDepotName: z.string().trim().nullable(),
       pricePerUnit: priceString,
       effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide"),
     }),
+    prepare: (formData) => ({
+      ingredientId: formData.get("ingredientId"),
+      depotId: formData.get("depotId"),
+      newDepotCode: nullable(formData.get("newDepotCode")),
+      newDepotName: nullable(formData.get("newDepotName")),
+      pricePerUnit: formData.get("pricePerUnit"),
+      effectiveDate: formData.get("effectiveDate"),
+    }),
   },
   async (input, actor) => {
-    await setIngredientPrice(actor, input);
+    let depotId = input.depotId;
+    const created = depotId === "NOUVEAU";
+    if (created) {
+      // Création à la volée : le service des achats (propriétaire du
+      // référentiel des dépôts) vérifie purchase:write.
+      if (!input.newDepotCode || !input.newDepotName) {
+        throw new Error("Code et nom du nouveau dépôt requis.");
+      }
+      const depot = await createDepot(actor, {
+        code: input.newDepotCode,
+        name: input.newDepotName,
+        city: null,
+      });
+      depotId = depot.id;
+      revalidatePath("/achats/depots");
+    } else if (!uuidString.safeParse(depotId).success) {
+      throw new Error("Choisissez un dépôt.");
+    }
+    await setIngredientPrice(actor, {
+      ingredientId: input.ingredientId,
+      depotId,
+      pricePerUnit: input.pricePerUnit,
+      effectiveDate: input.effectiveDate,
+    });
     revalidatePath("/foodcost");
-    return "Tarif enregistré.";
+    return created ? "Dépôt créé et tarif enregistré." : "Tarif enregistré.";
   }
 );
 

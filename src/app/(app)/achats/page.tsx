@@ -12,8 +12,10 @@ import {
   getStorePurchases,
   listDepots,
 } from "@/services/purchases.service";
+import { purchaseThresholds } from "@/lib/jobs/purchase-anomaly";
 import { listStores } from "@/services/stores.service";
 import { AccessDenied } from "@/components/access-denied";
+import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -187,7 +189,12 @@ export default async function AchatsPage({
                     <TableHead>Mois</TableHead>
                     <TableHead className="text-right">Achats</TableHead>
                     <TableHead className="text-right">CA</TableHead>
-                    <TableHead className="text-right">Ratio</TableHead>
+                    <TableHead className="text-right">
+                      Ratio{" "}
+                      <InfoHint
+                        text={`Ratio = achats DPS ÷ CA du mois. Hors bornes ${purchaseThresholds().minRatio} %–${purchaseThresholds().maxRatio} %, l'alerte « anomalie achats » est envoyée à la comptabilité et à la direction (job quotidien de 07h20 sur le mois précédent — bornes réglables via PURCHASE_RATIO_MIN_PCT / PURCHASE_RATIO_MAX_PCT).`}
+                      />
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

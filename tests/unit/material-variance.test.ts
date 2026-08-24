@@ -4,7 +4,10 @@ import {
   theoreticalCostCents,
   variancePct,
 } from "@/services/material-variance.service";
-import { isPurchaseAnomalous } from "@/lib/jobs/purchase-anomaly";
+import {
+  isPurchaseAnomalous,
+  purchaseThresholds,
+} from "@/lib/jobs/purchase-anomaly";
 
 describe("theoreticalCostCents", () => {
   it("calcule au gramme près : quantité recette × tarif × quantité vendue", () => {
@@ -69,5 +72,31 @@ describe("isPurchaseAnomalous", () => {
       isPurchaseAnomalous({ ratioPct: null, variancePct: null }, thresholds)
         .anomalous
     ).toBe(false);
+  });
+});
+
+describe("purchaseThresholds", () => {
+  it("lit l'environnement avec repli sur les valeurs par défaut", () => {
+    const saved = {
+      min: process.env.PURCHASE_RATIO_MIN_PCT,
+      max: process.env.PURCHASE_RATIO_MAX_PCT,
+      variance: process.env.MATERIAL_VARIANCE_MAX_PCT,
+    };
+    try {
+      delete process.env.PURCHASE_RATIO_MIN_PCT;
+      process.env.PURCHASE_RATIO_MAX_PCT = "55";
+      process.env.MATERIAL_VARIANCE_MAX_PCT = "pas-un-nombre";
+      expect(purchaseThresholds()).toEqual({
+        minRatio: 20, // défaut
+        maxRatio: 55, // env
+        maxVariancePct: 15, // env invalide → défaut
+      });
+    } finally {
+      if (saved.min !== undefined) process.env.PURCHASE_RATIO_MIN_PCT = saved.min;
+      if (saved.max === undefined) delete process.env.PURCHASE_RATIO_MAX_PCT;
+      else process.env.PURCHASE_RATIO_MAX_PCT = saved.max;
+      if (saved.variance === undefined) delete process.env.MATERIAL_VARIANCE_MAX_PCT;
+      else process.env.MATERIAL_VARIANCE_MAX_PCT = saved.variance;
+    }
   });
 });

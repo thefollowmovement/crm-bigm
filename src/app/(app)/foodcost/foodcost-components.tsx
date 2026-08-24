@@ -112,11 +112,15 @@ export function IngredientDialog() {
 export function PriceDialog({
   ingredients,
   depots,
+  canCreateDepot,
 }: {
   ingredients: Option[];
   depots: Option[];
+  // création de dépôt à la volée (nécessite purchase:write, vérifié serveur)
+  canCreateDepot: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [depotChoice, setDepotChoice] = useState<string>("");
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     setPriceAction,
     {}
@@ -157,7 +161,12 @@ export function PriceDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Dépôt</Label>
-              <Select name="depotId" required>
+              <Select
+                name="depotId"
+                required
+                value={depotChoice || undefined}
+                onValueChange={setDepotChoice}
+              >
                 <SelectTrigger data-testid="price-depot-select">
                   <SelectValue placeholder="Choisir…" />
                 </SelectTrigger>
@@ -167,6 +176,11 @@ export function PriceDialog({
                       {d.label}
                     </SelectItem>
                   ))}
+                  {canCreateDepot ? (
+                    <SelectItem value="NOUVEAU" data-testid="depot-option-new">
+                      + Créer un dépôt…
+                    </SelectItem>
+                  ) : null}
                 </SelectContent>
               </Select>
             </div>
@@ -181,6 +195,30 @@ export function PriceDialog({
               />
             </div>
           </div>
+          {depotChoice === "NOUVEAU" ? (
+            <div className="grid grid-cols-2 gap-3 rounded-lg border border-dashed p-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="new-depot-code">Code du dépôt</Label>
+                <Input
+                  id="new-depot-code"
+                  name="newDepotCode"
+                  required
+                  placeholder="DPS-EST"
+                  data-testid="new-depot-code"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-depot-name">Nom du dépôt</Label>
+                <Input
+                  id="new-depot-name"
+                  name="newDepotName"
+                  required
+                  placeholder="DPS Strasbourg"
+                  data-testid="new-depot-name"
+                />
+              </div>
+            </div>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="price-date">Date d&apos;effet</Label>
             <Input id="price-date" name="effectiveDate" type="date" required />

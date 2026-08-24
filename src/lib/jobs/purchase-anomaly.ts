@@ -47,6 +47,15 @@ function readThreshold(name: string, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
+// Seuils courants (réutilisés par les info-bulles des pages Achats/Food Cost).
+export function purchaseThresholds() {
+  return {
+    minRatio: readThreshold("PURCHASE_RATIO_MIN_PCT", 20),
+    maxRatio: readThreshold("PURCHASE_RATIO_MAX_PCT", 40),
+    maxVariancePct: readThreshold("MATERIAL_VARIANCE_MAX_PCT", 15),
+  };
+}
+
 // Actor système pour les lectures de services (le job tourne sans session).
 const SYSTEM_ACTOR = {
   id: "00000000-0000-0000-0000-000000000000",
@@ -68,11 +77,7 @@ export async function runPurchaseAnomalyJob(now: Date = new Date()) {
   const toExclusive = `${year}-${String(month).padStart(2, "0")}-01`;
   const monthKey = from.slice(0, 7);
 
-  const thresholds = {
-    minRatio: readThreshold("PURCHASE_RATIO_MIN_PCT", 20),
-    maxRatio: readThreshold("PURCHASE_RATIO_MAX_PCT", 40),
-    maxVariancePct: readThreshold("MATERIAL_VARIANCE_MAX_PCT", 15),
-  };
+  const thresholds = purchaseThresholds();
 
   const [revenueRows, purchaseRows, variance, storeRows] = await Promise.all([
     db

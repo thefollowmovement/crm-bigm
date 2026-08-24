@@ -51,6 +51,41 @@ test("la direction gère ingrédients, tarifs et recettes ; le coût matière va
   await expect(page.getByTestId("foodcost-board")).toContainText("tarif manquant");
 });
 
+test("création d'un dépôt à la volée depuis le formulaire de tarif + infobulles", async ({
+  page,
+}) => {
+  await login(page, ACCOUNTS.direction);
+  await page.goto("/foodcost");
+
+  // « + Créer un dépôt… » directement dans le formulaire de tarif.
+  await page.getByTestId("new-price-button").click();
+  await page.getByTestId("price-ingredient-select").click();
+  await page.getByRole("option", { name: /Steak haché/ }).click();
+  await page.getByTestId("price-depot-select").click();
+  await page.getByTestId("depot-option-new").click();
+  await page.getByTestId("new-depot-code").fill("DPS-EST");
+  await page.getByTestId("new-depot-name").fill("DPS Strasbourg");
+  await page.getByLabel("Tarif unitaire (€)").fill("10,2");
+  await page.getByLabel("Date d'effet").fill("2026-01-01");
+  await page.getByTestId("price-submit").click();
+  await expect(page.getByText("Dépôt créé et tarif enregistré.")).toBeVisible();
+
+  // La colonne du nouveau dépôt apparaît avec le tarif saisi.
+  await expect(page.getByTestId("ingredients-table")).toContainText("DPS-EST");
+  await expect(page.getByTestId("ingredients-table")).toContainText("10,2 €");
+
+  // Le dépôt rejoint le référentiel des achats.
+  await page.goto("/achats/depots");
+  await expect(page.getByTestId("depots-table")).toContainText("DPS Strasbourg");
+
+  // Icônes d'information : seuils d'alerte et valeurs dérivées.
+  await page.goto("/foodcost");
+  await page.getByTestId("tab-ecart").click();
+  await expect(page.getByTestId("info-hint").first()).toBeVisible();
+  await page.goto("/achats");
+  await expect(page.getByTestId("info-hint").first()).toBeVisible();
+});
+
 test("le Food Cost est invisible pour un franchisé", async ({ page }) => {
   await login(page, ACCOUNTS.franchise);
   await page.goto("/foodcost");

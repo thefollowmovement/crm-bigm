@@ -14,8 +14,10 @@ import {
   listVisits,
   type VisitFilters,
 } from "@/services/visits.service";
+import { auditMaxDays } from "@/lib/jobs/audit-overdue";
 import { listStores } from "@/services/stores.service";
 import { AccessDenied } from "@/components/access-denied";
+import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -168,7 +170,10 @@ export default async function VisitesPage({
       <Card>
         <CardHeader>
           <CardTitle>
-            Tendance des audits{storeId ? " (boutique filtrée)" : " (réseau)"}
+            Tendance des audits{storeId ? " (boutique filtrée)" : " (réseau)"}{" "}
+            <InfoHint
+              text={`Une boutique ouverte sans audit finalisé depuis plus de ${auditMaxDays()} jours déclenche l'alerte « audit en retard » vers son animateur et la direction (job quotidien de 06h40, relance mensuelle — délai réglable via la variable d'environnement AUDIT_MAX_DAYS).`}
+            />
           </CardTitle>
         </CardHeader>
         <CardContent>

@@ -11,6 +11,7 @@ import {
 } from "@/lib/backup/config";
 import { listBackups } from "@/services/backups.service";
 import { AccessDenied } from "@/components/access-denied";
+import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,7 +70,12 @@ export default async function SauvegardesPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead>
+                Type{" "}
+                <InfoHint
+                  text={`Les sauvegardes planifiées de plus de ${retentionDays()} jours sont purgées automatiquement (variable d'environnement BACKUP_RETENTION_DAYS) ; les sauvegardes manuelles sont conservées jusqu'à suppression explicite.`}
+                />
+              </TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Taille</TableHead>
               <TableHead>Envoi FTP</TableHead>
