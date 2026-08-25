@@ -49,8 +49,8 @@ export default async function AppLayout({
             </form>
           </div>
         ) : null}
-        <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-card px-4">
-          <div className="text-sm text-muted-foreground md:hidden">CRM Big M</div>
+        <header className="sticky top-0 z-10 flex h-16 items-center justify-between bg-background/85 px-4 backdrop-blur md:px-8">
+          <div className="text-sm font-semibold md:hidden">CRM Big M</div>
           <div className="flex-1" />
           <NotificationBell />
           <UserMenu
@@ -59,7 +59,7 @@ export default async function AppLayout({
             onLogout={logoutAction}
           />
         </header>
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="flex-1 px-4 pb-10 pt-2 md:px-8">{children}</main>
       </div>
     </div>
   );

@@ -19,8 +19,10 @@ import {
 
 import { toCents } from "@/lib/money";
 
-const BRAND = "var(--color-brand)";
-const MUTED = "oklch(0.65 0.02 260)";
+// Refonte étape 44 : graphiques monochromes (série principale quasi-noire,
+// N-1 en gris) — chart-1 s'inverse en mode sombre.
+const BRAND = "var(--color-chart-1)";
+const MUTED = "oklch(0.72 0.01 260)";
 const GRID = "var(--color-border)";
 
 const EUR_AXIS = new Intl.NumberFormat("fr-FR", {
@@ -94,8 +96,8 @@ export function TimeSeriesChart({
             dataKey="value"
             name={seriesLabel}
             stroke={BRAND}
-            strokeWidth={2}
-            dot={{ r: 2 }}
+            strokeWidth={2.5}
+            dot={false}
             activeDot={{ r: 4 }}
           />
         </LineChart>
@@ -135,7 +137,7 @@ export function BreakdownChart({
           <Tooltip
             formatter={(value) => [COUNT_FORMAT.format(value as number), valueLabel]}
           />
-          <Bar dataKey="value" name={valueLabel} fill={BRAND} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="value" name={valueLabel} fill={BRAND} radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -179,8 +181,8 @@ export function ComparisonBarChart({
           <Legend
             formatter={(value) => (value === "current" ? currentLabel : previousLabel)}
           />
-          <Bar dataKey="previous" fill={MUTED} radius={[3, 3, 0, 0]} />
-          <Bar dataKey="current" fill={BRAND} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="previous" fill={MUTED} radius={[6, 6, 0, 0]} />
+          <Bar dataKey="current" fill={BRAND} radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

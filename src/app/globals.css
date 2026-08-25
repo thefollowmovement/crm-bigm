@@ -3,35 +3,38 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Refonte UI (étape 44) : fond gris chaud, cartes blanches à grands
+   arrondis, primaire quasi-noir, sidebar claire — le rouge Big M reste
+   l'accent ponctuel (logo, pastilles, liens). */
 :root {
-  --radius: 0.5rem;
-  --background: oklch(0.985 0.002 90);
-  --foreground: oklch(0.17 0.005 270);
+  --radius: 0.75rem;
+  --background: oklch(0.963 0.003 90);
+  --foreground: oklch(0.19 0.005 270);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.17 0.005 270);
+  --card-foreground: oklch(0.19 0.005 270);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.17 0.005 270);
-  --primary: oklch(0.24 0.01 270);
+  --popover-foreground: oklch(0.19 0.005 270);
+  --primary: oklch(0.22 0.008 270);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.955 0.003 270);
+  --secondary: oklch(0.945 0.003 90);
   --secondary-foreground: oklch(0.24 0.01 270);
-  --muted: oklch(0.955 0.003 270);
-  --muted-foreground: oklch(0.51 0.01 270);
-  --accent: oklch(0.955 0.003 270);
+  --muted: oklch(0.945 0.003 90);
+  --muted-foreground: oklch(0.5 0.01 270);
+  --accent: oklch(0.945 0.003 90);
   --accent-foreground: oklch(0.24 0.01 270);
   --destructive: oklch(0.577 0.215 27.3);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.91 0.004 270);
-  --input: oklch(0.91 0.004 270);
-  --ring: oklch(0.55 0.19 27);
+  --border: oklch(0.917 0.004 90);
+  --input: oklch(0.895 0.004 90);
+  --ring: oklch(0.22 0.008 270);
   --brand: oklch(0.55 0.19 27);
   --brand-foreground: oklch(0.985 0 0);
-  --sidebar: oklch(0.205 0.008 270);
-  --sidebar-foreground: oklch(0.92 0.003 270);
-  --sidebar-accent: oklch(0.28 0.01 270);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.3 0.01 270);
-  --chart-1: oklch(0.55 0.19 27);
+  --sidebar: oklch(0.963 0.003 90);
+  --sidebar-foreground: oklch(0.42 0.008 270);
+  --sidebar-accent: oklch(1 0 0);
+  --sidebar-accent-foreground: oklch(0.19 0.005 270);
+  --sidebar-border: oklch(0.917 0.004 90);
+  --chart-1: oklch(0.22 0.008 270);
   --chart-2: oklch(0.6 0.12 185);
   --chart-3: oklch(0.5 0.13 260);
   --chart-4: oklch(0.75 0.15 85);
@@ -57,14 +60,15 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.28 0.008 270);
   --input: oklch(0.3 0.008 270);
-  --ring: oklch(0.6 0.18 27);
+  --ring: oklch(0.96 0.002 270);
   --brand: oklch(0.6 0.18 27);
   --brand-foreground: oklch(0.985 0 0);
-  --sidebar: oklch(0.17 0.006 270);
-  --sidebar-foreground: oklch(0.92 0.003 270);
-  --sidebar-accent: oklch(0.26 0.008 270);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.15 0.005 270);
+  --sidebar-foreground: oklch(0.72 0.008 270);
+  --sidebar-accent: oklch(0.19 0.006 270);
+  --sidebar-accent-foreground: oklch(0.96 0.002 270);
   --sidebar-border: oklch(0.26 0.008 270);
+  --chart-1: oklch(0.96 0.002 270);
 }
 
 @theme inline {
