@@ -14,7 +14,7 @@
   10 jobs cron · 158 tests unitaires · 148 tests d'intégration ·
   92 parcours e2e Playwright.
 - **Branche de travail** : `claude/crm-interne-plan-docker-s3neyk`
-  (commits « Étape 1 » à « Étape 43 », un commit par étape, gate complet vert
+  (commits « Étape 1 » à « Étape 44 », un commit par étape, gate complet vert
   avant chacun).
 
 ## Architecture en couches (règles non négociables du CLAUDE.md)
@@ -206,6 +206,11 @@ P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
   tableau multi-canaux · menus Food Cost (formules + emballages, coût par
   dépôt) · e-mails (SMTP chiffré, modèles de relance avec variables,
   header/signature/footer, envoi réel des relances — nodemailer).
+- ✅ **Étape 44 — refonte UI/UX** : design system revu sur maquettes client
+  (fond gris chaud, cartes blanches très arrondies, boutons/badges pill,
+  sidebar claire à pastille active, onglets segmentés, graphiques
+  monochromes) — porté par les tokens `globals.css` + composants partagés,
+  sans changement de logique.
 - ⬜ **V2 (hors périmètre — nouveau devis)** : HACCP/hygiène, contrôles
   officiels, litiges, assurances/sinistres, maintenance/travaux, parc
   matériel, fournisseurs/ruptures, notes Google/Uber Eats/Deliveroo,

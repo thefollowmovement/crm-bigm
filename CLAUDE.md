@@ -208,7 +208,14 @@ sandbox ; relance facture canal EMAIL = case « envoyer l'e-mail » →
 nodemailer (SEULE nouvelle dépendance), envoi AVANT enregistrement (échec →
 aucune trace), destinataire dans `reminders.emailSentTo`).
 
-**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-43).**
+**ÉTAPE 44 LIVRÉE — refonte UI/UX** (modèle des maquettes client) : tokens
+dans `globals.css` (fond gris chaud, cartes 16 px, primaire quasi-noir,
+sidebar claire à pastille active, rouge Big M en accent) + composants
+partagés (boutons/badges pill, onglets segmentés, tableaux aérés, dialogues
+arrondis, graphiques monochromes via `--chart-1`). Aucune logique ni
+testid modifiés : tout style passe par tokens + `src/components/ui`.
+
+**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-44).**
 Reste hors périmètre : la « V2 » (pôle 15 « Modules complémentaires » du cdc
 §24 : HACCP, litiges, assurances, maintenance, parc matériel, notes
 plateformes…) — nouveau devis.
