@@ -8,7 +8,7 @@ test("direction : registre logiciels et coffre-fort avec révélation auditée",
   await login(page, ACCOUNTS.direction);
 
   // Registre des logiciels (seed : Pack bureautique) + création.
-  await page.goto("/admin/logiciels");
+  await page.goto("/hq-18b8ba/logiciels");
   await expect(page.getByTestId("software-table")).toContainText("Pack bureautique");
   await page.getByTestId("new-software-button").click();
   await page.locator("#sw-name").fill("Caisse tactile (e2e)");
@@ -17,7 +17,7 @@ test("direction : registre logiciels et coffre-fort avec révélation auditée",
   await expect(page.getByTestId("software-table")).toContainText("Caisse tactile (e2e)");
 
   // Coffre-fort : créer un secret puis le révéler.
-  await page.goto("/admin/coffre");
+  await page.goto("/hq-18b8ba/coffre");
   await page.getByTestId("new-secret-button").click();
   await page.getByTestId("secret-label-input").fill("Wi-Fi siège (e2e)");
   await page.getByTestId("secret-value-input").fill("MotDePasse!2026");
@@ -30,7 +30,7 @@ test("direction : registre logiciels et coffre-fort avec révélation auditée",
   await expect(page.getByTestId("secret-value")).toHaveText("MotDePasse!2026");
 
   // La révélation est tracée dans le journal d'audit.
-  await page.goto("/admin/audit");
+  await page.goto("/hq-18b8ba/audit");
   await expect(page.getByText("Révélation de secret").first()).toBeVisible();
 });
 
@@ -39,7 +39,7 @@ test("le coffre est invisible hors direction ; le registre reste lisible du siè
 }) => {
   await login(page, ACCOUNTS.compta);
   // Lecture du registre sans bouton de création.
-  await page.goto("/admin/logiciels");
+  await page.goto("/hq-18b8ba/logiciels");
   await expect(page.getByTestId("software-table")).toBeVisible();
   await expect(page.getByTestId("new-software-button")).toHaveCount(0);
 
@@ -47,10 +47,10 @@ test("le coffre est invisible hors direction ; le registre reste lisible du siè
   await expect(
     page.getByRole("link", { name: "Coffre-fort", exact: true })
   ).toHaveCount(0);
-  await page.goto("/admin/coffre");
+  await page.goto("/hq-18b8ba/coffre");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 
   await login(page, ACCOUNTS.franchise);
-  await page.goto("/admin/logiciels");
+  await page.goto("/hq-18b8ba/logiciels");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 });

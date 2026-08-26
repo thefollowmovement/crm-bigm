@@ -71,7 +71,7 @@ export function CustomRolesManager({
             <DialogDescription>
               Le rôle démarre avec les droits de son rôle de base ; ajustez-les
               ensuite dans sa colonne de la matrice, puis assignez-le depuis
-              /admin/utilisateurs.
+              /hq-18b8ba/utilisateurs.
             </DialogDescription>
           </DialogHeader>
           <form action={createAction} className="space-y-4">

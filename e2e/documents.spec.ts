@@ -113,7 +113,7 @@ test("la création de dossiers est refusée sans la permission document:folder",
   page,
 }) => {
   // La communication publie des documents mais ne gère pas les dossiers
-  // (droit délégable via /admin/permissions).
+  // (droit délégable via /hq-18b8ba/permissions).
   await login(page, ACCOUNTS.communication);
   await page.goto("/documents");
   await expect(page.getByTestId("new-document-button")).toBeVisible();

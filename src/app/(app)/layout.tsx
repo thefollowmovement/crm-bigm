@@ -7,7 +7,7 @@ import { Sidebar } from "@/components/app-shell/sidebar";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/app/(auth)/connexion/actions";
-import { exitImpersonationAction } from "@/app/(app)/admin/utilisateurs/actions";
+import { exitImpersonationAction } from "@/app/(app)/hq-18b8ba/utilisateurs/actions";
 
 export default async function AppLayout({
   children,

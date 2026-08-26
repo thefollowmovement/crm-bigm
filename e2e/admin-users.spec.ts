@@ -4,7 +4,7 @@ import { ACCOUNTS, login } from "./fixtures/auth";
 
 test("l'admin crée un utilisateur qui apparaît dans la liste", async ({ page }) => {
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/utilisateurs");
+  await page.goto("/hq-18b8ba/utilisateurs");
 
   await page.getByTestId("create-user-button").click();
   await page.getByLabel("Adresse e-mail").fill("nouveau@bigm.fr");
@@ -23,6 +23,6 @@ test("un rôle non autorisé voit « Accès refusé » sur l'admin utilisateurs"
   page,
 }) => {
   await login(page, ACCOUNTS.compta);
-  await page.goto("/admin/utilisateurs");
+  await page.goto("/hq-18b8ba/utilisateurs");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 });

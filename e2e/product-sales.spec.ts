@@ -8,7 +8,7 @@ test("référentiel produits puis import CSV des ventes, idempotent", async ({
   await login(page, ACCOUNTS.admin);
 
   // Créer une famille et un produit dans le référentiel.
-  await page.goto("/admin/produits");
+  await page.goto("/hq-18b8ba/produits");
   await page.getByTestId("new-family-button").click();
   await page.getByLabel("Nom").fill("Menus E2E");
   await page.getByTestId("family-submit").click();
@@ -65,11 +65,11 @@ test("les meilleures ventes du seed s'affichent pour la compta", async ({
   // Panier moyen du seed visible sur l'onglet mois (BM-003 sélectionnée).
 });
 
-test("le référentiel est interdit hors compta/direction/admin", async ({
+test("le référentiel est interdit hors compta/direction/hq-18b8ba", async ({
   page,
 }) => {
   await login(page, ACCOUNTS.animateur);
-  await page.goto("/admin/produits");
+  await page.goto("/hq-18b8ba/produits");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 
   // L'onglet Produits reste lisible, mais sans carte d'import.

@@ -114,7 +114,7 @@ export async function createUserAction(
   } catch (e) {
     return { error: errorMessage(e) };
   }
-  revalidatePath("/admin/utilisateurs");
+  revalidatePath("/hq-18b8ba/utilisateurs");
   return { success: "Utilisateur créé." };
 }
 
@@ -144,7 +144,7 @@ export async function updateUserAction(
   } catch (e) {
     return { error: errorMessage(e) };
   }
-  revalidatePath("/admin/utilisateurs");
+  revalidatePath("/hq-18b8ba/utilisateurs");
   return { success: "Utilisateur mis à jour." };
 }
 
@@ -165,7 +165,7 @@ export async function setUserActiveAction(
   } catch (e) {
     return { error: errorMessage(e) };
   }
-  revalidatePath("/admin/utilisateurs");
+  revalidatePath("/hq-18b8ba/utilisateurs");
   return {
     success:
       parsed.data.isActive === "true" ? "Compte réactivé." : "Compte désactivé.",
@@ -230,7 +230,7 @@ export async function exitImpersonationAction() {
   });
   await setSessionCookie(token, expiresAt);
   await logImpersonationEnd(impersonator.id, user.id);
-  redirect("/admin/utilisateurs");
+  redirect("/hq-18b8ba/utilisateurs");
 }
 
 export async function resetPasswordAction(
@@ -252,6 +252,6 @@ export async function resetPasswordAction(
   } catch (e) {
     return { error: errorMessage(e) };
   }
-  revalidatePath("/admin/utilisateurs");
+  revalidatePath("/hq-18b8ba/utilisateurs");
   return { success: "Mot de passe réinitialisé." };
 }

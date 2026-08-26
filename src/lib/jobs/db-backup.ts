@@ -38,7 +38,7 @@ export async function runDbBackupJob(now: Date = new Date()) {
         type: "ALERTE",
         title: "Échec de la sauvegarde quotidienne de la base",
         body: backup.error ?? "Erreur inconnue",
-        link: "/admin/sauvegardes",
+        link: "/hq-18b8ba/sauvegardes",
         dedupeKey: `db-backup-failed:${todayParis(now)}`,
       }
     );

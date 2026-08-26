@@ -583,7 +583,7 @@ export const fileAttachments = pgTable(
 // ─────────────── BIBLIOTHÈQUE DOCUMENTAIRE ───────────────
 
 // Dossiers de classement (étape 32) : arborescence libre (parentId), création
-// réservée à la permission document:folder (pilotable via /admin/permissions).
+// réservée à la permission document:folder (pilotable via /hq-18b8ba/permissions).
 export const documentFolders = pgTable(
   "document_folders",
   {

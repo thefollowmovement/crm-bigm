@@ -40,7 +40,7 @@ export const saveEmailSettingsAction = safeFormAction(
   },
   async (input, actor) => {
     await saveEmailSettings(actor, input);
-    revalidatePath("/admin/emails");
+    revalidatePath("/hq-18b8ba/emails");
     return "Paramètres e-mail enregistrés.";
   }
 );
@@ -56,7 +56,7 @@ export const saveEmailTemplateAction = safeFormAction(
   },
   async (input, actor) => {
     await saveEmailTemplate(actor, input);
-    revalidatePath("/admin/emails");
+    revalidatePath("/hq-18b8ba/emails");
     return `Modèle de relance niveau ${input.level} enregistré.`;
   }
 );

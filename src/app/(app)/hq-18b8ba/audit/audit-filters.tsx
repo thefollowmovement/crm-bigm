@@ -28,7 +28,7 @@ export function AuditFilters({
     if (value === null || value === "all") params.delete(key);
     else params.set(key, value);
     params.delete("page");
-    router.push(`/admin/audit?${params.toString()}`);
+    router.push(`/hq-18b8ba/audit?${params.toString()}`);
   }
 
   return (

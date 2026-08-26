@@ -334,7 +334,7 @@ export const COMPANY_FLOW_CATEGORY_LABELS: Record<string, string> = {
   AUTRE_SORTIE: "Autres dépenses",
 };
 
-// Libellés des permissions pour /admin/permissions (étape 30), dans l'ordre
+// Libellés des permissions pour /hq-18b8ba/permissions (étape 30), dans l'ordre
 // d'ALL_PERMISSIONS (groupées par domaine).
 export const PERMISSION_LABELS: Record<string, string> = {
   "store:read": "Boutiques — consulter",

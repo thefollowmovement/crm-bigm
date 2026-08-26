@@ -38,7 +38,7 @@ test("les dossiers RH du siège Big M CIE sont réservés aux membres de l'entit
 
   // 3. L'admin assigne la RH à l'entité FRANCHISEUR.
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/utilisateurs");
+  await page.goto("/hq-18b8ba/utilisateurs");
   await page
     .getByTestId("user-row-rh@bigm.fr")
     .getByTitle("Modifier")

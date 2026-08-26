@@ -2,9 +2,14 @@ import { expect, test } from "@playwright/test";
 
 import { ACCOUNTS, login } from "./fixtures/auth";
 
-test("un visiteur non connecté est redirigé vers la connexion", async ({ page }) => {
+test("un visiteur non connecté voit la vitrine, jamais l'application", async ({ page }) => {
+  // Depuis l'étape 45, / sert la vitrine publique (rewrite, URL inchangée)…
   await page.goto("/");
-  await expect(page).toHaveURL(/\/connexion/);
+  await expect(page.getByTestId("vitrine-title")).toBeVisible();
+  // …et une URL interne ramène à la vitrine sans révéler /connexion.
+  await page.goto("/finances");
+  await expect(page).not.toHaveURL(/finances|connexion/);
+  await expect(page.getByTestId("vitrine-title")).toBeVisible();
 });
 
 test("un mauvais mot de passe affiche une erreur générique", async ({ page }) => {
@@ -32,7 +37,7 @@ test("connexion puis déconnexion", async ({ page }) => {
   await page.getByTestId("logout-button").click();
   await expect(page).toHaveURL(/\/connexion/);
 
-  // La zone applicative est à nouveau protégée.
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/connexion/);
+  // La zone applicative est à nouveau protégée : retour à la vitrine.
+  await page.goto("/tickets");
+  await expect(page.getByTestId("vitrine-title")).toBeVisible();
 });

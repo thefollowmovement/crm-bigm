@@ -22,7 +22,7 @@ import type { SessionUser } from "@/lib/auth/session";
 // ────────────────────────────────────────────────────────────────
 
 // Lecture : nécessaire à la gestion des droits ET à l'assignation dans
-// /admin/utilisateurs (user:manage suffit).
+// /hq-18b8ba/utilisateurs (user:manage suffit).
 export async function listCustomRoles(actor: SessionUser) {
   assertCan(actor, "user:manage");
   return db.query.customRoles.findMany({

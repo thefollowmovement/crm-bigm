@@ -28,7 +28,7 @@ export const createFamilyAction = safeFormAction(
       name: input.name,
       displayOrder: input.displayOrder ?? 0,
     });
-    revalidatePath("/admin/produits");
+    revalidatePath("/hq-18b8ba/produits");
     return "Famille créée.";
   }
 );
@@ -43,7 +43,7 @@ export const toggleFamilyAction = safeFormAction(
   },
   async (input, actor) => {
     await updateFamily(actor, input.id, { isActive: input.isActive === "true" });
-    revalidatePath("/admin/produits");
+    revalidatePath("/hq-18b8ba/produits");
     return input.isActive === "true" ? "Famille réactivée." : "Famille désactivée.";
   }
 );
@@ -59,7 +59,7 @@ export const createProductAction = safeFormAction(
   },
   async (input, actor) => {
     await createProduct(actor, input);
-    revalidatePath("/admin/produits");
+    revalidatePath("/hq-18b8ba/produits");
     return "Produit créé.";
   }
 );
@@ -74,7 +74,7 @@ export const toggleProductAction = safeFormAction(
   },
   async (input, actor) => {
     await updateProduct(actor, input.id, { isActive: input.isActive === "true" });
-    revalidatePath("/admin/produits");
+    revalidatePath("/hq-18b8ba/produits");
     return input.isActive === "true" ? "Produit réactivé." : "Produit désactivé.";
   }
 );

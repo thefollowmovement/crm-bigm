@@ -168,7 +168,7 @@ export default async function AuditPage({
           {page > 1 ? (
             <Button variant="outline" size="sm" asChild>
               <Link
-                href={`/admin/audit?${new URLSearchParams({ ...Object.fromEntries(baseQuery), page: String(page - 1) })}`}
+                href={`/hq-18b8ba/audit?${new URLSearchParams({ ...Object.fromEntries(baseQuery), page: String(page - 1) })}`}
               >
                 Précédent
               </Link>
@@ -180,7 +180,7 @@ export default async function AuditPage({
           {page < pageCount ? (
             <Button variant="outline" size="sm" asChild>
               <Link
-                href={`/admin/audit?${new URLSearchParams({ ...Object.fromEntries(baseQuery), page: String(page + 1) })}`}
+                href={`/hq-18b8ba/audit?${new URLSearchParams({ ...Object.fromEntries(baseQuery), page: String(page + 1) })}`}
               >
                 Suivant
               </Link>

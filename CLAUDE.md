@@ -68,7 +68,7 @@ PostgreSQL 16 + **Drizzle ORM** + Tailwind v4 + composants shadcn maison (`src/c
 **V1 LIVRÉE** (backlog « Phase 0 Socle + Phase 1 Cœur d'usage » du cahier des
 charges, cf. commits « Étape 1 » à « Étape 11 ») : auth sessions DB + admin
 utilisateurs · RBAC (matrice `authz/permissions.ts`, rôle FRANCHISE scopé à ses
-boutiques) · audit trail complet + `/admin/audit` · boutiques & franchisés
+boutiques) · audit trail complet + `/hq-18b8ba/audit` · boutiques & franchisés
 (fiche à onglets) · bibliothèque documentaire versionnée · fichiers via
 `/api/files/[id]` · contrats + job `contract-expiry` (J-180) · échanges
 franchisés (notes internes/décisions) · finances (factures `F<année>-XXXX`,
@@ -83,7 +83,7 @@ analytics CA via recharts derrière les wrappers uniques
 `src/components/charts/` (évolution jour/semaine/mois, N vs N-1, régions,
 animateurs — `services/revenue-analytics.service.ts`) · data ventes enrichie
 (`revenueEntries.orderCount`, panier moyen dérivé en SQL, référentiel
-produits/familles `/admin/produits` + import CSV ventes produits idempotent) ·
+produits/familles `/hq-18b8ba/produits` + import CSV ventes produits idempotent) ·
 audits & visites terrain (grille paramétrable `auditCriteria`, note % dérivée,
 `/animation/visites`) · plans d'action « PA-… » (machine à états + validation
 créateur/direction, job `action-plan-overdue`) · plannings hebdo
@@ -131,8 +131,8 @@ recettes au tarif du dépôt, en 10^-8 € BigInt ; onglet sur `/foodcost`) ·
 job `purchase-anomaly` 07h20 (bornes `PURCHASE_RATIO_MIN/MAX_PCT`,
 `MATERIAL_VARIANCE_MAX_PCT`) · cockpit Direction (`/direction/cockpit`,
 permission `direction:cockpit`, 12 KPI cliquables en Promise.all) · registre
-logiciels (`/admin/logiciels`, `software:read` siège / write direction) ·
-coffre-fort (`/admin/coffre`, AES-256-GCM `lib/vault/crypto.ts`, clé env
+logiciels (`/hq-18b8ba/logiciels`, `software:read` siège / write direction) ·
+coffre-fort (`/hq-18b8ba/coffre`, AES-256-GCM `lib/vault/crypto.ts`, clé env
 `VAULT_KEY` 32 o base64 SANS fallback, format `v1:iv:tag:cipher`, révélation
 à l'unité auditée `REVEAL`, `encrypted` dans SENSITIVE_FIELDS d'audited.ts).
 9 jobs cron (06h00→07h20).
@@ -144,15 +144,15 @@ appareils déconnectés) + « Se connecter en tant que » (`user:impersonate`
 ADMIN SEUL — hors ALL —, session usurpée avec `impersonatorUserId`, bannière
 de retour, audit IMPERSONATE) · boutiques : photo (pièce jointe STORE_PHOTO
 unique servie via `/api/files/[id]`, vignette en liste) + latitude/longitude
-et carte/lien OpenStreetMap · droits d'accès dynamiques (`/admin/permissions`,
+et carte/lien OpenStreetMap · droits d'accès dynamiques (`/hq-18b8ba/permissions`,
 table `permissionOverrides` = écarts seuls, chargés dans la session par
 `validateSessionToken`, appliqués par `can()`, ADMIN immunisé,
 `permission:manage` ADMIN seul) · tickets confiés à une personne précise
 (tous collaborateurs internes actifs, affectation dès la création → statut
 AFFECTE + notification) · dossiers documentaires (`documentFolders`
 arborescents, `documents.folderId`, suppression à vide uniquement, permission
-`document:folder` direction par défaut et délégable via /admin/permissions) ·
-sauvegardes BDD (`/admin/sauvegardes`, `backups.service` = pg_dump -Fc dans
+`document:folder` direction par défaut et délégable via /hq-18b8ba/permissions) ·
+sauvegardes BDD (`/hq-18b8ba/sauvegardes`, `backups.service` = pg_dump -Fc dans
 `BACKUP_DIR`, job `db-backup` 05h30 + rétention `BACKUP_RETENTION_DAYS` sur
 les planifiées, envoi FTP/FTPS optionnel `BACKUP_FTP_*` via basic-ftp,
 téléchargement audité `/api/backups/[id]`, permission `backup:manage`,
@@ -164,10 +164,10 @@ client de synchro pointé sur BACKUP_DIR, documenté dans l'UI). 10 jobs cron
 « Étape 40 ») : entité FRANCHISEUR (`users.franchisorMember`, salarié du
 siège = `employees.storeId` NULL, guard `isFranchisorMember` — ADMIN toujours
 membre — ; dossiers RH/congés/fichiers du siège réservés aux membres,
-libellé « Siège — Big M CIE », case dédiée dans /admin/utilisateurs) · rôles
+libellé « Siège — Big M CIE », case dédiée dans /hq-18b8ba/utilisateurs) · rôles
 personnalisés (`customRoles`/`customRolePermissions` : base ≠ ADMIN + droits
 ÉPINGLÉS explicitement — un pin bat la matrice ET les écarts du rôle de
-base —, `users.customRoleId`, colonnes dans /admin/permissions, sélecteur
+base —, `users.customRoleId`, colonnes dans /hq-18b8ba/permissions, sélecteur
 « custom:<id> » à la création/édition d'utilisateur, suppression bloquée si
 assigné) · tickets multi-pôles & multi-personnes (`tickets.extraPoles`
 pole[], table `ticketAssignees`, premier assigné = principal, TOUT
@@ -199,7 +199,7 @@ service `upsertDayEntries` en boucle auditée) · menus Food Cost (`menus` +
 type emballage, contrainte un-seul-référent ; coût matière du menu dérivé =
 Σ coût produit × qté + emballages au tarif du dépôt, % du PV du menu,
 onglet « Menus » sur /foodcost, helper pur `scaleAmount`) · e-mails
-(`/admin/emails`, permission `email:manage` ADMIN+DIRECTION : SMTP en base
+(`/hq-18b8ba/emails`, permission `email:manage` ADMIN+DIRECTION : SMTP en base
 avec mot de passe chiffré VAULT_KEY — `passwordEncrypted` dans
 SENSITIVE_FIELDS —, header/signature/footer HTML, e-mail de test, modèles
 de relance par niveau 1-3 avec variables `{{…}}` (`lib/email/render.ts`
@@ -215,7 +215,25 @@ partagés (boutons/badges pill, onglets segmentés, tableaux aérés, dialogues
 arrondis, graphiques monochromes via `--chart-1`). Aucune logique ni
 testid modifiés : tout style passe par tokens + `src/components/ui`.
 
-**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-44).**
+**ÉTAPE 45 LIVRÉE — vitrine publique + administration masquée** : un visiteur
+non connecté ne voit plus JAMAIS le CRM — le middleware sert sur `/` la
+vitrine one-page loufoque « 321 Chicken » (rewrite interne vers
+`src/app/(vitrine)/vitrine/`, l'URL reste `/`) et renvoie toute autre URL
+anonyme vers la vitrine, sans jamais rediriger vers `/connexion`. La page de
+connexion reste accessible uniquement en direct, via le lien discret
+**« La recette secrète »** du pied de page de la vitrine. Vitrine : récit en
+4 chapitres (compte à rebours 3-2-1-0), 5 images manga générées par IA
+(nano banana pro via Higgsfield) dans `public/vitrine/*.webp`, animations de
+défilement (IntersectionObserver `reveal.tsx` + CSS `vitrine.css`, classes
+préfixées `v-` pour ne rien faire fuir dans le CRM,
+`prefers-reduced-motion` respecté), aucune police externe, AUCUNE mention du
+CRM (metadata `title.absolute`). L'ancien préfixe `/admin` est renommé en
+**`/hq-18b8ba`** (slug aléatoire) partout — pages, nav, e2e, docs — SAUF
+`POST /api/admin/jobs/run`, conservé (401/403 sans session, référencé par le
+cron de prod). Sécurité : c'est un masquage (la garde du middleware reste
+optimiste sur le cookie) — l'authentification réelle ne change pas.
+
+**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-45).**
 Reste hors périmètre : la « V2 » (pôle 15 « Modules complémentaires » du cdc
 §24 : HACCP, litiges, assurances, maintenance, parc matériel, notes
 plateformes…) — nouveau devis.

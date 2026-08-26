@@ -39,7 +39,7 @@ export const createSoftwareAction = safeFormAction(
   },
   async (input, actor) => {
     await createSoftware(actor, input);
-    revalidatePath("/admin/logiciels");
+    revalidatePath("/hq-18b8ba/logiciels");
     return "Logiciel ajouté au registre.";
   }
 );
@@ -60,7 +60,7 @@ export const updateSoftwareAction = safeFormAction(
   async (input, actor) => {
     const { softwareId, ...fields } = input;
     await updateSoftware(actor, softwareId, fields);
-    revalidatePath("/admin/logiciels");
+    revalidatePath("/hq-18b8ba/logiciels");
     return "Logiciel mis à jour.";
   }
 );
@@ -79,7 +79,7 @@ export const setSoftwareUsersAction = safeFormAction(
   },
   async (input, actor) => {
     await setSoftwareUsers(actor, input.softwareId, input.userIds);
-    revalidatePath("/admin/logiciels");
+    revalidatePath("/hq-18b8ba/logiciels");
     return "Utilisateurs autorisés mis à jour.";
   }
 );

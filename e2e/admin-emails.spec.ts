@@ -6,7 +6,7 @@ test("direction : paramètres SMTP, modèle de relance et aperçu avec variables
   page,
 }) => {
   await login(page, ACCOUNTS.direction);
-  await page.goto("/admin/emails");
+  await page.goto("/hq-18b8ba/emails");
 
   // Paramètres SMTP + signature.
   await page.getByTestId("smtp-host").fill("smtp.exemple.fr");
@@ -51,7 +51,7 @@ test("page réservée ; case « envoyer l'e-mail » sur la relance de facture", 
   // La compta n'a pas email:manage : page refusée, entrée de menu absente.
   await login(page, ACCOUNTS.compta);
   await expect(page.getByRole("link", { name: "E-mails", exact: true })).toHaveCount(0);
-  await page.goto("/admin/emails");
+  await page.goto("/hq-18b8ba/emails");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 
   // Mais elle voit la case d'envoi automatique dans le dialogue de relance

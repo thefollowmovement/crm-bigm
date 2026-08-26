@@ -48,7 +48,7 @@ export async function setPermissionOverrideAction(input: {
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Une erreur est survenue." };
   }
-  revalidatePath("/admin/permissions");
+  revalidatePath("/hq-18b8ba/permissions");
   return { success: "Droits mis à jour." };
 }
 
@@ -78,7 +78,7 @@ export async function setCustomRolePermissionAction(input: {
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Une erreur est survenue." };
   }
-  revalidatePath("/admin/permissions");
+  revalidatePath("/hq-18b8ba/permissions");
   return { success: "Droits mis à jour." };
 }
 
@@ -109,8 +109,8 @@ export const createCustomRoleAction = safeFormAction(
   },
   async (input, actor) => {
     await createCustomRole(actor, input);
-    revalidatePath("/admin/permissions");
-    revalidatePath("/admin/utilisateurs");
+    revalidatePath("/hq-18b8ba/permissions");
+    revalidatePath("/hq-18b8ba/utilisateurs");
     return `Rôle « ${input.name} » créé — ajustez ses droits dans la matrice.`;
   }
 );
@@ -123,8 +123,8 @@ export const deleteCustomRoleAction = safeFormAction(
   },
   async ({ customRoleId }, actor) => {
     await deleteCustomRole(actor, customRoleId);
-    revalidatePath("/admin/permissions");
-    revalidatePath("/admin/utilisateurs");
+    revalidatePath("/hq-18b8ba/permissions");
+    revalidatePath("/hq-18b8ba/utilisateurs");
     return "Rôle personnalisé supprimé.";
   }
 );

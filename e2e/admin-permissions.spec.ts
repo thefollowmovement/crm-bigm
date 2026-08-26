@@ -6,7 +6,7 @@ test("l'admin retire un droit à un rôle, effet immédiat, puis le restaure", a
   page,
 }) => {
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/permissions");
+  await page.goto("/hq-18b8ba/permissions");
   await expect(page.getByTestId("permissions-matrix")).toBeVisible();
 
   // Retire « Registre logiciels — consulter » au rôle ANIMATION.
@@ -18,23 +18,23 @@ test("l'admin retire un droit à un rôle, effet immédiat, puis le restaure", a
   await expect(
     page.getByRole("link", { name: "Logiciels", exact: true })
   ).toHaveCount(0);
-  await page.goto("/admin/logiciels");
+  await page.goto("/hq-18b8ba/logiciels");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 
   // Restaure la valeur par défaut (l'écart est supprimé).
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/permissions");
+  await page.goto("/hq-18b8ba/permissions");
   await page.getByTestId("perm-ANIMATION-software:read").click();
   await expect(page.getByText("Droits mis à jour.").first()).toBeVisible();
 
   await login(page, ACCOUNTS.animateur);
-  await page.goto("/admin/logiciels");
+  await page.goto("/hq-18b8ba/logiciels");
   await expect(page.getByTestId("software-table")).toBeVisible();
 });
 
 test("l'admin accorde un droit hors matrice, puis le retire", async ({ page }) => {
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/permissions");
+  await page.goto("/hq-18b8ba/permissions");
 
   // Accorde « Factures & impayés — consulter » à la COMMUNICATION.
   await page.getByTestId("perm-COMMUNICATION-finance:read").click();
@@ -47,7 +47,7 @@ test("l'admin accorde un droit hors matrice, puis le retire", async ({ page }) =
 
   // Retour au défaut : l'accès disparaît.
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/permissions");
+  await page.goto("/hq-18b8ba/permissions");
   await page.getByTestId("perm-COMMUNICATION-finance:read").click();
   await expect(page.getByText("Droits mis à jour.").first()).toBeVisible();
 
@@ -62,7 +62,7 @@ test("rôle personnalisé : création, droits ajustés, assignation à un utilis
   // 1. L'admin crée un rôle basé sur RH, retire l'écriture RH, accorde les
   //    finances en lecture.
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/permissions");
+  await page.goto("/hq-18b8ba/permissions");
   await page.getByTestId("new-custom-role-button").click();
   await page.getByTestId("custom-role-name").fill("Manager RH junior");
   await page.getByTestId("custom-role-base").click();
@@ -82,7 +82,7 @@ test("rôle personnalisé : création, droits ajustés, assignation à un utilis
   ).toHaveAttribute("aria-checked", "true");
 
   // 2. Création d'un utilisateur portant ce rôle.
-  await page.goto("/admin/utilisateurs");
+  await page.goto("/hq-18b8ba/utilisateurs");
   await page.getByTestId("create-user-button").click();
   await page.locator("#email").fill("junior.rh@bigm.fr");
   await page.locator("#password").fill("MdpJunior!2026");
@@ -113,6 +113,6 @@ test("la gestion des droits est réservée à l'ADMIN (refusée à la direction)
   await expect(
     page.getByRole("link", { name: "Droits d'accès", exact: true })
   ).toHaveCount(0);
-  await page.goto("/admin/permissions");
+  await page.goto("/hq-18b8ba/permissions");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 });

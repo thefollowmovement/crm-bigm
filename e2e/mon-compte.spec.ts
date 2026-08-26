@@ -49,7 +49,7 @@ test("l'admin se connecte en tant qu'un utilisateur, agit avec ses droits, puis 
   page,
 }) => {
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/utilisateurs");
+  await page.goto("/hq-18b8ba/utilisateurs");
 
   await page.getByTestId(`impersonate-${ACCOUNTS.franchise.email}`).click();
   // On arrive sur le tableau de bord du franchisé, bannière visible.
@@ -57,7 +57,7 @@ test("l'admin se connecte en tant qu'un utilisateur, agit avec ses droits, puis 
   await expect(page.getByTestId("impersonation-banner")).toBeVisible();
 
   // Les droits appliqués sont bien ceux du compte usurpé (pas ceux de l'admin).
-  await page.goto("/admin/utilisateurs");
+  await page.goto("/hq-18b8ba/utilisateurs");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 
   // Retour au compte admin.
@@ -66,7 +66,7 @@ test("l'admin se connecte en tant qu'un utilisateur, agit avec ses droits, puis 
   await expect(page.getByTestId("impersonation-banner")).toHaveCount(0);
 
   // L'aller-retour est tracé dans le journal d'audit.
-  await page.goto("/admin/audit");
+  await page.goto("/hq-18b8ba/audit");
   await expect(page.getByText("Connexion en tant que").first()).toBeVisible();
 });
 
@@ -74,7 +74,7 @@ test("le bouton d'usurpation est réservé à l'ADMIN (invisible pour la directi
   page,
 }) => {
   await login(page, ACCOUNTS.direction);
-  await page.goto("/admin/utilisateurs");
+  await page.goto("/hq-18b8ba/utilisateurs");
   await expect(page.getByTestId("create-user-button")).toBeVisible();
   await expect(
     page.getByTestId(`impersonate-${ACCOUNTS.franchise.email}`)

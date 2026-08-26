@@ -3,18 +3,19 @@
 > Document de référence : où est chaque module, qui y a droit, comment tout
 > s'articule. Complète le `CLAUDE.md` (état du projet + process de dev).
 > Mise à jour : feuille de route client (phases 0 à 5, étapes 1 à 27)
-> + améliorations post-V1 (étapes 28 à 33, 34 à 40, puis 41 à 43).
+> + améliorations post-V1 (étapes 28 à 33, 34 à 40, 41 à 43, 44, puis 45 :
+> vitrine publique + administration masquée).
 
 ## Vue d'ensemble
 
 - **Stack** : Next.js 15 (App Router, TypeScript strict) · PostgreSQL 16 ·
   Drizzle ORM · Tailwind v4 · composants shadcn maison · recharts (graphiques).
 - **Volumétrie** : 69 tables · 50 enums · 25 migrations · 41 services ·
-  62 pages · 64 permissions · 9 rôles (+ rôles personnalisés dynamiques) ·
+  63 pages · 64 permissions · 9 rôles (+ rôles personnalisés dynamiques) ·
   10 jobs cron · 158 tests unitaires · 148 tests d'intégration ·
-  92 parcours e2e Playwright.
+  96 parcours e2e Playwright.
 - **Branche de travail** : `claude/crm-interne-plan-docker-s3neyk`
-  (commits « Étape 1 » à « Étape 44 », un commit par étape, gate complet vert
+  (commits « Étape 1 » à « Étape 45 », un commit par étape, gate complet vert
   avant chacun).
 
 ## Architecture en couches (règles non négociables du CLAUDE.md)
@@ -45,10 +46,21 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 
 ## Cartographie fonctionnelle (navigation → pages → accès)
 
+### Site public — vitrine « 321 Chicken » (étape 45)
+| Page | Rôle(s) | Contenu |
+|---|---|---|
+| `/` (anonyme) | public | Vitrine one-page loufoque « 321 Chicken — la légende du poulet » : 4 chapitres illustrés (images manga générées par IA dans `public/vitrine/`), animations au défilement, bandeau défilant, chiffres loufoques. AUCUNE mention du CRM. Servie par un rewrite du middleware (`src/app/(vitrine)/vitrine/`, l'URL reste `/`). |
+| `/connexion` | public (URL non révélée) | Page de connexion du CRM. Le middleware n'y redirige JAMAIS un anonyme (toute URL interne renvoie vers la vitrine) ; on y accède par le lien discret **« La recette secrète »** dans le pied de page de la vitrine, ou en connaissant l'URL. |
+
+> **Administration masquée** : l'ancien préfixe `/admin` est renommé en
+> `/hq-18b8ba` (slug aléatoire, étape 45). Seule exception :
+> `POST /api/admin/jobs/run` conservé tel quel (répond 401/403 sans session,
+> et le cron de prod y fait référence).
+
 ### Accueil
 | Page | Rôle(s) | Contenu |
 |---|---|---|
-| `/` | tous | Dashboard par rôle : boutique (franchisé), animateur, réseau+régions (siège), espace salarié. `data-testid="dashboard-title"` obligatoire partout. Bloc « Agenda — 30 prochains jours » (`agenda.service.ts` : visites, formations, contrats, factures, plans, jalons, tâches com, congés — filtré par permissions et périmètre ; absent du rôle SALARIE). |
+| `/` (connecté) | tous | Dashboard par rôle : boutique (franchisé), animateur, réseau+régions (siège), espace salarié. `data-testid="dashboard-title"` obligatoire partout. Bloc « Agenda — 30 prochains jours » (`agenda.service.ts` : visites, formations, contrats, factures, plans, jalons, tâches com, congés — filtré par permissions et périmètre ; absent du rôle SALARIE). |
 | `/notifications` | tous | Cloche de notifications (dedupeKey anti-doublons). |
 | `/mon-espace` | SALARIE (+ADMIN/DIRECTION) | Pointeuse Début/Pause/Reprise/Fin, feuille de temps, demandes de congés. |
 | `/mon-compte` | tous | Coordonnées (téléphone), changement d'e-mail et de mot de passe (mdp actuel exigé, autres appareils déconnectés). |
@@ -80,7 +92,7 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 ### Finances
 | Page | Permission | Contenu |
 |---|---|---|
-| `/finances` | `finance:read` (compta+dir) | Factures `F<année>-XXXX`, paiements, relances 1-3 — canal E-mail : envoi réel au franchisé (modèle du niveau, SMTP de /admin/emails, destinataire tracé). |
+| `/finances` | `finance:read` (compta+dir) | Factures `F<année>-XXXX`, paiements, relances 1-3 — canal E-mail : envoi réel au franchisé (modèle du niveau, SMTP de /hq-18b8ba/emails, destinataire tracé). |
 | `/ca` | `revenue:read` | Saisie en TABLEAU (tous les canaux d'un jour en une fois, seuls les canaux renseignés sont écrits), import CSV, évolution, N vs N-1, produits & familles, panier moyen. |
 | `/achats` (+dépôts) | `purchase:read` | Achats DPS, ratio achats/CA, import CSV. |
 | `/foodcost` | `foodcost:read` (siège sauf franchisé) | Ingrédients, tarifs par dépôt à date (dépôt créable à la volée depuis le formulaire de tarif avec `purchase:write`), recettes, synthèse, MENUS (formules produits × qté + emballages/ingrédients directs, coût et % du PV par dépôt), écart matière. |
@@ -110,14 +122,14 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 |---|---|---|
 | `/tickets` | `ticket:read` (ou tickets « à moi ») | Tickets inter-pôles, plusieurs pôles destinataires (`extraPoles`) et plusieurs responsables (`ticketAssignees`, premier = principal) — TOUT utilisateur actif est assignable ; un salarié/franchisé assigné accède à SES tickets sans `ticket:read` (liste forcée « les miens »). |
 | `/documents` | `document:read` | Bibliothèque versionnée, visibilité par rôle, dossiers de classement (création `document:folder`, délégable). |
-| `/admin/utilisateurs` | `user:manage` | Comptes + rôles + « Se connecter en tant que » (ADMIN seul, audité). |
-| `/admin/permissions` | `permission:manage` (ADMIN seul) | Matrice des droits modifiable à chaud par rôle (écarts stockés, ADMIN immunisé) + rôles PERSONNALISÉS : base ≠ ADMIN, chaque droit épinglé explicitement (un pin bat matrice et écarts du rôle de base), assignables aux utilisateurs, suppression bloquée tant qu'assignés. |
-| `/admin/sauvegardes` | `backup:manage` | Sauvegardes pg_dump : quotidienne 05h30 + manuelle, téléchargement audité, rétention, envoi FTP optionnel. |
-| `/admin/emails` | `email:manage` (admin+dir) | Paramètres SMTP (mot de passe chiffré VAULT_KEY), header/signature/footer HTML, e-mail de test, modèles de relance 1-3 avec variables `{{…}}` et aperçu. |
-| `/admin/produits` | `product:manage` | Référentiel produits/familles. |
-| `/admin/logiciels` | `software:read` (siège) / write dir | Registre des logiciels + personnes autorisées. |
-| `/admin/coffre` | `vault:read` (admin+dir SEULS) | Secrets AES-256-GCM, révélation à l'unité auditée REVEAL. |
-| `/admin/audit` | `audit:read` | Journal d'audit complet (qui, quoi, avant/après). |
+| `/hq-18b8ba/utilisateurs` | `user:manage` | Comptes + rôles + « Se connecter en tant que » (ADMIN seul, audité). |
+| `/hq-18b8ba/permissions` | `permission:manage` (ADMIN seul) | Matrice des droits modifiable à chaud par rôle (écarts stockés, ADMIN immunisé) + rôles PERSONNALISÉS : base ≠ ADMIN, chaque droit épinglé explicitement (un pin bat matrice et écarts du rôle de base), assignables aux utilisateurs, suppression bloquée tant qu'assignés. |
+| `/hq-18b8ba/sauvegardes` | `backup:manage` | Sauvegardes pg_dump : quotidienne 05h30 + manuelle, téléchargement audité, rétention, envoi FTP optionnel. |
+| `/hq-18b8ba/emails` | `email:manage` (admin+dir) | Paramètres SMTP (mot de passe chiffré VAULT_KEY), header/signature/footer HTML, e-mail de test, modèles de relance 1-3 avec variables `{{…}}` et aperçu. |
+| `/hq-18b8ba/produits` | `product:manage` | Référentiel produits/familles. |
+| `/hq-18b8ba/logiciels` | `software:read` (siège) / write dir | Registre des logiciels + personnes autorisées. |
+| `/hq-18b8ba/coffre` | `vault:read` (admin+dir SEULS) | Secrets AES-256-GCM, révélation à l'unité auditée REVEAL. |
+| `/hq-18b8ba/audit` | `audit:read` | Journal d'audit complet (qui, quoi, avant/après). |
 
 ## Rôles (9)
 
@@ -133,7 +145,7 @@ son projet d'ouverture). SALARIE : `self:clock` + `self:leave` uniquement
 (pointeuse + congés).
 
 Ces droits par défaut sont modifiables À CHAUD par l'admin via
-`/admin/permissions` (table `permissionOverrides` : seuls les écarts sont
+`/hq-18b8ba/permissions` (table `permissionOverrides` : seuls les écarts sont
 stockés ; le rôle ADMIN n'est jamais restreint). S'y ajoutent des **rôles
 personnalisés** (`customRoles` + `customRolePermissions` : rôle de base +
 droits épinglés un à un — un pin l'emporte sur la matrice ET sur les écarts
@@ -211,6 +223,13 @@ P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
   sidebar claire à pastille active, onglets segmentés, graphiques
   monochromes) — porté par les tokens `globals.css` + composants partagés,
   sans changement de logique.
+- ✅ **Étape 45 — vitrine publique + administration masquée** : site vitrine
+  one-page « 321 Chicken » servi aux visiteurs non connectés sur `/` (récit
+  loufoque en 4 chapitres, images manga IA, animations de défilement) ·
+  lien de connexion caché dans le pied de page (« La recette secrète ») ·
+  le middleware ne redirige plus jamais vers `/connexion` (les URLs internes
+  anonymes ramènent à la vitrine) · `/admin` renommé en `/hq-18b8ba`
+  (`/api/admin/jobs/run` conservé).
 - ⬜ **V2 (hors périmètre — nouveau devis)** : HACCP/hygiène, contrôles
   officiels, litiges, assurances/sinistres, maintenance/travaux, parc
   matériel, fournisseurs/ruptures, notes Google/Uber Eats/Deliveroo,

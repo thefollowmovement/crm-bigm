@@ -42,7 +42,7 @@ export const createSecretAction = safeFormAction(
   },
   async (input, actor) => {
     await createSecret(actor, input);
-    revalidatePath("/admin/coffre");
+    revalidatePath("/hq-18b8ba/coffre");
     return "Secret chiffré et enregistré.";
   }
 );
@@ -63,7 +63,7 @@ export const updateSecretAction = safeFormAction(
   async (input, actor) => {
     const { secretId, ...fields } = input;
     await updateSecret(actor, secretId, fields);
-    revalidatePath("/admin/coffre");
+    revalidatePath("/hq-18b8ba/coffre");
     return "Secret mis à jour.";
   }
 );
@@ -75,7 +75,7 @@ export const deleteSecretAction = safeFormAction(
   },
   async (input, actor) => {
     await deleteSecret(actor, input.secretId);
-    revalidatePath("/admin/coffre");
+    revalidatePath("/hq-18b8ba/coffre");
     return "Secret supprimé.";
   }
 );

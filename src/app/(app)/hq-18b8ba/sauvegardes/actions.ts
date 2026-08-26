@@ -14,7 +14,7 @@ export const runBackupAction = safeFormAction(
     if (backup.status === "ERREUR") {
       throw new Error(`Échec de la sauvegarde : ${backup.error ?? "erreur inconnue"}`);
     }
-    revalidatePath("/admin/sauvegardes");
+    revalidatePath("/hq-18b8ba/sauvegardes");
     const remote =
       backup.remoteStatus === "ENVOYE"
         ? " et envoyée sur le serveur FTP"
@@ -33,7 +33,7 @@ export const deleteBackupAction = safeFormAction(
   },
   async ({ backupId }, actor) => {
     await deleteBackup(actor, backupId);
-    revalidatePath("/admin/sauvegardes");
+    revalidatePath("/hq-18b8ba/sauvegardes");
     return "Sauvegarde supprimée.";
   }
 );

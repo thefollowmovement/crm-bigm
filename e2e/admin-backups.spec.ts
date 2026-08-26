@@ -6,7 +6,7 @@ test("l'admin lance une sauvegarde, la télécharge puis la supprime", async ({
   page,
 }) => {
   await login(page, ACCOUNTS.admin);
-  await page.goto("/admin/sauvegardes");
+  await page.goto("/hq-18b8ba/sauvegardes");
   await expect(page.getByText("Aucune sauvegarde pour l'instant.")).toBeVisible();
 
   await page.getByTestId("run-backup-button").click();
@@ -39,12 +39,12 @@ test("les sauvegardes sont réservées à l'admin et à la direction", async ({
   await expect(
     page.getByRole("link", { name: "Sauvegardes", exact: true })
   ).toHaveCount(0);
-  await page.goto("/admin/sauvegardes");
+  await page.goto("/hq-18b8ba/sauvegardes");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 
   // La direction, elle, y accède (permission backup:manage via ALL).
   await login(page, ACCOUNTS.direction);
-  await page.goto("/admin/sauvegardes");
+  await page.goto("/hq-18b8ba/sauvegardes");
   await expect(page.getByTestId("run-backup-button")).toBeVisible();
   await expect(page.getByTestId("ftp-status")).toContainText("non configuré");
 });

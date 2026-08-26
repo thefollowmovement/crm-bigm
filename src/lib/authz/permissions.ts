@@ -85,7 +85,7 @@ const ALL: readonly Permission[] = [
   "document:read",
   "document:write",
   // Création/gestion des dossiers de la bibliothèque : direction par défaut,
-  // délégable à d'autres rôles via /admin/permissions (étape 30).
+  // délégable à d'autres rôles via /hq-18b8ba/permissions (étape 30).
   "document:folder",
   "exchange:read",
   "exchange:write",
@@ -313,7 +313,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   SALARIE: new Set(["self:clock", "self:leave"]),
 };
 
-// Écarts dynamiques posés par l'admin (/admin/permissions, étape 30) :
+// Écarts dynamiques posés par l'admin (/hq-18b8ba/permissions, étape 30) :
 // permission → accordée/retirée pour le rôle de l'utilisateur. Chargés dans la
 // session par validateSessionToken ; la matrice statique reste la valeur par
 // défaut. Le rôle ADMIN est immunisé (aucun verrouillage possible).
