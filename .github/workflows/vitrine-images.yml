@@ -5,7 +5,11 @@
 name: vitrine-images
 
 on:
-  workflow_dispatch:
+  # Déclenché par un push touchant ce fichier (le token de l'intégration ne
+  # permet pas workflow_dispatch).
+  push:
+    branches: [claude/crm-interne-plan-docker-s3neyk]
+    paths: [.github/workflows/vitrine-images.yml]
 
 permissions:
   contents: write
