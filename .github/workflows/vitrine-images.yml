@@ -1,0 +1,45 @@
+# Workflow utilitaire ponctuel (étape 45) : l'environnement de dev ne peut pas
+# joindre le CDN Higgsfield, donc un runner GitHub télécharge les 5 images
+# manga générées, les convertit en WebP et les commite dans public/vitrine/.
+# À supprimer une fois les images en place.
+name: vitrine-images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/crm-interne-plan-docker-s3neyk
+
+      - name: Télécharger et convertir les images
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq webp > /dev/null
+          mkdir -p public/vitrine
+          B="https://d8j0ntlcm91z4.cloudfront.net/user_33ulPvnXUa09y28hwu9he051boM"
+          curl -fSLo hero.png    "$B/hf_20260826_104713_d569c9d5-5a34-452b-b165-d3aed8beab96.png"
+          curl -fSLo poussin.png "$B/hf_20260826_104713_ca74677b-dbf1-4c35-a45f-ee2432cc3ffe.png"
+          curl -fSLo dojo.png    "$B/hf_20260826_104713_e5373a71-d521-401b-88eb-af15a8a488f1.png"
+          curl -fSLo chef.png    "$B/hf_20260826_104713_583bb67f-8bcb-47b5-ae76-e248d24e4f25.png"
+          curl -fSLo fete.png    "$B/hf_20260826_104714_72a04a1c-7188-4f90-a347-17469adf5ec3.png"
+          cwebp -quiet -q 62 -m 6 -resize 1400 0 hero.png    -o public/vitrine/hero.webp
+          cwebp -quiet -q 62 -m 6 -resize 1400 0 fete.png    -o public/vitrine/fete.webp
+          cwebp -quiet -q 62 -m 6 -resize 1000 0 poussin.png -o public/vitrine/poussin.webp
+          cwebp -quiet -q 62 -m 6 -resize 1000 0 dojo.png    -o public/vitrine/dojo.webp
+          cwebp -quiet -q 62 -m 6 -resize 1000 0 chef.png    -o public/vitrine/chef.webp
+          ls -la public/vitrine
+
+      - name: Commiter les images
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/vitrine
+          git commit -m "Étape 45 : images manga de la vitrine (Higgsfield, converties en WebP)"
+          git push origin claude/crm-interne-plan-docker-s3neyk
