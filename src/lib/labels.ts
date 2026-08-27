@@ -415,3 +415,19 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   REVEAL: "Révélation de secret",
   IMPERSONATE: "Connexion en tant que",
 };
+
+export const ACCT_STRUCTURE_TYPE_LABELS: Record<string, string> = {
+  BOUTIQUE: "Boutique",
+  TAWILA: "Tawila",
+  DPS: "DPS",
+  TFM: "TFM",
+  FOURNISSEUR: "Fournisseur",
+  PARTENAIRE: "Partenaire",
+  AUTRE: "Autre",
+};
+
+export const ACCT_IMPORT_STATUS_LABELS: Record<string, string> = {
+  EN_COURS: "En cours",
+  TERMINE: "Terminé",
+  ERREUR: "Erreur",
+};

@@ -22,6 +22,8 @@ const ALLOWED_EXTENSIONS: Record<string, string[]> = {
   ],
   xls: ["application/vnd.ms-excel"],
   xlsx: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  // Export binaire natif du logiciel comptable (imports étape 46).
+  xlsb: ["application/vnd.ms-excel.sheet.binary.macroenabled.12"],
   csv: ["text/csv", "application/vnd.ms-excel", "text/plain"],
   txt: ["text/plain"],
   eml: ["message/rfc822"],

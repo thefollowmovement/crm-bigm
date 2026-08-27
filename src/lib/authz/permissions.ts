@@ -70,6 +70,9 @@ export type Permission =
   | "permission:manage"
   | "backup:manage"
   | "email:manage"
+  | "accounting:read"
+  | "accounting:write"
+  | "accounting:import"
   | "audit:read";
 
 export type Role = SessionUser["role"];
@@ -140,6 +143,10 @@ const ALL: readonly Permission[] = [
   "backup:manage",
   // Paramètres SMTP + modèles d'e-mails de relance (étape 43).
   "email:manage",
+  // Comptabilité : structures + journal factures/avoirs + imports (étape 46).
+  "accounting:read",
+  "accounting:write",
+  "accounting:import",
   "audit:read",
 ];
 
@@ -191,6 +198,10 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     // Tableau financier de la tête de réseau : invisible aux autres pôles.
     "company-finance:read",
     "company-finance:write",
+    // Référentiel comptable, journal des pièces et imports (étape 46).
+    "accounting:read",
+    "accounting:write",
+    "accounting:import",
     "software:read",
   ]),
   RH: new Set([

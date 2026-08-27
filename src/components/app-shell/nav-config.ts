@@ -2,6 +2,7 @@ import {
   ArrowLeftRight,
   Banknote,
   Bell,
+  Calculator,
   Briefcase,
   Building2,
   CalendarDays,
@@ -150,6 +151,17 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/ca", label: "Chiffre d'affaires", icon: ChartLine, permission: "revenue:read" },
       { href: "/achats", label: "Achats DPS", icon: ShoppingCart, permission: "purchase:read" },
       { href: "/foodcost", label: "Food Cost", icon: ChefHat, permission: "foodcost:read" },
+    ],
+  },
+  {
+    title: "Comptabilité",
+    items: [
+      {
+        href: "/compta/structures",
+        label: "Structures",
+        icon: Calculator,
+        permission: "accounting:read",
+      },
     ],
   },
   {

@@ -176,6 +176,13 @@
       "when": 1787599158375,
       "tag": "0024_typical_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787831644635,
+      "tag": "0025_outstanding_mac_gargan",
+      "breakpoints": true
     }
   ]
 }

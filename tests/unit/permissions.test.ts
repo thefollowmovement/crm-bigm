@@ -259,4 +259,13 @@ describe("matrice de permissions", () => {
       expect(can({ role }, "email:manage")).toBe(expected);
     }
   });
+  it("la comptabilité (structures, journal, imports) est réservée à la compta et la direction", () => {
+    for (const role of ROLES) {
+      const expected =
+        role === "ADMIN" || role === "DIRECTION" || role === "COMPTABILITE";
+      expect(can({ role }, "accounting:read")).toBe(expected);
+      expect(can({ role }, "accounting:write")).toBe(expected);
+      expect(can({ role }, "accounting:import")).toBe(expected);
+    }
+  });
 });

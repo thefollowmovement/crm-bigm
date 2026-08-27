@@ -221,6 +221,8 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "PREMISES",
   // STORE_PHOTO : photo de la fiche boutique (étape 29)
   "STORE_PHOTO",
+  // ACCT_IMPORT : fichier original d'un import comptable (étape 46)
+  "ACCT_IMPORT",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -2745,3 +2747,121 @@ export const openingChecklistItemsRelations = relations(
     }),
   })
 );
+
+// ─────────────── COMPTABILITÉ — référentiel & imports (étape 46) ───────────────
+
+// Type de structure du référentiel comptable (cdc Transmission/Factures §3.1).
+export const acctStructureTypeEnum = pgEnum("acct_structure_type", [
+  "BOUTIQUE",
+  "TAWILA",
+  "DPS",
+  "TFM",
+  "FOURNISSEUR",
+  "PARTENAIRE",
+  "AUTRE",
+]);
+
+// Référentiel des « clients comptables » (structures) : boutiques du réseau,
+// entités internes (Tawila, DPS, TFM) et tiers (fournisseurs, partenaires).
+// Le champ code (ex. « 411CDPS ») est la clé de rapprochement avec le journal
+// des pièces importé du logiciel comptable. Distinct de la table stores :
+// une structure PEUT s'y rattacher (storeId), mais le référentiel couvre
+// aussi des entités hors réseau.
+export const acctStructures = pgTable(
+  "acct_structures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Identifiant unique du référentiel comptable — clé de jointure des imports.
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    company: text("company"),
+    contactName: text("contact_name"),
+    phone: text("phone"),
+    email: text("email"),
+    // Encours disponible (export comptable) — string numeric, jamais float.
+    creditAvailable: numeric("credit_available", { precision: 12, scale: 2 }),
+    lastOrderDate: date("last_order_date"),
+    address: text("address"),
+    postalCode: text("postal_code"),
+    city: text("city"),
+    vatNumber: text("vat_number"),
+    siret: text("siret"),
+    type: acctStructureTypeEnum("type").notNull().default("AUTRE"),
+    isActive: boolean("is_active").notNull().default(true),
+    // Rapprochement optionnel avec une boutique du réseau.
+    storeId: uuid("store_id").references(() => stores.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("acct_structures_code_unique").on(t.code),
+    index("acct_structures_type_idx").on(t.type),
+  ]
+);
+
+export const acctImportKindEnum = pgEnum("acct_import_kind", [
+  "STRUCTURES",
+  "FACTURES",
+]);
+export const acctImportModeEnum = pgEnum("acct_import_mode", [
+  // Doublons (même code / même n° de pièce) : ignorés ou mis à jour — choix
+  // explicite de l'utilisateur au moment de l'import (cdc §3.3).
+  "IGNORER",
+  "METTRE_A_JOUR",
+]);
+export const acctImportStatusEnum = pgEnum("acct_import_status", [
+  "EN_COURS",
+  "TERMINE",
+  "ERREUR",
+]);
+
+// Historique des imports comptables : rapport détaillé persistant (lignes
+// lues/créées/mises à jour/ignorées + erreurs ligne à ligne) et fichier
+// original conservé (fileId → file_attachments, entityType ACCT_IMPORT).
+export const acctImports = pgTable(
+  "acct_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: acctImportKindEnum("kind").notNull(),
+    mode: acctImportModeEnum("mode").notNull(),
+    fileName: text("file_name").notNull(),
+    // "xlsx" | "xls" | "xlsb" | "csv" — détecté par signature binaire.
+    format: text("format").notNull(),
+    fileId: uuid("file_id").references(() => fileAttachments.id),
+    status: acctImportStatusEnum("status").notNull().default("EN_COURS"),
+    totalRows: integer("total_rows").notNull().default(0),
+    processedRows: integer("processed_rows").notNull().default(0),
+    createdRows: integer("created_rows").notNull().default(0),
+    updatedRows: integer("updated_rows").notNull().default(0),
+    skippedRows: integer("skipped_rows").notNull().default(0),
+    // [{ line, message }] — plafonné par le service pour éviter les rapports géants.
+    errors: jsonb("errors").notNull().default([]),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("acct_imports_kind_idx").on(t.kind, t.createdAt)]
+);
+
+export const acctStructuresRelations = relations(acctStructures, ({ one }) => ({
+  store: one(stores, {
+    fields: [acctStructures.storeId],
+    references: [stores.id],
+  }),
+}));
+
+export const acctImportsRelations = relations(acctImports, ({ one }) => ({
+  createdBy: one(users, {
+    fields: [acctImports.createdById],
+    references: [users.id],
+  }),
+  file: one(fileAttachments, {
+    fields: [acctImports.fileId],
+    references: [fileAttachments.id],
+  }),
+}));
