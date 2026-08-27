@@ -17,6 +17,7 @@ import {
   ticketComments,
   tickets,
   trainings,
+  transmissions,
 } from "@/db/schema";
 import type { SessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz/permissions";
@@ -158,6 +159,23 @@ export async function canDownloadFile(
         with: { project: { columns: { storeId: true } } },
       });
       if (!step || !(await storeAllowed(user, step.project.storeId))) return deny;
+      return { allowed: true, audit: false };
+    }
+    case "TRANSMISSION": {
+      // PJ des transmissions comptables : la compta/direction qui traite,
+      // ou l'émetteur interne de la transmission.
+      const transmission = await db.query.transmissions.findFirst({
+        where: eq(transmissions.id, attachment.entityId ?? ""),
+      });
+      if (!transmission) return deny;
+      if (can(user, "transmission:manage")) return { allowed: true, audit: false };
+      return transmission.emitterUserId === user.id
+        ? { allowed: true, audit: false }
+        : deny;
+    }
+    case "ACCT_IMPORT": {
+      // Fichier original d'un import comptable : lecture compta/direction.
+      if (!can(user, "accounting:read")) return deny;
       return { allowed: true, audit: false };
     }
     case "PROSPECT":

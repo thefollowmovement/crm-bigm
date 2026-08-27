@@ -182,6 +182,8 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "RH",
   "OUVERTURE",
   "DEVELOPPEMENT",
+  // COMPTABILITE : transmissions comptables (étape 48)
+  "COMPTABILITE",
 ]);
 
 export const auditActionEnum = pgEnum("audit_action", [
@@ -223,6 +225,8 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "STORE_PHOTO",
   // ACCT_IMPORT : fichier original d'un import comptable (étape 46)
   "ACCT_IMPORT",
+  // TRANSMISSION : pièces jointes des transmissions comptables (étape 48)
+  "TRANSMISSION",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -2942,3 +2946,134 @@ export const acctInvoicesRelations = relations(acctInvoices, ({ one }) => ({
     references: [acctStructures.id],
   }),
 }));
+
+// ─────────────── TRANSMISSIONS COMPTABLES (étape 48) ───────────────
+
+// Deux types exclusifs (cdc §2.3) : demande (sans facture formelle) ou
+// facture. Origine INTERNE (compte CRM) ou EXTERNE (lien sécurisé, étape 49).
+export const transmissionTypeEnum = pgEnum("transmission_type", [
+  "DEMANDE",
+  "FACTURE",
+]);
+export const transmissionOriginEnum = pgEnum("transmission_origin", [
+  "INTERNE",
+  "EXTERNE",
+]);
+export const transmissionCaseEnum = pgEnum("transmission_case", [
+  "FACTURE_INFLUENCEUR",
+  "FACTURE_TICKET",
+  "ACHAT_SUCCURSALE",
+  "NOTE_DE_FRAIS",
+  "QUITTANCE",
+  "FACTURE_FOURNISSEUR",
+  "AUTRE",
+]);
+export const transmissionStatusEnum = pgEnum("transmission_status", [
+  "EN_ATTENTE",
+  "VALIDEE",
+  "REJETEE",
+  "TRAITEE",
+]);
+export const externalCategoryEnum = pgEnum("external_category", [
+  "CLIENT_EXTERNE",
+  "INFLUENCEUR",
+  "FRANCHISE",
+  "AUTRE",
+]);
+
+export const transmissions = pgTable(
+  "transmissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // numéro court affiché "TR-000123"
+    number: integer("number").notNull().generatedAlwaysAsIdentity(),
+    type: transmissionTypeEnum("type").notNull(),
+    origin: transmissionOriginEnum("origin").notNull().default("INTERNE"),
+    // Émetteur interne (null si origine externe)…
+    emitterUserId: uuid("emitter_user_id").references(() => users.id),
+    // …ou identité externe déclarée (nom, e-mail, catégorie — cdc §2.3).
+    externalName: text("external_name"),
+    externalEmail: text("external_email"),
+    externalCategory: externalCategoryEnum("external_category"),
+    // Destinataire : la comptabilité par défaut, ou un autre pôle interne.
+    targetPole: poleEnum("target_pole").notNull().default("COMPTABILITE"),
+    structureId: uuid("structure_id").references(() => acctStructures.id),
+    storeId: uuid("store_id").references(() => stores.id),
+    ticketId: uuid("ticket_id").references(() => tickets.id),
+    caseType: transmissionCaseEnum("case_type").notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }),
+    subject: text("subject").notNull(),
+    message: text("message"),
+    status: transmissionStatusEnum("status").notNull().default("EN_ATTENTE"),
+    // Traçabilité des soumissions externes (cdc §2.2) — IP de soumission.
+    submittedIp: text("submitted_ip"),
+    // Conversion en facture comptable (source TRANSMISSION) par la compta.
+    invoiceId: uuid("invoice_id").references(() => acctInvoices.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("transmissions_status_idx").on(t.status, t.createdAt),
+    index("transmissions_emitter_idx").on(t.emitterUserId),
+    index("transmissions_structure_idx").on(t.structureId),
+  ]
+);
+
+// Historique des statuts : qui, quand, ancien et nouveau statut (cdc §2.3).
+export const transmissionEvents = pgTable(
+  "transmission_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    transmissionId: uuid("transmission_id")
+      .notNull()
+      .references(() => transmissions.id, { onDelete: "cascade" }),
+    // null = événement système (soumission externe).
+    userId: uuid("user_id").references(() => users.id),
+    oldStatus: transmissionStatusEnum("old_status"),
+    newStatus: transmissionStatusEnum("new_status").notNull(),
+    comment: text("comment"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("transmission_events_transmission_idx").on(t.transmissionId)]
+);
+
+export const transmissionsRelations = relations(transmissions, ({ one, many }) => ({
+  emitter: one(users, {
+    fields: [transmissions.emitterUserId],
+    references: [users.id],
+  }),
+  structure: one(acctStructures, {
+    fields: [transmissions.structureId],
+    references: [acctStructures.id],
+  }),
+  store: one(stores, {
+    fields: [transmissions.storeId],
+    references: [stores.id],
+  }),
+  ticket: one(tickets, {
+    fields: [transmissions.ticketId],
+    references: [tickets.id],
+  }),
+  invoice: one(acctInvoices, {
+    fields: [transmissions.invoiceId],
+    references: [acctInvoices.id],
+  }),
+  events: many(transmissionEvents),
+}));
+
+export const transmissionEventsRelations = relations(
+  transmissionEvents,
+  ({ one }) => ({
+    transmission: one(transmissions, {
+      fields: [transmissionEvents.transmissionId],
+      references: [transmissions.id],
+    }),
+    user: one(users, {
+      fields: [transmissionEvents.userId],
+      references: [users.id],
+    }),
+  })
+);

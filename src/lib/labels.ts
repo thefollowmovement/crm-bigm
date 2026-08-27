@@ -464,3 +464,37 @@ export const ACCT_INVOICE_STATUS_LABELS: Record<string, string> = {
   IMPAYEE: "Impayée",
   ANNULEE: "Annulée",
 };
+
+export const TRANSMISSION_TYPE_LABELS: Record<string, string> = {
+  DEMANDE: "Demande",
+  FACTURE: "Facture",
+};
+
+export const TRANSMISSION_ORIGIN_LABELS: Record<string, string> = {
+  INTERNE: "Interne",
+  EXTERNE: "Externe",
+};
+
+export const TRANSMISSION_CASE_LABELS: Record<string, string> = {
+  FACTURE_INFLUENCEUR: "Facture influenceur",
+  FACTURE_TICKET: "Facture liée à un ticket",
+  ACHAT_SUCCURSALE: "Achat succursale",
+  NOTE_DE_FRAIS: "Note de frais",
+  QUITTANCE: "Quittance",
+  FACTURE_FOURNISSEUR: "Facture fournisseur externe",
+  AUTRE: "Autre",
+};
+
+export const TRANSMISSION_STATUS_LABELS: Record<string, string> = {
+  EN_ATTENTE: "En attente",
+  VALIDEE: "Validée",
+  REJETEE: "Rejetée",
+  TRAITEE: "Traitée",
+};
+
+export const EXTERNAL_CATEGORY_LABELS: Record<string, string> = {
+  CLIENT_EXTERNE: "Client externe",
+  INFLUENCEUR: "Influenceur",
+  FRANCHISE: "Franchisé",
+  AUTRE: "Autre",
+};

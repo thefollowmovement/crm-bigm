@@ -268,4 +268,12 @@ describe("matrice de permissions", () => {
       expect(can({ role }, "accounting:import")).toBe(expected);
     }
   });
+  it("transmissions : tout le monde soumet sauf SALARIE, la compta traite", () => {
+    for (const role of ROLES) {
+      expect(can({ role }, "transmission:create")).toBe(role !== "SALARIE");
+      const manage =
+        role === "ADMIN" || role === "DIRECTION" || role === "COMPTABILITE";
+      expect(can({ role }, "transmission:manage")).toBe(manage);
+    }
+  });
 });

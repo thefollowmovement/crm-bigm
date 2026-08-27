@@ -73,6 +73,8 @@ export type Permission =
   | "accounting:read"
   | "accounting:write"
   | "accounting:import"
+  | "transmission:create"
+  | "transmission:manage"
   | "audit:read";
 
 export type Role = SessionUser["role"];
@@ -147,6 +149,10 @@ const ALL: readonly Permission[] = [
   "accounting:read",
   "accounting:write",
   "accounting:import",
+  // Transmissions comptables : tout collaborateur/franchisé peut soumettre,
+  // la compta (et la direction) traite (étape 48).
+  "transmission:create",
+  "transmission:manage",
   "audit:read",
 ];
 
@@ -202,6 +208,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "accounting:read",
     "accounting:write",
     "accounting:import",
+    "transmission:create",
+    "transmission:manage",
     "software:read",
   ]),
   RH: new Set([
@@ -225,6 +233,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "self:leave",
     "opening:read",
     "opening:checklist",
+    "transmission:create",
     "software:read",
   ]),
   ANIMATION: new Set([
@@ -253,6 +262,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "partner:read",
     "opening:read",
     "opening:checklist",
+    "transmission:create",
     "software:read",
   ]),
   COMMUNICATION: new Set([
@@ -273,6 +283,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "partner:write",
     "opening:read",
     "opening:checklist",
+    "transmission:create",
     "software:read",
   ]),
   DEVELOPPEMENT: new Set([
@@ -302,6 +313,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "development:write",
     "resale:read",
     "resale:write",
+    "transmission:create",
     "software:read",
   ]),
   FRANCHISE: new Set([
@@ -318,6 +330,8 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "commtask:read",
     "commtask:request",
     "opening:read",
+    // Un franchisé transmet demandes/factures pour SA boutique (étape 48).
+    "transmission:create",
   ]),
   // Salarié d'une boutique : pointeuse et congés en self-service, rien d'autre
   // (cdc §12) — pas d'accès aux modules réseau.
