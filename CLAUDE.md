@@ -233,7 +233,49 @@ CRM (metadata `title.absolute`). L'ancien préfixe `/admin` est renommé en
 cron de prod). Sécurité : c'est un masquage (la garde du middleware reste
 optimiste sur le cookie) — l'authentification réelle ne change pas.
 
-**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-45).**
+**MODULE COMPTABILITÉ LIVRÉ (étapes 46-49 — cdc « Transmission comptable &
+Factures », août 2026)** : référentiel des structures comptables
+(`acctStructures` : code unique type « 411CDPS » = clé de rapprochement,
+encours, TVA/SIRET, type Boutique/Tawila/DPS/TFM/Fournisseur/Partenaire/
+Autre, actif, lien optionnel vers une boutique) · imports multi-formats par
+SIGNATURE binaire — xlsx/xls/**xlsb**/csv — via SheetJS (`xlsx`, seule
+nouvelle dépendance, indispensable au .xlsb) : `lib/import/tabular.ts` +
+mappings purs testés, rapport persistant `acctImports` (créées/MAJ/ignorées/
+erreurs ligne à ligne NON bloquantes), fichier original conservé
+(ACCT_IMPORT), doublons « ignorer / mettre à jour », lots de 200 avec
+progression · journal factures/avoirs (`acctInvoices` : n° de pièce unique,
+Facture/Avoir à montants signés, Standard/RFA, classe comptable 6/7
+OBLIGATOIRE — choisie à l'import car absente des exports —, échéance,
+source, structure par code « Client ») ; **statut saisi À LA MAIN par la
+compta** (exception assumée à la règle 8, exigence cdc — jamais écrasé par
+un réimport, échéance dépassée signalée visuellement) · résultat = Σ HT
+classe 7 − Σ HT classe 6 (avoirs négatifs inclus, annulées exclues,
+centimes en SQL) · liste des clients comptables (/compta/structures) avec
+agrégats calculés EN BASE (nb pièces, CA/charges HT période, résultat,
+restant dû TTC toutes périodes, dernière pièce), période/tri/recherche/
+filtre impayés, export CSV `/api/compta/structures-export` · transmissions
+(`transmissions` « TR-… » + `transmissionEvents` : Demande/Facture,
+interne/externe, cas d'usage cdc, pôle destinataire — compta par défaut —,
+PJ multiples TRANSMISSION, notifications du pôle puis de l'émetteur ;
+franchisé = SA boutique et SES transmissions uniquement ; compta
+valide/rejette/traite avec commentaire ; conversion d'une Facture VALIDÉE
+en pièce du journal source TRANSMISSION, une seule fois) · accès externe =
+OPTION B du cdc (`transmissionInvites` : jeton 32 octets affiché UNE seule
+fois, stocké haché sha256, expiration ≤ 90 j, usage unique consommé
+atomiquement, révocable, e-mail optionnel du lien via le SMTP de l'étape 43
++ `APP_URL`) : page publique `/transmission/[token]` (whitelist middleware,
+AUCUNE mention du CRM, réponse neutre si lien mort), limitation de débit
+mémoire `lib/rate-limit.ts` (5 envois / 10 min / IP, 60 consultations),
+fichiers externes restreints pdf/png/jpg/webp ≤ 10 Mo ≤ 5
+(`fileAttachments.uploadedById` désormais nullable, upload audité avec IP),
+identité déclarée + IP tracées sur la transmission, rien n'entre en compta
+sans validation manuelle ; l'option A du cdc est couverte par les comptes
+CRM existants des franchisés. Permissions : `accounting:read/write/import`
+et `transmission:manage` (compta + direction), `transmission:create` (tous
+les rôles sauf SALARIE).
+
+**FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-45 +
+module comptabilité 46-49).**
 Reste hors périmètre : la « V2 » (pôle 15 « Modules complémentaires » du cdc
 §24 : HACCP, litiges, assurances, maintenance, parc matériel, notes
 plateformes…) — nouveau devis.
