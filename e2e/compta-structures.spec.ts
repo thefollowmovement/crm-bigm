@@ -10,7 +10,7 @@ test("compta : création d'une structure puis import du référentiel avec rappo
   await login(page, ACCOUNTS.compta);
   await page.getByRole("link", { name: "Structures", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Structures comptables" })
+    page.getByRole("heading", { name: "Clients comptables" })
   ).toBeVisible();
 
   // Création manuelle.

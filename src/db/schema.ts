@@ -2865,3 +2865,80 @@ export const acctImportsRelations = relations(acctImports, ({ one }) => ({
     references: [fileAttachments.id],
   }),
 }));
+
+// ─────────────── COMPTABILITÉ — journal factures/avoirs (étape 47) ───────────────
+
+export const acctPieceTypeEnum = pgEnum("acct_piece_type", ["FACTURE", "AVOIR"]);
+// RFA = Ristourne de Fin d'Année (cdc §3.2).
+export const acctInvoiceTypeEnum = pgEnum("acct_invoice_type", [
+  "STANDARD",
+  "RFA",
+]);
+// Classe comptable obligatoire : 6 = charge, 7 = produit.
+export const acctClassEnum = pgEnum("acct_class", ["CHARGE", "PRODUIT"]);
+export const acctSourceEnum = pgEnum("acct_source", [
+  "SAISIE",
+  "IMPORT_XLSX",
+  "IMPORT_XLS",
+  "IMPORT_XLSB",
+  "IMPORT_CSV",
+  "LOGICIEL",
+  // Transmission externe validée puis convertie en facture (étape 48).
+  "TRANSMISSION",
+]);
+// Statut RENSEIGNÉ À LA MAIN par les comptables après import/création
+// (exigence explicite du cdc §3.2 — exception assumée à la règle « en
+// retard dérivé » : ici le logiciel comptable fait foi, pas l'échéance).
+export const acctInvoiceStatusEnum = pgEnum("acct_invoice_status", [
+  "EN_ATTENTE",
+  "PAYEE",
+  "EN_RETARD",
+  "IMPAYEE",
+  "ANNULEE",
+]);
+
+export const acctInvoices = pgTable(
+  "acct_invoices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // N° de pièce du logiciel comptable — clé unique de dédoublonnage.
+    pieceNumber: text("piece_number").notNull(),
+    pieceType: acctPieceTypeEnum("piece_type").notNull(),
+    invoiceType: acctInvoiceTypeEnum("invoice_type").notNull().default("STANDARD"),
+    accountClass: acctClassEnum("account_class").notNull(),
+    pieceDate: date("piece_date").notNull(),
+    dueDate: date("due_date"),
+    structureId: uuid("structure_id")
+      .notNull()
+      .references(() => acctStructures.id),
+    // Montants signés : un avoir porte des montants négatifs (cdc §3.2).
+    amountHT: numeric("amount_ht", { precision: 12, scale: 2 }).notNull(),
+    amountVAT: numeric("amount_vat", { precision: 12, scale: 2 })
+      .notNull()
+      .default("0.00"),
+    amountTTC: numeric("amount_ttc", { precision: 12, scale: 2 }).notNull(),
+    company: text("company"),
+    source: acctSourceEnum("source").notNull().default("SAISIE"),
+    status: acctInvoiceStatusEnum("status").notNull().default("EN_ATTENTE"),
+    label: text("label"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("acct_invoices_piece_number_unique").on(t.pieceNumber),
+    index("acct_invoices_structure_date_idx").on(t.structureId, t.pieceDate),
+    index("acct_invoices_class_date_idx").on(t.accountClass, t.pieceDate),
+    index("acct_invoices_status_idx").on(t.status),
+  ]
+);
+
+export const acctInvoicesRelations = relations(acctInvoices, ({ one }) => ({
+  structure: one(acctStructures, {
+    fields: [acctInvoices.structureId],
+    references: [acctStructures.id],
+  }),
+}));

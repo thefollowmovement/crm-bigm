@@ -431,3 +431,36 @@ export const ACCT_IMPORT_STATUS_LABELS: Record<string, string> = {
   TERMINE: "Terminé",
   ERREUR: "Erreur",
 };
+
+export const ACCT_PIECE_TYPE_LABELS: Record<string, string> = {
+  FACTURE: "Facture",
+  AVOIR: "Avoir",
+};
+
+export const ACCT_INVOICE_TYPE_LABELS: Record<string, string> = {
+  STANDARD: "Standard",
+  RFA: "RFA (ristourne de fin d'année)",
+};
+
+export const ACCT_CLASS_LABELS: Record<string, string> = {
+  PRODUIT: "7 — Produit",
+  CHARGE: "6 — Charge",
+};
+
+export const ACCT_SOURCE_LABELS: Record<string, string> = {
+  SAISIE: "Saisie manuelle",
+  IMPORT_XLSX: "Import xlsx",
+  IMPORT_XLS: "Import xls",
+  IMPORT_XLSB: "Import xlsb",
+  IMPORT_CSV: "Import csv",
+  LOGICIEL: "Logiciel externe",
+  TRANSMISSION: "Transmission externe validée",
+};
+
+export const ACCT_INVOICE_STATUS_LABELS: Record<string, string> = {
+  EN_ATTENTE: "En attente",
+  PAYEE: "Payée",
+  EN_RETARD: "En retard",
+  IMPAYEE: "Impayée",
+  ANNULEE: "Annulée",
+};
