@@ -106,6 +106,65 @@ export async function saveUpload(
   });
 }
 
+// Upload EXTERNE (formulaire public de transmission, étape 49) : validation
+// plus stricte qu'en interne — la source est moins fiable (cdc §2.2).
+// Extensions limitées aux justificatifs, taille réduite, uploadedById null
+// (l'identité déclarée et l'IP sont portées par la transmission liée).
+const EXTERNAL_ALLOWED_EXTENSIONS = new Set(["pdf", "png", "jpg", "jpeg", "webp"]);
+const EXTERNAL_MAX_BYTES = 10 * 1024 * 1024;
+
+export function validateExternalUpload(input: {
+  originalName: string;
+  sizeBytes: number;
+}): { ok: true; extension: string } | { ok: false; error: string } {
+  if (input.sizeBytes <= 0) return { ok: false, error: "Fichier vide." };
+  if (input.sizeBytes > EXTERNAL_MAX_BYTES) {
+    return { ok: false, error: "Fichier trop volumineux (maximum 10 Mo)." };
+  }
+  const extension = path.extname(input.originalName).slice(1).toLowerCase();
+  if (!EXTERNAL_ALLOWED_EXTENSIONS.has(extension)) {
+    return {
+      ok: false,
+      error: `Type de fichier non autorisé (.${extension || "?"}). Formats acceptés : pdf, png, jpg, jpeg, webp.`,
+    };
+  }
+  return { ok: true, extension };
+}
+
+export async function saveExternalUpload(
+  file: File,
+  options: {
+    entityType: NonNullable<(typeof fileAttachments.$inferInsert)["entityType"]>;
+    entityId: string;
+    ip: string | null;
+  }
+): Promise<SavedFile> {
+  const validation = validateExternalUpload({
+    originalName: file.name,
+    sizeBytes: file.size,
+  });
+  if (!validation.ok) throw new Error(validation.error);
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const sha256 = createHash("sha256").update(buffer).digest("hex");
+  const storagePath = buildStoragePath(validation.extension);
+
+  const absolute = path.join(uploadDir(), storagePath);
+  await mkdir(path.dirname(absolute), { recursive: true });
+  await writeFile(absolute, buffer);
+
+  return auditedInsert({ id: null, ip: options.ip }, fileAttachments, {
+    originalName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    sizeBytes: file.size,
+    sha256,
+    storagePath,
+    entityType: options.entityType,
+    entityId: options.entityId,
+    uploadedById: null,
+  });
+}
+
 export function fileReadStream(storagePath: string) {
   // storagePath vient de la base (généré par buildStoragePath) — jamais du
   // client — donc pas de traversal possible ; on verrouille quand même.

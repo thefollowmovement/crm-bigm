@@ -180,6 +180,28 @@ async function deliver(
   }
 }
 
+// Envoi (optionnel) du lien d'invitation à un contact externe (étape 49).
+// Nécessite les paramètres SMTP ; l'appelant décide quoi faire d'un échec
+// (le lien reste copiable à la main dans tous les cas).
+export async function sendTransmissionInviteEmail(input: {
+  to: string;
+  url: string;
+  expiresAt: Date;
+}) {
+  const settings = await loadSmtpOrThrow();
+  const expires = input.expiresAt.toLocaleDateString("fr-FR");
+  await deliver(settings, {
+    to: input.to,
+    subject: "Lien sécurisé pour transmettre vos documents",
+    bodyHtml:
+      `<p>Bonjour,</p>` +
+      `<p>Vous pouvez nous transmettre votre document (facture, justificatif…) ` +
+      `via ce lien sécurisé, utilisable une seule fois :</p>` +
+      `<p><a href="${input.url}">${input.url}</a></p>` +
+      `<p>Ce lien expire le ${expires}.</p>`,
+  });
+}
+
 export async function sendTestEmail(actor: SessionUser, to: string) {
   assertCan(actor, "email:manage");
   if (!to.includes("@")) throw new Error("Adresse de destination invalide.");

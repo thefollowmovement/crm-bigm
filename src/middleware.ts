@@ -20,7 +20,13 @@ export function middleware(request: NextRequest) {
       url.pathname = "/vitrine";
       return NextResponse.rewrite(url);
     }
-    if (pathname === "/vitrine" || pathname === "/connexion") {
+    if (
+      pathname === "/vitrine" ||
+      pathname === "/connexion" ||
+      // Formulaire public de transmission comptable par lien à usage unique
+      // (étape 49) : la validité du jeton est vérifiée par la page elle-même.
+      pathname.startsWith("/transmission/")
+    ) {
       return NextResponse.next();
     }
     const url = request.nextUrl.clone();

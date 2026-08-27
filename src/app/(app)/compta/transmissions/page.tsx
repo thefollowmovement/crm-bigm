@@ -10,6 +10,7 @@ import {
   listTransmissions,
   type Transmission,
 } from "@/services/transmissions.service";
+import { listInvites } from "@/services/transmission-invites.service";
 import { listStores } from "@/services/stores.service";
 import { AccessDenied } from "@/components/access-denied";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,11 @@ import {
 } from "@/lib/labels";
 import { formatEUR } from "@/lib/money";
 
-import { CreateTransmissionDialog } from "./transmission-components";
+import {
+  CreateTransmissionDialog,
+  InviteDialog,
+  RevokeInviteButton,
+} from "./transmission-components";
 
 export const metadata: Metadata = { title: "Transmissions comptables" };
 
@@ -66,11 +71,16 @@ export default async function TransmissionsPage({
       : null;
 
   const canCreate = can(user, "transmission:create");
-  const [rows, structures, stores] = await Promise.all([
+  const [rows, structures, stores, invites] = await Promise.all([
     listTransmissions(user, { status, type, origin }),
     canCreate ? listStructureOptionsForEmitter(user) : Promise.resolve([]),
     canCreate && can(user, "store:read") ? listStores(user) : Promise.resolve([]),
+    manage ? listInvites(user) : Promise.resolve([]),
   ]);
+  const structureOptions = structures.map((s) => ({
+    id: s.id,
+    label: `${s.code} — ${s.name}`,
+  }));
 
   return (
     <div className="space-y-6">
@@ -83,16 +93,16 @@ export default async function TransmissionsPage({
               : "Vos demandes et factures transmises à la comptabilité, avec leur suivi."}
           </p>
         </div>
-        {canCreate ? (
-          <CreateTransmissionDialog
-            structures={structures.map((s) => ({
-              id: s.id,
-              label: `${s.code} — ${s.name}`,
-            }))}
-            stores={stores.map((s) => ({ id: s.id, label: s.name }))}
-            isFranchise={user.role === "FRANCHISE"}
-          />
-        ) : null}
+        <div className="flex gap-2">
+          {manage ? <InviteDialog structures={structureOptions} /> : null}
+          {canCreate ? (
+            <CreateTransmissionDialog
+              structures={structureOptions}
+              stores={stores.map((s) => ({ id: s.id, label: s.name }))}
+              isFranchise={user.role === "FRANCHISE"}
+            />
+          ) : null}
+        </div>
       </div>
 
       {manage ? (
@@ -217,6 +227,70 @@ export default async function TransmissionsPage({
           </Table>
         </CardContent>
       </Card>
+
+      {manage && invites.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Liens externes générés</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table data-testid="invites-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Catégorie</TableHead>
+                  <TableHead>Structure</TableHead>
+                  <TableHead>Expire le</TableHead>
+                  <TableHead>État</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invites.map((invite) => {
+                  const state = invite.usedAt
+                    ? { label: "Utilisé", variant: "outline" as const }
+                    : invite.revokedAt
+                      ? { label: "Révoqué", variant: "destructive" as const }
+                      : invite.expiresAt.getTime() < Date.now()
+                        ? { label: "Expiré", variant: "secondary" as const }
+                        : { label: "Actif", variant: "success" as const };
+                  return (
+                    <TableRow key={invite.id}>
+                      <TableCell>
+                        {invite.email}
+                        {invite.externalName ? (
+                          <span className="block text-xs text-muted-foreground">
+                            {invite.externalName}
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        {EXTERNAL_CATEGORY_LABELS[invite.category]}
+                      </TableCell>
+                      <TableCell>
+                        {invite.structure
+                          ? `${invite.structure.code} — ${invite.structure.name}`
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {formatDateFr(invite.expiresAt.toISOString().slice(0, 10))}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={state.variant}>{state.label}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {state.label === "Actif" ? (
+                          <RevokeInviteButton id={invite.id} />
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

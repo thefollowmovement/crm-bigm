@@ -11,6 +11,12 @@ import {
   convertTransmissionToInvoice,
   createTransmission,
 } from "@/services/transmissions.service";
+import {
+  createInvite,
+  inviteUrl,
+  revokeInvite,
+} from "@/services/transmission-invites.service";
+import { sendTransmissionInviteEmail } from "@/services/email.service";
 
 const amountString = z
   .string()
@@ -135,5 +141,92 @@ export const convertTransmissionAction = safeFormAction(
     revalidatePath(`/compta/transmissions/${id}`);
     revalidatePath("/compta/factures");
     return "Facture créée au journal, transmission traitée.";
+  }
+);
+
+// ── Invitations externes (étape 49) ──────────────────────────────
+
+export type InviteCreationState = {
+  error?: string;
+  created?: {
+    email: string;
+    // Chemin relatif — l'URL complète est composée côté client (origin).
+    path: string;
+    emailSent: boolean;
+    emailError?: string;
+  };
+};
+
+const inviteSchema = z.object({
+  email: z.string().trim().email("Adresse e-mail invalide"),
+  externalName: z.string().trim().nullable(),
+  category: z.enum(["CLIENT_EXTERNE", "INFLUENCEUR", "FRANCHISE", "AUTRE"]),
+  structureId: z.string().uuid().nullable(),
+  expiresInDays: z.coerce.number().int().min(1).max(90),
+  note: z.string().trim().nullable(),
+  sendEmail: z.boolean(),
+});
+
+export async function createInviteAction(
+  _prev: InviteCreationState,
+  formData: FormData
+): Promise<InviteCreationState> {
+  const actor = await requireUser();
+  try {
+    assertCan(actor, "transmission:manage");
+  } catch (e) {
+    return { error: e instanceof ForbiddenError ? e.message : "Accès refusé." };
+  }
+  const parsed = inviteSchema.safeParse({
+    email: formData.get("email"),
+    externalName: nullable(formData.get("externalName")),
+    category: formData.get("category"),
+    structureId: nullable(formData.get("structureId")),
+    expiresInDays: formData.get("expiresInDays") ?? 14,
+    note: nullable(formData.get("note")),
+    sendEmail: formData.get("sendEmail") === "on",
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Saisie invalide" };
+  }
+  try {
+    const { invite, token } = await createInvite(actor, parsed.data);
+    const path = `/transmission/${token}`;
+    let emailSent = false;
+    let emailError: string | undefined;
+    if (parsed.data.sendEmail) {
+      // Envoi best effort : le lien reste copiable à la main quoi qu'il arrive.
+      const base = process.env.APP_URL;
+      if (!base) {
+        emailError = "APP_URL non configurée : envoyez le lien manuellement.";
+      } else {
+        try {
+          await sendTransmissionInviteEmail({
+            to: invite.email,
+            url: inviteUrl(token),
+            expiresAt: invite.expiresAt,
+          });
+          emailSent = true;
+        } catch (e) {
+          emailError = e instanceof Error ? e.message : "Envoi impossible.";
+        }
+      }
+    }
+    revalidatePath("/compta/transmissions");
+    return { created: { email: invite.email, path, emailSent, emailError } };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Une erreur est survenue." };
+  }
+}
+
+export const revokeInviteAction = safeFormAction(
+  {
+    permission: "transmission:manage",
+    schema: z.object({ id: z.string().uuid() }),
+  },
+  async ({ id }, actor) => {
+    await revokeInvite(actor, id);
+    revalidatePath("/compta/transmissions");
+    return "Lien révoqué.";
   }
 );

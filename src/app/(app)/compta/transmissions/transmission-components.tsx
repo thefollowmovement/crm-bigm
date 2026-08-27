@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Link as LinkIcon, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
   ACCT_CLASS_LABELS,
   ACCT_INVOICE_TYPE_LABELS,
   ACCT_PIECE_TYPE_LABELS,
+  EXTERNAL_CATEGORY_LABELS,
   POLE_LABELS,
   TRANSMISSION_CASE_LABELS,
   TRANSMISSION_STATUS_LABELS,
@@ -37,7 +38,10 @@ import type { ActionState } from "@/lib/actions/safe-action";
 import {
   changeTransmissionStatusAction,
   convertTransmissionAction,
+  createInviteAction,
   createTransmissionAction,
+  revokeInviteAction,
+  type InviteCreationState,
 } from "./actions";
 
 type Option = { id: string; label: string };
@@ -405,6 +409,163 @@ export function ConvertForm({
         data-testid="convert-submit"
       >
         {pending ? "Conversion…" : "Créer la facture au journal"}
+      </Button>
+    </form>
+  );
+}
+
+// ── Invitations externes (étape 49) ──────────────────────────────
+
+export function InviteDialog({ structures }: { structures: Option[] }) {
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState<
+    InviteCreationState,
+    FormData
+  >(createInviteAction, {});
+
+  useEffect(() => {
+    if (state.error) toast.error(state.error);
+  }, [state]);
+
+  const created = state.created;
+  const fullUrl =
+    created && typeof window !== "undefined"
+      ? `${window.location.origin}${created.path}`
+      : null;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" data-testid="new-invite-button">
+          <LinkIcon /> Lien externe
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Lien de transmission externe</DialogTitle>
+          <DialogDescription>
+            Lien sécurisé, temporaire et à usage unique permettant à un
+            contact SANS compte CRM (influenceur, fournisseur…) de déposer un
+            document. Rien n&apos;entre en comptabilité sans validation.
+          </DialogDescription>
+        </DialogHeader>
+        {created ? (
+          <div className="space-y-3" data-testid="invite-created">
+            <p className="text-sm">
+              Lien créé pour <strong>{created.email}</strong>
+              {created.emailSent
+                ? " — envoyé par e-mail."
+                : created.emailError
+                  ? ` — e-mail non envoyé (${created.emailError})`
+                  : "."}
+            </p>
+            <p className="break-all rounded-lg bg-muted p-3 font-mono text-xs" data-testid="invite-url">
+              {fullUrl ?? created.path}
+            </p>
+            <Button
+              type="button"
+              className="w-full"
+              onClick={() => {
+                if (fullUrl) {
+                  navigator.clipboard.writeText(fullUrl).then(
+                    () => toast.success("Lien copié."),
+                    () => toast.error("Copie impossible — sélectionnez le lien.")
+                  );
+                }
+              }}
+            >
+              Copier le lien
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Ce lien ne sera plus jamais affiché : copiez-le maintenant.
+            </p>
+          </div>
+        ) : (
+          <form action={formAction} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="invite-email">E-mail du contact *</Label>
+              <Input
+                id="invite-email"
+                name="email"
+                type="email"
+                required
+                data-testid="invite-email"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-name">Nom (pré-rempli)</Label>
+                <Input id="invite-name" name="externalName" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-category">Catégorie</Label>
+                <Select name="category" defaultValue="CLIENT_EXTERNE">
+                  <SelectTrigger id="invite-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(EXTERNAL_CATEGORY_LABELS).map(([v, l]) => (
+                      <SelectItem key={v} value={v}>
+                        {l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-structure">Structure liée</Label>
+                <Select name="structureId" defaultValue="none">
+                  <SelectTrigger id="invite-structure">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Aucune —</SelectItem>
+                    {structures.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-days">Validité (jours)</Label>
+                <Input
+                  id="invite-days"
+                  name="expiresInDays"
+                  inputMode="numeric"
+                  defaultValue="14"
+                />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="sendEmail" />
+              Envoyer le lien par e-mail (SMTP du CRM)
+            </label>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={pending}
+              data-testid="invite-submit"
+            >
+              {pending ? "Création…" : "Générer le lien"}
+            </Button>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function RevokeInviteButton({ id }: { id: string }) {
+  const { formAction, pending } = useToastedState(revokeInviteAction);
+  return (
+    <form action={formAction} className="inline">
+      <input type="hidden" name="id" value={id} />
+      <Button type="submit" variant="ghost" size="sm" disabled={pending}>
+        Révoquer
       </Button>
     </form>
   );

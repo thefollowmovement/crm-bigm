@@ -575,9 +575,9 @@ export const fileAttachments = pgTable(
     // la relation directe est portée par document_versions.file_id)
     entityType: attachmentEntityEnum("entity_type"),
     entityId: uuid("entity_id"),
-    uploadedById: uuid("uploaded_by_id")
-      .notNull()
-      .references(() => users.id),
+    // null = upload externe via un lien d'invitation (étape 49) — l'identité
+    // déclarée et l'IP sont portées par la transmission liée.
+    uploadedById: uuid("uploaded_by_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -3007,6 +3007,8 @@ export const transmissions = pgTable(
     status: transmissionStatusEnum("status").notNull().default("EN_ATTENTE"),
     // Traçabilité des soumissions externes (cdc §2.2) — IP de soumission.
     submittedIp: text("submitted_ip"),
+    // Jeton d'invitation utilisé pour une soumission externe (étape 49).
+    inviteId: uuid("invite_id"),
     // Conversion en facture comptable (source TRANSMISSION) par la compta.
     invoiceId: uuid("invoice_id").references(() => acctInvoices.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3073,6 +3075,49 @@ export const transmissionEventsRelations = relations(
     }),
     user: one(users, {
       fields: [transmissionEvents.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+// ─────────────── ACCÈS EXTERNE — liens à usage unique (étape 49) ───────────────
+
+// Invitation générée par la compta : lien sécurisé, temporaire et à usage
+// unique envoyé à un contact externe (cdc §2.2 option B). Seul le sha256 du
+// jeton est stocké — jamais le jeton en clair.
+export const transmissionInvites = pgTable(
+  "transmission_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tokenHash: text("token_hash").notNull(),
+    email: text("email").notNull(),
+    externalName: text("external_name"),
+    category: externalCategoryEnum("category").notNull().default("AUTRE"),
+    structureId: uuid("structure_id").references(() => acctStructures.id),
+    note: text("note"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("transmission_invites_token_hash_unique").on(t.tokenHash),
+    index("transmission_invites_created_idx").on(t.createdAt),
+  ]
+);
+
+export const transmissionInvitesRelations = relations(
+  transmissionInvites,
+  ({ one }) => ({
+    structure: one(acctStructures, {
+      fields: [transmissionInvites.structureId],
+      references: [acctStructures.id],
+    }),
+    createdBy: one(users, {
+      fields: [transmissionInvites.createdById],
       references: [users.id],
     }),
   })
