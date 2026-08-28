@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { nullable, safeFormAction } from "@/lib/actions/safe-action";
+import { htmlToText, sanitizeHtml } from "@/lib/html/sanitize";
 import {
   addVisitAttachments,
   createCriterion,
@@ -13,6 +14,10 @@ import {
   updateCriterion,
   updateVisitReport,
 } from "@/services/visits.service";
+import {
+  createExpenseClaim,
+  decideExpenseClaim,
+} from "@/services/expense-claims.service";
 
 const visitTypeSchema = z.enum([
   "AUDIT",
@@ -54,6 +59,8 @@ export const createVisitAction = safeFormAction(
   }
 );
 
+// Compte rendu riche (étape 54) : le HTML de l'éditeur est SANITISÉ ici,
+// avant le service — liste blanche stricte, images internes uniquement.
 export const updateReportAction = safeFormAction(
   {
     permission: "visit:write",
@@ -67,7 +74,12 @@ export const updateReportAction = safeFormAction(
     }),
   },
   async (input, actor) => {
-    await updateVisitReport(actor, input.visitId, input.report);
+    const sanitized = input.report ? sanitizeHtml(input.report) : null;
+    const isEmpty =
+      sanitized !== null &&
+      htmlToText(sanitized) === "" &&
+      !sanitized.includes("<img ");
+    await updateVisitReport(actor, input.visitId, isEmpty ? null : sanitized);
     revalidatePath(`/animation/visites/${input.visitId}`);
     return "Compte rendu enregistré.";
   }
@@ -123,17 +135,76 @@ export const addVisitFilesAction = safeFormAction(
     permission: "visit:write",
     schema: z.object({
       visitId: z.string().uuid(),
+      // Titre libre (étape 54) affiché à la place du nom de fichier.
+      title: z.string().trim().nullable(),
       files: filesField.min(1, "Choisissez au moins un fichier."),
     }),
     prepare: (formData) => ({
       visitId: formData.get("visitId"),
+      title: nullable(formData.get("title")),
       files: extractFiles(formData),
     }),
   },
   async (input, actor) => {
-    const count = await addVisitAttachments(actor, input.visitId, input.files);
+    const count = await addVisitAttachments(
+      actor,
+      input.visitId,
+      input.files,
+      input.title
+    );
     revalidatePath(`/animation/visites/${input.visitId}`);
     return `${count} pièce${count > 1 ? "s" : ""} jointe${count > 1 ? "s" : ""} ajoutée${count > 1 ? "s" : ""}.`;
+  }
+);
+
+// ── Notes de frais de la visite (étape 54) ───────────────────────
+
+const claimAmount = z
+  .string()
+  .trim()
+  .regex(/^\d{1,10}(?:[.,]\d{1,2})?$/, "Montant invalide (ex. 45,90)")
+  .transform((v) => v.replace(",", "."));
+
+export const createExpenseClaimAction = safeFormAction(
+  {
+    permission: "visit:write",
+    schema: z.object({
+      visitId: z.string().uuid(),
+      title: z.string().trim().min(1, "Titre requis"),
+      amountTTC: claimAmount,
+      note: z.string().trim().nullable(),
+      files: filesField,
+    }),
+    prepare: (formData) => ({
+      visitId: formData.get("visitId"),
+      title: formData.get("title"),
+      amountTTC: formData.get("amountTTC"),
+      note: nullable(formData.get("note")),
+      files: extractFiles(formData),
+    }),
+  },
+  async ({ visitId, files, ...input }, actor) => {
+    await createExpenseClaim(actor, visitId, input, files);
+    revalidatePath(`/animation/visites/${visitId}`);
+    return "Note de frais enregistrée — en attente de validation.";
+  }
+);
+
+export const decideExpenseClaimAction = safeFormAction(
+  {
+    permission: "visit:write",
+    schema: z.object({
+      claimId: z.string().uuid(),
+      visitId: z.string().uuid(),
+      approve: z.enum(["true", "false"]),
+    }),
+  },
+  async (input, actor) => {
+    await decideExpenseClaim(actor, input.claimId, input.approve === "true");
+    revalidatePath(`/animation/visites/${input.visitId}`);
+    return input.approve === "true"
+      ? "Note de frais validée — transmise à la comptabilité."
+      : "Note de frais refusée.";
   }
 );
 

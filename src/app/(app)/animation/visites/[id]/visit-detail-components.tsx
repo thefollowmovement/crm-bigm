@@ -16,10 +16,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import type { ActionState } from "@/lib/actions/safe-action";
 
 import {
   addVisitFilesAction,
+  createExpenseClaimAction,
+  decideExpenseClaimAction,
   finalizeVisitAction,
   saveAuditItemsAction,
   updateReportAction,
@@ -32,12 +35,17 @@ function useToasted(state: ActionState) {
   }, [state]);
 }
 
+// Compte rendu RICHE (étape 54) : gras, titres, listes, images — le HTML
+// passé au serveur est sanitisé par l'action (liste blanche stricte).
 export function ReportForm({
   visitId,
-  report,
+  reportHtml,
+  images,
 }: {
   visitId: string;
-  report: string | null;
+  // HTML déjà sanitisé côté serveur (ou "" pour un nouveau compte rendu).
+  reportHtml: string;
+  images: { id: string; label: string }[];
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     updateReportAction,
@@ -48,14 +56,19 @@ export function ReportForm({
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="visitId" value={visitId} />
       <div className="space-y-1.5">
-        <Label htmlFor="report">Compte rendu</Label>
-        <Textarea
-          id="report"
+        <Label>Compte rendu</Label>
+        <RichTextEditor
           name="report"
-          rows={5}
-          defaultValue={report ?? ""}
-          data-testid="visit-report-input"
+          initialHtml={reportHtml}
+          images={images}
+          testId="visit-report-input"
         />
+        {images.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Pour illustrer le compte rendu, ajoutez d&apos;abord vos photos en
+            pièces jointes : elles deviendront insérables ici.
+          </p>
+        ) : null}
       </div>
       <Button
         type="submit"
@@ -207,8 +220,121 @@ export function VisitFilesForm({ visitId }: { visitId: string }) {
         <Label htmlFor="visit-files">Photos / documents</Label>
         <Input id="visit-files" name="files" type="file" multiple className="w-80" />
       </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="visit-files-title">Titre (facultatif)</Label>
+        <Input
+          id="visit-files-title"
+          name="title"
+          placeholder="Vitrine avant travaux"
+          className="w-56"
+          data-testid="visit-files-title"
+        />
+      </div>
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "Envoi…" : "Ajouter"}
+      </Button>
+    </form>
+  );
+}
+
+// ── Notes de frais de la visite (étape 54) ───────────────────────
+
+export function ExpenseClaimForm({ visitId }: { visitId: string }) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    createExpenseClaimAction,
+    {}
+  );
+  useToasted(state);
+  return (
+    <form action={formAction} className="space-y-3 rounded-lg border p-3">
+      <input type="hidden" name="visitId" value={visitId} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="claim-title">Titre *</Label>
+          <Input
+            id="claim-title"
+            name="title"
+            required
+            placeholder="VHR — déplacement Lyon"
+            data-testid="claim-title"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="claim-amount">Prix TTC (€) *</Label>
+          <Input
+            id="claim-amount"
+            name="amountTTC"
+            inputMode="decimal"
+            required
+            placeholder="45,90"
+            data-testid="claim-amount"
+          />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="claim-note">Note</Label>
+        <Textarea
+          id="claim-note"
+          name="note"
+          rows={2}
+          placeholder="Contexte de la dépense…"
+          data-testid="claim-note"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="claim-files">
+          Justificatifs (ticket de caisse, facture…)
+        </Label>
+        <Input
+          id="claim-files"
+          name="files"
+          type="file"
+          multiple
+          data-testid="claim-files"
+        />
+      </div>
+      <Button type="submit" disabled={pending} data-testid="claim-submit">
+        {pending ? "Enregistrement…" : "Ajouter la note de frais"}
+      </Button>
+    </form>
+  );
+}
+
+export function DecideClaimButtons({
+  claimId,
+  visitId,
+}: {
+  claimId: string;
+  visitId: string;
+}) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    decideExpenseClaimAction,
+    {}
+  );
+  useToasted(state);
+  return (
+    <form action={formAction} className="flex items-center gap-1">
+      <input type="hidden" name="claimId" value={claimId} />
+      <input type="hidden" name="visitId" value={visitId} />
+      <Button
+        type="submit"
+        name="approve"
+        value="true"
+        size="sm"
+        disabled={pending}
+        data-testid={`claim-approve-${claimId}`}
+      >
+        Valider
+      </Button>
+      <Button
+        type="submit"
+        name="approve"
+        value="false"
+        size="sm"
+        variant="outline"
+        disabled={pending}
+      >
+        Refuser
       </Button>
     </form>
   );

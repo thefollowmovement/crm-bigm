@@ -11,6 +11,10 @@ import {
   VISIT_TYPE_LABELS,
 } from "@/lib/labels";
 import { computeAuditScore, getVisit, listCriteria } from "@/services/visits.service";
+import { listVisitClaims, canDecideClaim } from "@/services/expense-claims.service";
+import { isProbablyHtml, sanitizeHtml } from "@/lib/html/sanitize";
+import { formatEUR } from "@/lib/money";
+import { EXPENSE_CLAIM_STATUS_LABELS } from "@/lib/labels";
 import { AccessDenied } from "@/components/access-denied";
 import { EntityHistory } from "@/components/entity-history";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +30,8 @@ import {
 
 import {
   AuditGrid,
+  DecideClaimButtons,
+  ExpenseClaimForm,
   FinalizeVisitButton,
   ReportForm,
   VisitFilesForm,
@@ -57,6 +63,17 @@ export default async function VisitDetailPage({
     visit.items.map((i) => ({ score: i.score, maxScore: i.criterion.maxScore }))
   );
   const criteria = isEditable && visit.type === "AUDIT" ? await listCriteria(user) : [];
+  const claims = await listVisitClaims(user, visit.id);
+  const canDecide = canWrite && canDecideClaim(user.role);
+  // Compte rendu riche (étape 54) : sanitisé aussi à la lecture.
+  const reportHtml = visit.report
+    ? isProbablyHtml(visit.report)
+      ? sanitizeHtml(visit.report)
+      : null
+    : null;
+  const editorImages = visit.attachments
+    .filter((a) => a.mimeType.startsWith("image/"))
+    .map((a) => ({ id: a.id, label: a.title ?? a.originalName }));
 
   return (
     <div className="space-y-6">
@@ -162,7 +179,23 @@ export default async function VisitDetailPage({
         </CardHeader>
         <CardContent className="space-y-4">
           {isEditable ? (
-            <ReportForm visitId={visit.id} report={visit.report} />
+            <ReportForm
+              visitId={visit.id}
+              reportHtml={
+                reportHtml ??
+                (visit.report
+                  ? `<p>${visit.report.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>")}</p>`
+                  : "")
+              }
+              images={editorImages}
+            />
+          ) : reportHtml ? (
+            <div
+              className="space-y-2 text-sm [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_ul]:list-inside [&_ul]:list-disc [&_ol]:list-inside [&_ol]:list-decimal [&_img]:my-2 [&_img]:max-h-64 [&_img]:rounded-lg"
+              data-testid="visit-report"
+              // HTML reconstruit par sanitizeHtml (liste blanche stricte).
+              dangerouslySetInnerHTML={{ __html: reportHtml }}
+            />
           ) : (
             <p className="whitespace-pre-wrap text-sm" data-testid="visit-report">
               {visit.report ?? "—"}
@@ -179,20 +212,88 @@ export default async function VisitDetailPage({
           {visit.attachments.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune pièce jointe.</p>
           ) : (
-            <ul className="list-inside list-disc text-sm">
+            <ul className="list-inside list-disc text-sm" data-testid="visit-attachments">
               {visit.attachments.map((a) => (
                 <li key={a.id}>
                   <a
                     href={`/api/files/${a.id}`}
                     className="underline-offset-2 hover:underline"
                   >
-                    {a.originalName}
+                    {a.title ?? a.originalName}
                   </a>
+                  {a.title ? (
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      ({a.originalName})
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
           {isEditable ? <VisitFilesForm visitId={visit.id} /> : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Notes de frais</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {claims.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucune note de frais sur cette visite.
+            </p>
+          ) : (
+            <ul className="space-y-2 text-sm" data-testid="visit-claims">
+              {claims.map((claim) => (
+                <li
+                  key={claim.id}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3"
+                >
+                  <span className="font-medium">{claim.title}</span>
+                  <span className="tabular-nums">{formatEUR(claim.amountTTC)}</span>
+                  <Badge
+                    variant={
+                      claim.status === "VALIDEE"
+                        ? "info"
+                        : claim.status === "REMBOURSEE"
+                          ? "success"
+                          : claim.status === "REFUSEE"
+                            ? "destructive"
+                            : "secondary"
+                    }
+                  >
+                    {EXPENSE_CLAIM_STATUS_LABELS[claim.status]}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    par {claim.createdBy.firstName} {claim.createdBy.lastName}
+                  </span>
+                  {claim.attachments.map((file) => (
+                    <a
+                      key={file.id}
+                      href={`/api/files/${file.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs underline-offset-2 hover:underline"
+                    >
+                      {file.title ?? file.originalName}
+                    </a>
+                  ))}
+                  {claim.note ? (
+                    <span className="w-full text-xs text-muted-foreground">
+                      {claim.note}
+                    </span>
+                  ) : null}
+                  {canDecide && claim.status === "DEMANDE" ? (
+                    <span className="ml-auto">
+                      <DecideClaimButtons claimId={claim.id} visitId={visit.id} />
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {canWrite ? <ExpenseClaimForm visitId={visit.id} /> : null}
         </CardContent>
       </Card>
 

@@ -8,8 +8,15 @@ import { NAV_SECTIONS } from "./nav-config";
 
 // `allowedHrefs` est calculé côté serveur à partir de la matrice de
 // permissions : le filtrage UI n'est que cosmétique, la garde autoritaire
-// reste dans chaque page/action.
-export function Sidebar({ allowedHrefs }: { allowedHrefs: string[] }) {
+// reste dans chaque page/action. `badges` (étape 54) : compteurs par href,
+// calculés côté serveur eux aussi (ex. notes de frais à rembourser).
+export function Sidebar({
+  allowedHrefs,
+  badges = {},
+}: {
+  allowedHrefs: string[];
+  badges?: Record<string, number>;
+}) {
   const pathname = usePathname();
   const allowed = new Set(allowedHrefs);
 
@@ -56,7 +63,15 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs: string[] }) {
                         )}
                       >
                         <Icon className="h-4 w-4 shrink-0" />
-                        {item.label}
+                        <span className="flex-1">{item.label}</span>
+                        {(badges[item.href] ?? 0) > 0 ? (
+                          <span
+                            className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-[11px] font-semibold text-brand-foreground"
+                            data-testid={`nav-badge-${item.href.replaceAll("/", "-").slice(1)}`}
+                          >
+                            {badges[item.href]}
+                          </span>
+                        ) : null}
                       </Link>
                     </li>
                   );

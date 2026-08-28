@@ -199,6 +199,8 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "TRANSMISSION",
   // ACCT_INVOICE : documents attachés à une pièce du journal (étape 51)
   "ACCT_INVOICE",
+  // EXPENSE_CLAIM : justificatifs d'une note de frais de visite (étape 54)
+  "EXPENSE_CLAIM",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────
@@ -555,6 +557,9 @@ export const fileAttachments = pgTable(
     // null = upload externe via un lien d'invitation (étape 49) — l'identité
     // déclarée et l'IP sont portées par la transmission liée.
     uploadedById: uuid("uploaded_by_id").references(() => users.id),
+    // Titre libre donné au document (étape 54) — affiché à la place du nom
+    // de fichier quand il est renseigné.
+    title: text("title"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -2780,6 +2785,68 @@ export const acctInvoicesRelations = relations(acctInvoices, ({ one, many }) => 
     references: [acctStructures.id],
   }),
   messages: many(acctInvoiceMessages),
+}));
+
+// Notes de frais des visites terrain (étape 54) : saisies par l'animateur
+// sur sa visite (VHR, péages…), validées par la direction puis transmises à
+// la file « Notes de frais » de la comptabilité qui les rembourse.
+export const expenseClaimStatusEnum = pgEnum("expense_claim_status", [
+  "DEMANDE",
+  "VALIDEE",
+  "REFUSEE",
+  "REMBOURSEE",
+]);
+
+export const expenseClaims = pgTable(
+  "expense_claims",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    visitId: uuid("visit_id")
+      .notNull()
+      .references(() => storeVisits.id),
+    title: text("title").notNull(),
+    // TTC (ticket de caisse, facture…) — string numeric, jamais float.
+    amountTTC: numeric("amount_ttc", { precision: 12, scale: 2 }).notNull(),
+    note: text("note"),
+    status: expenseClaimStatusEnum("status").notNull().default("DEMANDE"),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id),
+    // Validation / refus (direction).
+    decidedById: uuid("decided_by_id").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    // Remboursement (comptabilité).
+    processedById: uuid("processed_by_id").references(() => users.id),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("expense_claims_visit_idx").on(t.visitId),
+    index("expense_claims_status_idx").on(t.status, t.createdAt),
+  ]
+);
+
+export const expenseClaimsRelations = relations(expenseClaims, ({ one }) => ({
+  visit: one(storeVisits, {
+    fields: [expenseClaims.visitId],
+    references: [storeVisits.id],
+  }),
+  createdBy: one(users, {
+    fields: [expenseClaims.createdById],
+    references: [users.id],
+  }),
+  decidedBy: one(users, {
+    fields: [expenseClaims.decidedById],
+    references: [users.id],
+  }),
+  processedBy: one(users, {
+    fields: [expenseClaims.processedById],
+    references: [users.id],
+  }),
 }));
 
 // Discussion sur une pièce du journal (étape 53) : échanges entre la compta

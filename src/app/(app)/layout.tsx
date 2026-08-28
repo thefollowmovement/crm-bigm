@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth/current-user";
 import { can, type Permission } from "@/lib/authz/permissions";
 import { ROLE_LABELS } from "@/lib/labels";
+import { countClaimsToProcess } from "@/services/expense-claims.service";
 import { NAV_SECTIONS } from "@/components/app-shell/nav-config";
 import { NotificationBell } from "@/components/app-shell/notification-bell";
 import { Sidebar } from "@/components/app-shell/sidebar";
@@ -24,9 +25,15 @@ export default async function AppLayout({
       .map((item) => item.href)
   );
 
+  // Pastilles de compteur (étape 54) : notes de frais validées à rembourser.
+  const badges: Record<string, number> = {};
+  if (can(user, "accounting:read")) {
+    badges["/compta/notes-de-frais"] = await countClaimsToProcess(user);
+  }
+
   return (
     <div className="flex min-h-screen">
-      <Sidebar allowedHrefs={allowedHrefs} />
+      <Sidebar allowedHrefs={allowedHrefs} badges={badges} />
       <div className="flex min-w-0 flex-1 flex-col">
         {user.impersonatorUserId ? (
           <div

@@ -91,6 +91,10 @@ test("compta : saisie d'une pièce, import du journal et résultat CA − charge
   await page.getByTestId("invoice-files-submit").click();
   await expect(page.getByText("1 document ajouté.")).toBeVisible();
   await page.keyboard.press("Escape");
+  // Attendre la fin de l'animation de fermeture (le dialogue reste monté
+  // pendant le fade-out et avale le clic de réouverture) puis le compteur.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByTestId("invoice-files-FAE2E-1")).toContainText("1");
   await page.getByTestId("invoice-files-FAE2E-1").click();
   await expect(page.getByTestId("invoice-files-list")).toContainText(
     "facture-scan.pdf"

@@ -379,6 +379,14 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   IMPERSONATE: "Connexion en tant que",
 };
 
+// Notes de frais des visites (étape 54).
+export const EXPENSE_CLAIM_STATUS_LABELS: Record<string, string> = {
+  DEMANDE: "En attente de validation",
+  VALIDEE: "Validée — à rembourser",
+  REFUSEE: "Refusée",
+  REMBOURSEE: "Remboursée",
+};
+
 export const ACCT_STRUCTURE_TYPE_LABELS: Record<string, string> = {
   BOUTIQUE: "Boutique",
   TAWILA: "Tawila",

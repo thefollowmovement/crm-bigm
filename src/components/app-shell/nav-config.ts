@@ -38,6 +38,7 @@ import {
   UserCog,
   UserPlus,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,6 +49,9 @@ export type NavItem = {
   // Permission requise pour voir l'entrée (matrice de l'étape 4).
   // null = visible de tout utilisateur connecté.
   permission: string | null;
+  // Pastille de compteur (étape 54) : la valeur est calculée côté serveur
+  // dans le layout et passée à la Sidebar via `badges[href]`.
+  hasBadge?: boolean;
 };
 
 export type NavSection = { title: string | null; items: NavItem[] };
@@ -180,6 +184,15 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Transmissions",
         icon: Send,
         permission: "transmission:create",
+      },
+      {
+        // Notes de frais des visites validées par la direction (étape 54) —
+        // la pastille compte celles qui restent à rembourser.
+        href: "/compta/notes-de-frais",
+        label: "Notes de frais",
+        icon: Wallet,
+        permission: "accounting:read",
+        hasBadge: true,
       },
     ],
   },

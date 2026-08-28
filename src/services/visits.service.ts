@@ -15,6 +15,7 @@ import { auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import { ForbiddenError, assertCan } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
 import { saveUpload } from "@/lib/files/storage";
+import { htmlToText, isProbablyHtml } from "@/lib/html/sanitize";
 import { notify } from "@/services/notifications.service";
 
 type VisitRow = typeof storeVisits.$inferSelect;
@@ -135,7 +136,9 @@ export async function getVisit(actor: SessionUser, visitId: string) {
       eq(fileAttachments.entityType, "STORE_VISIT"),
       eq(fileAttachments.entityId, visitId)
     ),
-    columns: { id: true, originalName: true },
+    // title (étape 54) affiché à la place du nom ; mimeType pour proposer
+    // les images à l'éditeur de compte rendu.
+    columns: { id: true, originalName: true, title: true, mimeType: true },
   });
   return { ...visit, attachments };
 }
@@ -235,15 +238,22 @@ export async function setAuditItem(
 }
 
 // Photos / documents de visite — tant que la visite est en brouillon.
+// `title` (étape 54) : libellé donné par l'animateur, affiché à la place du
+// nom de fichier (appliqué à chaque fichier de l'envoi).
 export async function addVisitAttachments(
   actor: SessionUser,
   visitId: string,
-  files: File[]
+  files: File[],
+  title: string | null = null
 ) {
   assertCan(actor, "visit:write");
   await getEditableVisit(actor, visitId);
   for (const file of files) {
-    await saveUpload(actor, file, { entityType: "STORE_VISIT", entityId: visitId });
+    await saveUpload(actor, file, {
+      entityType: "STORE_VISIT",
+      entityId: visitId,
+      title,
+    });
   }
   return files.length;
 }
@@ -252,7 +262,13 @@ export async function addVisitAttachments(
 export async function finalizeVisit(actor: SessionUser, visitId: string) {
   assertCan(actor, "visit:write");
   const visit = await getEditableVisit(actor, visitId);
-  if (!visit.report || visit.report.trim() === "") {
+  // Compte rendu riche (étape 54) : un HTML sans texte NI image est vide.
+  const reportText = visit.report
+    ? isProbablyHtml(visit.report)
+      ? htmlToText(visit.report) || (/<img /.test(visit.report) ? "image" : "")
+      : visit.report.trim()
+    : "";
+  if (reportText === "") {
     throw new Error("Le compte rendu est obligatoire pour finaliser.");
   }
   if (visit.type === "AUDIT") {

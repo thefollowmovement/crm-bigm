@@ -78,6 +78,8 @@ export async function saveUpload(
   options: {
     entityType?: (typeof fileAttachments.$inferInsert)["entityType"];
     entityId?: string | null;
+    // Titre libre affiché à la place du nom de fichier (étape 54).
+    title?: string | null;
   } = {}
 ): Promise<SavedFile> {
   const validation = validateUpload({
@@ -103,6 +105,7 @@ export async function saveUpload(
     entityType: options.entityType ?? null,
     entityId: options.entityId ?? null,
     uploadedById: actor.id,
+    title: options.title ?? null,
   });
 }
 

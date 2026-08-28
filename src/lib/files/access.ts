@@ -171,6 +171,14 @@ export async function canDownloadFile(
         ? { allowed: true, audit: false }
         : deny;
     }
+    case "EXPENSE_CLAIM": {
+      // Justificatifs de note de frais (étape 54) : l'animation (visites) et
+      // la comptabilité qui rembourse.
+      if (can(user, "visit:read") || can(user, "accounting:read")) {
+        return { allowed: true, audit: false };
+      }
+      return deny;
+    }
     case "ACCT_IMPORT": {
       // Fichier original d'un import comptable : lecture compta/direction.
       if (!can(user, "accounting:read")) return deny;
