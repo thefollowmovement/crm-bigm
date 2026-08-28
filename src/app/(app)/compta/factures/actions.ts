@@ -13,6 +13,7 @@ import {
   sendInvoiceReminder,
   updateInvoice,
 } from "@/services/acct-invoices.service";
+import { postInvoiceMessage } from "@/services/providers.service";
 
 const amountString = z
   .string()
@@ -86,6 +87,26 @@ export const updateInvoiceAction = safeFormAction(
     revalidatePath("/compta/factures");
     revalidatePath("/compta/structures");
     return "Pièce mise à jour.";
+  }
+);
+
+// Réponse de la compta dans le fil de discussion d'une pièce (étape 53).
+export const postComptaMessageAction = safeFormAction(
+  {
+    permission: "accounting:read",
+    schema: z.object({
+      invoiceId: z.string().uuid(),
+      body: z.string().trim().min(1, "Message vide"),
+    }),
+    prepare: (formData) => ({
+      invoiceId: formData.get("invoiceId"),
+      body: formData.get("body"),
+    }),
+  },
+  async (input, actor) => {
+    await postInvoiceMessage(actor, input.invoiceId, input.body);
+    revalidatePath(`/compta/factures/${input.invoiceId}`);
+    return "Message envoyé.";
   }
 );
 

@@ -65,6 +65,7 @@ async function upsertUser(input: {
   pole?: "DIRECTION" | "COMPTABILITE" | "RH" | "ANIMATION" | "COMMUNICATION" | "DEVELOPPEMENT";
   franchiseeId?: string;
   franchisorMember?: boolean;
+  acctStructureId?: string;
 }) {
   const existing = await db.query.users.findFirst({
     where: eq(users.email, input.email),
@@ -81,6 +82,7 @@ async function upsertUser(input: {
       pole: input.pole ?? null,
       franchiseeId: input.franchiseeId ?? null,
       franchisorMember: input.franchisorMember ?? false,
+      acctStructureId: input.acctStructureId ?? null,
     })
     .returning();
   console.log(`Utilisateur créé : ${input.email} (${input.role})`);
@@ -478,6 +480,17 @@ async function main() {
       ]);
       console.log("Journal comptable de démonstration créé (étape 52).");
     }
+
+    // Compte prestataire externe de démonstration (étape 53) : rattaché à la
+    // structure fournisseur Orangina — parcours e2e « espace prestataire ».
+    await upsertUser({
+      email: "prestataire@ext.fr",
+      password: process.env.SEED_DEMO_PASSWORD ?? "Test1234!",
+      firstName: "Paula",
+      lastName: "Prestataire",
+      role: "PRESTATAIRE",
+      acctStructureId: structureIds.get("401ORAN")!,
+    });
   }
 
   // ── Référentiel produits + ventes de démonstration (BM-003) ─────

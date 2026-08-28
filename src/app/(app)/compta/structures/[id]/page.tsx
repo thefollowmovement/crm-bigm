@@ -37,6 +37,8 @@ import {
   InvoiceAttachmentsDialog,
 } from "../../factures/invoice-dialogs";
 import { EditStructureDialog, ToggleStructureButton } from "../structure-dialogs";
+import { CreateProviderAccountDialog } from "../provider-account-dialog";
+import { listProviderAccounts } from "@/services/providers.service";
 
 export const metadata: Metadata = { title: "Client comptable" };
 
@@ -85,10 +87,12 @@ export default async function StructureDetailPage({
   if (!structure) notFound();
 
   const canWrite = can(user, "accounting:write");
-  const [aggregates, invoices, stores] = await Promise.all([
+  const canManageUsers = can(user, "user:manage");
+  const [aggregates, invoices, stores, providerAccounts] = await Promise.all([
     listStructuresWithAggregates(user, { from, to, structureId: id }),
     listInvoices(user, { structureId: id, from, to }),
     canWrite ? listStores(user) : Promise.resolve([]),
+    canManageUsers ? listProviderAccounts(user, id) : Promise.resolve([]),
   ]);
   const agg = aggregates[0] ?? null;
 
@@ -269,6 +273,45 @@ export default async function StructureDetailPage({
         </CardContent>
       </Card>
 
+      {canManageUsers ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+              Accès CRM du prestataire
+              <CreateProviderAccountDialog
+                structureId={structure.id}
+                structureName={structure.name}
+              />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {providerAccounts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucun compte — créez un accès pour que ce client dépose ses
+                factures et suive ses paiements dans son espace /prestataire.
+              </p>
+            ) : (
+              <ul className="space-y-1 text-sm" data-testid="provider-accounts">
+                {providerAccounts.map((account) => (
+                  <li key={account.id} className="flex items-center gap-2">
+                    <span className="font-medium">
+                      {account.firstName} {account.lastName}
+                    </span>
+                    <span className="text-muted-foreground">{account.email}</span>
+                    <Badge
+                      className="ml-auto"
+                      variant={account.isActive ? "success" : "secondary"}
+                    >
+                      {account.isActive ? "Actif" : "Désactivé"}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>
@@ -319,7 +362,12 @@ export default async function StructureDetailPage({
                   return (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-mono text-sm">
-                        {invoice.pieceNumber}
+                        <Link
+                          href={`/compta/factures/${invoice.id}`}
+                          className="underline-offset-2 hover:underline"
+                        >
+                          {invoice.pieceNumber}
+                        </Link>
                         {invoice.invoiceType === "RFA" ? (
                           <Badge variant="outline" className="ml-1">
                             RFA

@@ -69,6 +69,9 @@ export type SessionUser = {
   // Membre de l'entité FRANCHISEUR « Big M CIE » (étape 34) : accès aux
   // dossiers RH rattachés au siège.
   franchisorMember?: boolean;
+  // Rôle PRESTATAIRE (étape 53) : structure comptable de rattachement —
+  // périmètre unique de l'espace /prestataire.
+  acctStructureId?: string | null;
 };
 
 export async function validateSessionToken(
@@ -106,6 +109,7 @@ export async function validateSessionToken(
     franchisorMember: user.franchisorMember,
     impersonatorUserId: row.impersonatorUserId ?? null,
     customRoleId: user.customRoleId ?? null,
+    acctStructureId: user.acctStructureId ?? null,
     permissionOverrides: await loadPermissionOverrides(
       user.role,
       user.customRoleId

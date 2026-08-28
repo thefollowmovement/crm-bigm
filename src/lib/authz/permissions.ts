@@ -72,6 +72,7 @@ export type Permission =
   | "accounting:import"
   | "transmission:create"
   | "transmission:manage"
+  | "provider:portal"
   | "audit:read";
 
 export type Role = SessionUser["role"];
@@ -327,6 +328,11 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   // Salarié d'une boutique : pointeuse et congés en self-service, rien d'autre
   // (cdc §12) — pas d'accès aux modules réseau.
   SALARIE: new Set(["self:clock", "self:leave"]),
+  // Client comptable externe (étape 53) : uniquement son espace /prestataire
+  // (factures de SA structure, dépôts, discussion, tickets vers la compta).
+  // provider:portal est volontairement hors de ALL et d'ALL_PERMISSIONS : ni
+  // la direction ni la grille /hq-18b8ba/permissions n'y touchent.
+  PRESTATAIRE: new Set(["provider:portal"]),
 };
 
 // Écarts dynamiques posés par l'admin (/hq-18b8ba/permissions, étape 30) :

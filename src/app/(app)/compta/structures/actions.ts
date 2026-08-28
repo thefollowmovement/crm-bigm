@@ -11,6 +11,7 @@ import {
   importStructures,
   updateStructure,
 } from "@/services/acct-structures.service";
+import { createProviderAccount } from "@/services/providers.service";
 
 const amountString = z
   .string()
@@ -163,3 +164,33 @@ export async function importStructuresAction(
     };
   }
 }
+
+// Accès CRM d'un prestataire externe (étape 53) : compte rôle PRESTATAIRE
+// rattaché à la structure — réservé à user:manage (délégable via
+// /hq-18b8ba/permissions).
+export const createProviderAccountAction = safeFormAction(
+  {
+    permission: "user:manage",
+    schema: z.object({
+      structureId: z.string().uuid(),
+      email: z.string().trim().email("E-mail invalide"),
+      password: z
+        .string()
+        .min(10, "Mot de passe : 10 caractères minimum"),
+      firstName: z.string().trim().min(1, "Prénom requis"),
+      lastName: z.string().trim().min(1, "Nom requis"),
+    }),
+    prepare: (formData) => ({
+      structureId: formData.get("structureId"),
+      email: formData.get("email"),
+      password: formData.get("password"),
+      firstName: formData.get("firstName"),
+      lastName: formData.get("lastName"),
+    }),
+  },
+  async ({ structureId, ...input }, actor) => {
+    const account = await createProviderAccount(actor, structureId, input);
+    revalidatePath(`/compta/structures/${structureId}`);
+    return `Accès prestataire créé pour ${account.email}.`;
+  }
+);

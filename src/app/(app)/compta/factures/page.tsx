@@ -262,7 +262,13 @@ export default async function FacturesComptaPage({
                   return (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-mono text-sm">
-                        {invoice.pieceNumber}
+                        <Link
+                          href={`/compta/factures/${invoice.id}`}
+                          className="underline-offset-2 hover:underline"
+                          data-testid={`invoice-link-${invoice.pieceNumber}`}
+                        >
+                          {invoice.pieceNumber}
+                        </Link>
                         {invoice.invoiceType === "RFA" ? (
                           <Badge variant="outline" className="ml-1">
                             RFA

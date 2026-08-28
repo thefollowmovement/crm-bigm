@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
+  acctInvoices,
   actionPlans,
   commTasks,
   contracts,
@@ -176,9 +177,19 @@ export async function canDownloadFile(
       return { allowed: true, audit: false };
     }
     case "ACCT_INVOICE": {
-      // Documents d'une pièce du journal (étape 51) : compta/direction.
-      if (!can(user, "accounting:read")) return deny;
-      return { allowed: true, audit: false };
+      // Documents d'une pièce du journal (étape 51) : compta/direction, ou le
+      // prestataire externe rattaché à la structure de la pièce (étape 53).
+      if (can(user, "accounting:read")) return { allowed: true, audit: false };
+      if (can(user, "provider:portal") && user.acctStructureId) {
+        const invoice = await db.query.acctInvoices.findFirst({
+          where: eq(acctInvoices.id, attachment.entityId ?? ""),
+          columns: { structureId: true },
+        });
+        if (invoice && invoice.structureId === user.acctStructureId) {
+          return { allowed: true, audit: false };
+        }
+      }
+      return deny;
     }
     case "PROSPECT":
     case "PREMISES": {

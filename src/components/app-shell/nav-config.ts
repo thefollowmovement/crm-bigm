@@ -65,6 +65,13 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: "self:clock",
       },
       {
+        // Portail des clients comptables externes (étape 53).
+        href: "/prestataire",
+        label: "Espace prestataire",
+        icon: Briefcase,
+        permission: "provider:portal",
+      },
+      {
         href: "/mon-compte",
         label: "Mon compte",
         icon: UserCog,

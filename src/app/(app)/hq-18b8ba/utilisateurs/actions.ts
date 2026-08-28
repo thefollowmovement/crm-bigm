@@ -36,6 +36,9 @@ const roleSchema = z.enum([
   "DEVELOPPEMENT",
   "FRANCHISE",
   "SALARIE",
+  // Prestataire externe (étape 53) — rattachement à une structure via la
+  // fiche client comptable (/compta/structures/[id], bloc « Accès CRM »).
+  "PRESTATAIRE",
 ]);
 const poleSchema = z.enum([
   "DIRECTION",

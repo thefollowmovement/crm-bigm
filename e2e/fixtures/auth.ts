@@ -11,6 +11,8 @@ export const ACCOUNTS = {
   developpement: { email: "developpement@bigm.fr", password: "Test1234!" },
   franchise: { email: "franchise@bigm.fr", password: "Test1234!" },
   salarie: { email: "salarie@bigm.fr", password: "Test1234!" },
+  // Prestataire externe (étape 53) — rattaché à la structure 401ORAN du seed.
+  prestataire: { email: "prestataire@ext.fr", password: "Test1234!" },
   inactif: { email: "inactif@bigm.fr", password: "Test1234!" },
   // Réservé au parcours « Mon compte » : e-mail/mot de passe modifiés en test.
   profil: { email: "profil@bigm.fr", password: "Test1234!" },

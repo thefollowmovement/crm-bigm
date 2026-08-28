@@ -37,6 +37,9 @@ export const roleEnum = pgEnum("role", [
   // valeurs ajoutées EN FIN de tableau uniquement (ALTER TYPE … ADD VALUE)
   // SALARIE : accès pointeuse + congés uniquement (users.pole reste null)
   "SALARIE",
+  // PRESTATAIRE (étape 53) : client comptable externe — espace dédié
+  // /prestataire scopé sur SA structure (users.acctStructureId), rien d'autre.
+  "PRESTATAIRE",
 ]);
 
 export const poleEnum = pgEnum("pole", [
@@ -256,6 +259,11 @@ export const users = pgTable(
     // écarts de permissions propres.
     customRoleId: uuid("custom_role_id").references(
       (): AnyPgColumn => customRoles.id
+    ),
+    // Rôle PRESTATAIRE (étape 53) : structure comptable dont ce compte est
+    // le client externe — périmètre unique de son espace /prestataire.
+    acctStructureId: uuid("acct_structure_id").references(
+      (): AnyPgColumn => acctStructures.id
     ),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2766,12 +2774,45 @@ export const acctInvoices = pgTable(
   ]
 );
 
-export const acctInvoicesRelations = relations(acctInvoices, ({ one }) => ({
+export const acctInvoicesRelations = relations(acctInvoices, ({ one, many }) => ({
   structure: one(acctStructures, {
     fields: [acctInvoices.structureId],
     references: [acctStructures.id],
   }),
+  messages: many(acctInvoiceMessages),
 }));
+
+// Discussion sur une pièce du journal (étape 53) : échanges entre la compta
+// et le prestataire externe rattaché à la structure de la pièce.
+export const acctInvoiceMessages = pgTable(
+  "acct_invoice_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => acctInvoices.id),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("acct_invoice_messages_invoice_idx").on(t.invoiceId, t.createdAt)]
+);
+
+export const acctInvoiceMessagesRelations = relations(
+  acctInvoiceMessages,
+  ({ one }) => ({
+    invoice: one(acctInvoices, {
+      fields: [acctInvoiceMessages.invoiceId],
+      references: [acctInvoices.id],
+    }),
+    author: one(users, {
+      fields: [acctInvoiceMessages.authorId],
+      references: [users.id],
+    }),
+  })
+);
 
 // ─────────────── TRANSMISSIONS COMPTABLES (étape 48) ───────────────
 

@@ -31,10 +31,12 @@ export function isFranchisorMember(user: SessionUser): boolean {
 }
 
 // Ids des boutiques accessibles par un utilisateur FRANCHISE.
-// Pour les autres rôles, retourne null (= pas de restriction).
+// Pour les autres rôles internes, retourne null (= pas de restriction).
 export async function accessibleStoreIds(
   user: SessionUser
 ): Promise<string[] | null> {
+  // Un prestataire externe (étape 53) n'a JAMAIS de périmètre boutique.
+  if (user.role === "PRESTATAIRE") return [];
   if (user.role !== "FRANCHISE") return null;
   if (!user.franchiseeId) return [];
   const rows = await db

@@ -12,6 +12,7 @@ const ROLES: Role[] = [
   "DEVELOPPEMENT",
   "FRANCHISE",
   "SALARIE",
+  "PRESTATAIRE",
 ];
 
 const SENSITIVE: Permission[] = ["accounting:read", "accounting:write", "user:manage", "audit:read"];
@@ -124,7 +125,7 @@ describe("matrice de permissions", () => {
         role === "ADMIN" || role === "DIRECTION" || role === "ANIMATION";
       expect(can({ role }, "visit:write")).toBe(writeExpected);
       expect(can({ role }, "visit:read")).toBe(
-        role !== "FRANCHISE" && role !== "SALARIE"
+        role !== "FRANCHISE" && role !== "SALARIE" && role !== "PRESTATAIRE"
       );
     }
     // Le franchisé suit les plans d'action de SES boutiques (scopé), sans
@@ -136,7 +137,7 @@ describe("matrice de permissions", () => {
   it("le planning : lecture siège, écriture animation/direction, invisible au franchisé", () => {
     for (const role of ROLES) {
       expect(can({ role }, "planning:read")).toBe(
-        role !== "FRANCHISE" && role !== "SALARIE"
+        role !== "FRANCHISE" && role !== "SALARIE" && role !== "PRESTATAIRE"
       );
       const writeExpected =
         role === "ADMIN" || role === "DIRECTION" || role === "ANIMATION";
@@ -156,7 +157,9 @@ describe("matrice de permissions", () => {
 
   it("les formations : lecture pour tous (franchisé scopé), écriture animation/RH/direction", () => {
     for (const role of ROLES) {
-      expect(can({ role }, "training:read")).toBe(role !== "SALARIE");
+      expect(can({ role }, "training:read")).toBe(
+        role !== "SALARIE" && role !== "PRESTATAIRE"
+      );
       const writeExpected = ["ADMIN", "DIRECTION", "ANIMATION", "RH"].includes(role);
       expect(can({ role }, "training:write")).toBe(writeExpected);
     }
@@ -192,6 +195,18 @@ describe("matrice de permissions", () => {
     expect(salariePerms).toEqual(["self:clock", "self:leave"]);
   });
 
+  // Étape 53 : le prestataire externe n'a QUE son portail — et personne
+  // d'autre n'en hérite (hors de ALL, donc même la direction ne l'a pas).
+  it("le rôle PRESTATAIRE n'a QUE l'espace prestataire", () => {
+    expect([...PERMISSIONS.PRESTATAIRE]).toEqual(["provider:portal"]);
+    for (const perm of ["accounting:read", "ticket:read", "store:read", "transmission:create"] as Permission[]) {
+      expect(can({ role: "PRESTATAIRE" }, perm), perm).toBe(false);
+    }
+    for (const role of ROLES.filter((r) => r !== "PRESTATAIRE" && r !== "ADMIN")) {
+      expect(can({ role }, "provider:portal"), role).toBe(false);
+    }
+  });
+
   it("le dossier RH est réservé à la RH et à la direction", () => {
     for (const role of ROLES) {
       const expected = role === "ADMIN" || role === "DIRECTION" || role === "RH";
@@ -202,11 +217,13 @@ describe("matrice de permissions", () => {
 
   it("les ouvertures : lecture réseau (franchisé scopé), écriture développement/direction, checklist siège", () => {
     for (const role of ROLES) {
-      expect(can({ role }, "opening:read")).toBe(role !== "SALARIE");
+      expect(can({ role }, "opening:read")).toBe(
+        role !== "SALARIE" && role !== "PRESTATAIRE"
+      );
       const writeExpected = ["ADMIN", "DIRECTION", "DEVELOPPEMENT"].includes(role);
       expect(can({ role }, "opening:write")).toBe(writeExpected);
       expect(can({ role }, "opening:checklist")).toBe(
-        role !== "FRANCHISE" && role !== "SALARIE"
+        role !== "FRANCHISE" && role !== "SALARIE" && role !== "PRESTATAIRE"
       );
     }
   });
@@ -240,7 +257,7 @@ describe("matrice de permissions", () => {
   it("registre logiciels lisible du siège ; coffre-fort réservé à ADMIN/DIRECTION", () => {
     for (const role of ROLES) {
       expect(can({ role }, "software:read")).toBe(
-        role !== "FRANCHISE" && role !== "SALARIE"
+        role !== "FRANCHISE" && role !== "SALARIE" && role !== "PRESTATAIRE"
       );
       const adminOnly = role === "ADMIN" || role === "DIRECTION";
       expect(can({ role }, "software:write")).toBe(adminOnly);
@@ -270,7 +287,9 @@ describe("matrice de permissions", () => {
   });
   it("transmissions : tout le monde soumet sauf SALARIE, la compta traite", () => {
     for (const role of ROLES) {
-      expect(can({ role }, "transmission:create")).toBe(role !== "SALARIE");
+      expect(can({ role }, "transmission:create")).toBe(
+        role !== "SALARIE" && role !== "PRESTATAIRE"
+      );
       const manage =
         role === "ADMIN" || role === "DIRECTION" || role === "COMPTABILITE";
       expect(can({ role }, "transmission:manage")).toBe(manage);

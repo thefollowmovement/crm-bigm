@@ -10,6 +10,7 @@ export const ROLE_LABELS: Record<string, string> = {
   DEVELOPPEMENT: "Développement",
   FRANCHISE: "Franchisé",
   SALARIE: "Salarié",
+  PRESTATAIRE: "Prestataire externe",
 };
 
 export const POLE_LABELS: Record<string, string> = {

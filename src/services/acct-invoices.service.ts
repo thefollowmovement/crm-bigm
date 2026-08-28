@@ -98,6 +98,28 @@ export async function listInvoices(
   }));
 }
 
+// Fiche d'une pièce du journal (étape 53) : pièce + structure + PJ.
+export async function getInvoice(actor: SessionUser, id: string) {
+  assertCan(actor, "accounting:read");
+  const invoice = await db.query.acctInvoices.findFirst({
+    where: eq(acctInvoices.id, id),
+    with: {
+      structure: {
+        columns: { id: true, code: true, name: true, email: true },
+      },
+    },
+  });
+  if (!invoice) return null;
+  const attachments = await db.query.fileAttachments.findMany({
+    where: and(
+      eq(fileAttachments.entityType, "ACCT_INVOICE"),
+      eq(fileAttachments.entityId, id)
+    ),
+    columns: { id: true, originalName: true },
+  });
+  return { ...invoice, attachments };
+}
+
 // Pièces du journal rattachées à une boutique du réseau, via les structures
 // liées (acctStructures.storeId) — onglet Comptabilité de la fiche boutique.
 export async function listInvoicesForStore(

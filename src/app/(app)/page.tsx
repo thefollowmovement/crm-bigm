@@ -121,6 +121,8 @@ export default async function DashboardPage({
         <AnimateurDashboard user={user} />
       ) : user.role === "SALARIE" ? (
         <SalarieDashboard />
+      ) : user.role === "PRESTATAIRE" ? (
+        <PrestataireDashboard />
       ) : (
         <NetworkDashboard user={user} />
       )}
@@ -144,6 +146,28 @@ function SalarieDashboard() {
           data-testid="goto-mon-espace"
         >
           Ouvrir mon espace →
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Vue Prestataire externe : renvoi vers son espace (étape 53) ──
+
+function PrestataireDashboard() {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-start gap-2 pt-6">
+        <p className="text-sm text-muted-foreground">
+          Vos factures, leurs statuts de paiement, vos dépôts et vos échanges
+          avec la comptabilité sont dans votre espace prestataire.
+        </p>
+        <Link
+          href="/prestataire"
+          className="text-sm font-medium underline-offset-2 hover:underline"
+          data-testid="goto-prestataire"
+        >
+          Ouvrir mon espace prestataire →
         </Link>
       </CardContent>
     </Card>
