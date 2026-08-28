@@ -1,0 +1,1 @@
+ALTER TYPE "public"."attachment_entity" ADD VALUE 'ACCT_INVOICE';

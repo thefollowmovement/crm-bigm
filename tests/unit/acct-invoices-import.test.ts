@@ -84,4 +84,51 @@ describe("mapping du journal Factures / Avoirs", () => {
     expect(errors).toEqual([]);
     expect(rows.map((r) => r.pieceType)).toEqual(["FACTURE", "AVOIR"]);
   });
+
+  // Étape 51 : colonne STATUT ajoutée par le client dans son export.
+  describe("colonne STATUT optionnelle", () => {
+    const HEADER_STATUS = [...HEADER, "STATUT"];
+
+    it("absente du fichier → status null (statut géré à la main)", () => {
+      const { rows, errors } = parseInvoiceRows([
+        HEADER,
+        ["Facture", "FA1", "01/07/2026", "411A", "", "10,00", "2,00", "12,00"],
+      ]);
+      expect(errors).toEqual([]);
+      expect(rows[0].status).toBeNull();
+    });
+
+    it("mappe les libellés français, accents et casse indifférents", () => {
+      const { rows, errors } = parseInvoiceRows([
+        HEADER_STATUS,
+        ["Facture", "P1", "01/07/2026", "411A", "", "10,00", "2,00", "12,00", "Payé"],
+        ["Facture", "P2", "01/07/2026", "411A", "", "10,00", "2,00", "12,00", "IMPAYÉ"],
+        ["Facture", "P3", "01/07/2026", "411A", "", "10,00", "2,00", "12,00", "en retard"],
+        ["Facture", "P4", "01/07/2026", "411A", "", "10,00", "2,00", "12,00", "En attente"],
+        ["Facture", "P5", "01/07/2026", "411A", "", "10,00", "2,00", "12,00", "Annulé"],
+        ["Facture", "P6", "01/07/2026", "411A", "", "10,00", "2,00", "12,00", ""],
+      ]);
+      expect(errors).toEqual([]);
+      expect(rows.map((r) => r.status)).toEqual([
+        "PAYEE",
+        "IMPAYEE",
+        "EN_RETARD",
+        "EN_ATTENTE",
+        "ANNULEE",
+        null,
+      ]);
+    });
+
+    it("valeur inconnue → erreur de ligne nommant la valeur et la pièce", () => {
+      const { rows, errors } = parseInvoiceRows([
+        HEADER_STATUS,
+        ["Facture", "P1", "01/07/2026", "411A", "", "10,00", "2,00", "12,00", "Réglé"],
+      ]);
+      expect(rows).toEqual([]);
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toContain("Statut invalide");
+      expect(errors[0].message).toContain("Réglé");
+      expect(errors[0].message).toContain("P1");
+    });
+  });
 });

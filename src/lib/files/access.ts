@@ -178,6 +178,11 @@ export async function canDownloadFile(
       if (!can(user, "accounting:read")) return deny;
       return { allowed: true, audit: false };
     }
+    case "ACCT_INVOICE": {
+      // Documents d'une pièce du journal (étape 51) : compta/direction.
+      if (!can(user, "accounting:read")) return deny;
+      return { allowed: true, audit: false };
+    }
     case "PROSPECT":
     case "PREMISES": {
       // Dossiers de prospection : réservés au développement/direction.

@@ -4,6 +4,7 @@ import { pool } from "@/lib/db/client";
 import type { SessionUser } from "@/lib/auth/session";
 import { ForbiddenError } from "@/lib/authz/guards";
 import {
+  addInvoiceAttachments,
   computeResult,
   createInvoice,
   importInvoices,
@@ -152,6 +153,97 @@ describe("journal des factures comptables", () => {
     expect(fa1Final.amountHT).toBe("1100.00");
   });
 
+  // Étape 51 : colonne STATUT de l'export appliquée à la création ET au
+  // réimport (sans la colonne, le statut manuel reste conservé — test
+  // précédent).
+  it("import avec colonne STATUT : statut du fichier appliqué, création et réimport", async () => {
+    const { compta } = await comptaWithStructure();
+
+    const first = await importInvoices(
+      compta,
+      csvFile(
+        [
+          "Type de pièce;N° pièce;Date Pièce;Client;Total HT;Total TVA;Total TTC;Statut",
+          "Facture;FA1;01/07/2026;411CDPS;1 000,00;200,00;1 200,00;Payé",
+          "Facture;FA2;02/07/2026;411CDPS;500,00;100,00;600,00;",
+        ].join("\n")
+      ),
+      "METTRE_A_JOUR",
+      "PRODUIT"
+    );
+    expect(first.createdRows).toBe(2);
+    const [fa1] = await listInvoices(compta, { q: "FA1" });
+    const [fa2] = await listInvoices(compta, { q: "FA2" });
+    expect(fa1.status).toBe("PAYEE");
+    // Cellule vide → statut par défaut.
+    expect(fa2.status).toBe("EN_ATTENTE");
+
+    // Réimport : le statut du fichier fait foi, même sur un statut manuel.
+    await updateInvoice(compta, fa1.id, { status: "EN_RETARD" });
+    const again = await importInvoices(
+      compta,
+      csvFile(
+        [
+          "Type de pièce;N° pièce;Date Pièce;Client;Total HT;Total TVA;Total TTC;Statut",
+          "Facture;FA1;01/07/2026;411CDPS;1 000,00;200,00;1 200,00;Impayé",
+          "Facture;FA2;02/07/2026;411CDPS;500,00;100,00;600,00;",
+        ].join("\n")
+      ),
+      "METTRE_A_JOUR",
+      "PRODUIT"
+    );
+    expect(again.updatedRows).toBe(2);
+    const [fa1After] = await listInvoices(compta, { q: "FA1" });
+    const [fa2After] = await listInvoices(compta, { q: "FA2" });
+    expect(fa1After.status).toBe("IMPAYEE");
+    // Cellule vide au réimport → le statut existant n'est pas touché.
+    expect(fa2After.status).toBe("EN_ATTENTE");
+
+    // Valeur illisible → erreur de ligne, pièce inchangée.
+    const bad = await importInvoices(
+      compta,
+      csvFile(
+        [
+          "Type de pièce;N° pièce;Date Pièce;Client;Total HT;Total TVA;Total TTC;Statut",
+          "Facture;FA1;01/07/2026;411CDPS;1 000,00;200,00;1 200,00;Réglé",
+        ].join("\n")
+      ),
+      "METTRE_A_JOUR",
+      "PRODUIT"
+    );
+    const badErrors = bad.errors as { message: string }[];
+    expect(badErrors[0].message).toContain("Statut invalide");
+  });
+
+  it("PJ d'une pièce : ajout audité, listées avec la pièce (étape 51)", async () => {
+    const { compta, structure } = await comptaWithStructure();
+    const invoice = await createInvoice(compta, {
+      pieceNumber: "FA-PJ",
+      pieceType: "FACTURE",
+      invoiceType: "STANDARD",
+      accountClass: "PRODUIT",
+      pieceDate: "2026-07-15",
+      structureId: structure.id,
+      amountHT: "100.00",
+      amountTTC: "120.00",
+    });
+    const count = await addInvoiceAttachments(compta, invoice.id, [
+      new File([Buffer.from("%PDF-1.4 facture")], "facture.pdf", {
+        type: "application/pdf",
+      }),
+    ]);
+    expect(count).toBe(1);
+    const [listed] = await listInvoices(compta, { q: "FA-PJ" });
+    expect(listed.attachments).toHaveLength(1);
+    expect(listed.attachments[0].originalName).toBe("facture.pdf");
+
+    await expect(
+      addInvoiceAttachments(compta, structure.id, [
+        new File([Buffer.from("x")], "x.pdf", { type: "application/pdf" }),
+      ])
+    ).rejects.toThrow(/introuvable/);
+  });
+
   it("résultat = CA classe 7 − charges classe 6, avoirs négatifs inclus, annulées exclues", async () => {
     const { compta, structure } = await comptaWithStructure();
     const base = {
@@ -269,5 +361,14 @@ describe("journal des factures comptables", () => {
       impayes: true,
     });
     expect(withDue.map((r) => r.code).sort()).toEqual(["411CDPS", "411ORAN"]);
+
+    // Fiche client (étape 51) : agrégats d'une seule structure.
+    const only = await listStructuresWithAggregates(compta, {
+      from: "2026-01-01",
+      to: "2026-12-31",
+      structureId: structure.id,
+    });
+    expect(only).toHaveLength(1);
+    expect(only[0].code).toBe("411CDPS");
   });
 });

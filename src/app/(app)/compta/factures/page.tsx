@@ -34,10 +34,13 @@ import {
 } from "@/lib/labels";
 import { formatEUR } from "@/lib/money";
 
+import Link from "next/link";
+
 import {
   CreateInvoiceDialog,
   EditInvoiceDialog,
   ImportInvoicesDialog,
+  InvoiceAttachmentsDialog,
 } from "./invoice-dialogs";
 
 export const metadata: Metadata = { title: "Journal factures" };
@@ -232,6 +235,7 @@ export default async function FacturesComptaPage({
                 <TableHead className="text-right">TTC</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>PJ</TableHead>
                 {canWrite ? <TableHead /> : null}
               </TableRow>
             </TableHeader>
@@ -239,7 +243,7 @@ export default async function FacturesComptaPage({
               {invoices.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={canWrite ? 11 : 10}
+                    colSpan={canWrite ? 12 : 11}
                     className="py-8 text-center text-muted-foreground"
                   >
                     Aucune pièce sur la période — importez un journal ou créez
@@ -275,10 +279,15 @@ export default async function FacturesComptaPage({
                         {invoice.dueDate ? formatDateFr(invoice.dueDate) : "—"}
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs">
-                          {invoice.structure.code}
-                        </span>{" "}
-                        {invoice.structure.name}
+                        <Link
+                          href={`/compta/structures/${invoice.structure.id}`}
+                          className="underline-offset-2 hover:underline"
+                        >
+                          <span className="font-mono text-xs">
+                            {invoice.structure.code}
+                          </span>{" "}
+                          {invoice.structure.name}
+                        </Link>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatEUR(invoice.amountHT)}
@@ -293,6 +302,16 @@ export default async function FacturesComptaPage({
                         <Badge variant={STATUS_BADGES[invoice.status] ?? "secondary"}>
                           {ACCT_INVOICE_STATUS_LABELS[invoice.status]}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <InvoiceAttachmentsDialog
+                          invoice={{
+                            id: invoice.id,
+                            pieceNumber: invoice.pieceNumber,
+                          }}
+                          attachments={invoice.attachments}
+                          canWrite={canWrite}
+                        />
                       </TableCell>
                       {canWrite ? (
                         <TableCell className="text-right">

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { requireUser } from "@/lib/auth/current-user";
 import { can } from "@/lib/authz/permissions";
@@ -244,9 +245,22 @@ export default async function StructuresPage({
                   const details = detailsById.get(s.id);
                   return (
                     <TableRow key={s.id}>
-                      <TableCell className="font-mono text-sm">{s.code}</TableCell>
+                      <TableCell className="font-mono text-sm">
+                        <Link
+                          href={`/compta/structures/${s.id}`}
+                          className="underline-offset-2 hover:underline"
+                          data-testid={`structure-link-${s.code}`}
+                        >
+                          {s.code}
+                        </Link>
+                      </TableCell>
                       <TableCell className="font-medium">
-                        {s.name}
+                        <Link
+                          href={`/compta/structures/${s.id}`}
+                          className="underline-offset-2 hover:underline"
+                        >
+                          {s.name}
+                        </Link>
                         {s.company ? (
                           <span className="block text-xs text-muted-foreground">
                             {s.company}

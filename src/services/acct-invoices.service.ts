@@ -3,7 +3,12 @@ import "server-only";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { acctImports, acctInvoices, acctStructures } from "@/db/schema";
+import {
+  acctImports,
+  acctInvoices,
+  acctStructures,
+  fileAttachments,
+} from "@/db/schema";
 import { auditAggregate, auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import { assertCan } from "@/lib/authz/guards";
 import { saveUpload } from "@/lib/files/storage";
@@ -58,7 +63,7 @@ export async function listInvoices(
   if (filters.from) conditions.push(gte(acctInvoices.pieceDate, filters.from));
   if (filters.to) conditions.push(lte(acctInvoices.pieceDate, filters.to));
 
-  return db.query.acctInvoices.findMany({
+  const invoices = await db.query.acctInvoices.findMany({
     where: conditions.length ? and(...conditions) : undefined,
     orderBy: [desc(acctInvoices.pieceDate), desc(acctInvoices.pieceNumber)],
     limit,
@@ -66,6 +71,49 @@ export async function listInvoices(
       structure: { columns: { id: true, code: true, name: true } },
     },
   });
+
+  // Documents attachés aux pièces (étape 51) — une seule requête pour la page.
+  const ids = invoices.map((i) => i.id);
+  const attachments = ids.length
+    ? await db.query.fileAttachments.findMany({
+        where: and(
+          eq(fileAttachments.entityType, "ACCT_INVOICE"),
+          inArray(fileAttachments.entityId, ids)
+        ),
+        columns: { id: true, entityId: true, originalName: true },
+      })
+    : [];
+  const byInvoice = new Map<string, { id: string; originalName: string }[]>();
+  for (const file of attachments) {
+    const list = byInvoice.get(file.entityId!) ?? [];
+    list.push({ id: file.id, originalName: file.originalName });
+    byInvoice.set(file.entityId!, list);
+  }
+  return invoices.map((invoice) => ({
+    ...invoice,
+    attachments: byInvoice.get(invoice.id) ?? [],
+  }));
+}
+
+// PJ d'une pièce du journal (facture scannée, justificatif…) — étape 51.
+export async function addInvoiceAttachments(
+  actor: SessionUser,
+  invoiceId: string,
+  files: File[]
+) {
+  assertCan(actor, "accounting:write");
+  const invoice = await db.query.acctInvoices.findFirst({
+    where: eq(acctInvoices.id, invoiceId),
+    columns: { id: true },
+  });
+  if (!invoice) throw new Error("Pièce introuvable.");
+  for (const file of files) {
+    await saveUpload(actor, file, {
+      entityType: "ACCT_INVOICE",
+      entityId: invoiceId,
+    });
+  }
+  return files.length;
 }
 
 // ── Écriture unitaire (statut/classification = compta uniquement) ─
@@ -229,8 +277,10 @@ export async function importInvoices(
           amountTTC: row.amountTTC,
           company: row.company,
           source,
-          // Statut absent des exports : « En attente » par défaut, renseigné
-          // ensuite à la main par les comptables (cdc §3.2).
+          // Statut : repris de la colonne STATUT du fichier si elle est
+          // renseignée (étape 51) ; sinon « En attente » par défaut, à
+          // renseigner ensuite à la main par les comptables (cdc §3.2).
+          ...(row.status ? { status: row.status } : {}),
         }))
       );
       created += chunk.length;
@@ -246,8 +296,9 @@ export async function importInvoices(
         const chunk = duplicates.slice(i, i + BATCH_SIZE);
         await db.transaction(async (tx) => {
           for (const row of chunk) {
-            // Montants/dates/type réalignés sur l'export ; le statut saisi à
-            // la main n'est JAMAIS écrasé par un import.
+            // Montants/dates/type réalignés sur l'export. Statut : la colonne
+            // STATUT du fichier fait foi quand elle est renseignée (étape 51) ;
+            // sans elle, le statut saisi à la main n'est jamais écrasé.
             await tx
               .update(acctInvoices)
               .set({
@@ -260,6 +311,7 @@ export async function importInvoices(
                 amountTTC: row.amountTTC,
                 company: row.company,
                 source,
+                ...(row.status ? { status: row.status } : {}),
               })
               .where(eq(acctInvoices.id, idByPiece.get(row.pieceNumber)!));
           }
@@ -395,11 +447,14 @@ export async function listStructuresWithAggregates(
     type?: (typeof acctStructures.$inferSelect)["type"] | null;
     active?: "actives" | "inactives" | null;
     impayes?: boolean;
+    // Fiche client (étape 51) : agrégats d'une seule structure.
+    structureId?: string | null;
   }
 ): Promise<StructureWithAggregates[]> {
   assertCan(actor, "accounting:read");
 
   const clauses = [sql`TRUE`];
+  if (options.structureId) clauses.push(sql`s.id = ${options.structureId}`);
   if (options.q) {
     const like = `%${options.q}%`;
     clauses.push(

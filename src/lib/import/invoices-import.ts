@@ -1,6 +1,7 @@
 // Mapping PUR de l'import du journal Factures / Avoirs (étape 47, cdc §3.3).
 // Colonnes réelles de l'export comptable : Type de pièce, N° pièce,
-// Date Pièce, Client, Société, Total HT, Total TVA, Total TTC.
+// Date Pièce, Client, Société, Total HT, Total TVA, Total TTC + colonne
+// STATUT optionnelle ajoutée par le client dans son export (étape 51).
 // Le champ « Client » correspond au champ « Code » du référentiel Structures.
 import {
   parseFrenchAmount,
@@ -9,6 +10,13 @@ import {
 } from "@/lib/csv/revenue-import";
 import { fromCents, toCents } from "@/lib/money";
 import { excelSerialToIsoDate, stripCurrencySuffix } from "./tabular";
+
+export type ParsedInvoiceStatus =
+  | "EN_ATTENTE"
+  | "PAYEE"
+  | "EN_RETARD"
+  | "IMPAYEE"
+  | "ANNULEE";
 
 export type ParsedInvoiceRow = {
   line: number; // ligne du fichier source (rapports d'erreur du service)
@@ -20,6 +28,9 @@ export type ParsedInvoiceRow = {
   amountHT: string;
   amountVAT: string;
   amountTTC: string;
+  // Colonne STATUT optionnelle (étape 51) : null = absente ou cellule vide →
+  // le statut reste géré à la main dans le CRM.
+  status: ParsedInvoiceStatus | null;
 };
 
 export type InvoiceParseResult = {
@@ -46,6 +57,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   amountHT: ["total ht", "montant ht", "ht"],
   amountVAT: ["total tva", "montant tva", "tva"],
   amountTTC: ["total ttc", "montant ttc", "ttc"],
+  status: ["statut", "status", "etat", "statut piece", "statut de la piece"],
 };
 
 type ColumnKey = keyof typeof HEADER_ALIASES;
@@ -58,6 +70,21 @@ const PIECE_TYPES: Record<string, "FACTURE" | "AVOIR"> = {
   avoir: "AVOIR",
   av: "AVOIR",
   a: "AVOIR",
+};
+
+// Valeurs acceptées dans la colonne STATUT (accents/majuscules indifférents,
+// normalize() les gomme) — alignées sur acct_invoice_status.
+const STATUS_VALUES: Record<string, ParsedInvoiceStatus> = {
+  paye: "PAYEE",
+  payee: "PAYEE",
+  impaye: "IMPAYEE",
+  impayee: "IMPAYEE",
+  "en retard": "EN_RETARD",
+  retard: "EN_RETARD",
+  "en attente": "EN_ATTENTE",
+  attente: "EN_ATTENTE",
+  annule: "ANNULEE",
+  annulee: "ANNULEE",
 };
 
 export function parseInvoiceRows(matrix: string[][]): InvoiceParseResult {
@@ -188,6 +215,22 @@ export function parseInvoiceRows(matrix: string[][]): InvoiceParseResult {
       amountVAT = fromCents(toCents(amountTTC) - toCents(amountHT));
     }
 
+    // Statut optionnel (étape 51) : appliqué s'il est présent dans le fichier,
+    // sinon le statut existant/manuel reste inchangé côté service.
+    const rawStatus = get("status");
+    let status: ParsedInvoiceStatus | null = null;
+    if (rawStatus !== null) {
+      const mapped = STATUS_VALUES[normalize(rawStatus)];
+      if (!mapped) {
+        errors.push({
+          line,
+          message: `Statut invalide : « ${rawStatus} » (attendu Payé, Impayé, En retard, En attente ou Annulé) — pièce ${pieceNumber}.`,
+        });
+        return;
+      }
+      status = mapped;
+    }
+
     seenPieces.add(pieceNumber);
     rows.push({
       line,
@@ -199,6 +242,7 @@ export function parseInvoiceRows(matrix: string[][]): InvoiceParseResult {
       amountHT,
       amountVAT,
       amountTTC,
+      status,
     });
   });
 

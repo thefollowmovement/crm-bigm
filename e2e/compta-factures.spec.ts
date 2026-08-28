@@ -32,7 +32,8 @@ test("compta : saisie d'une pièce, import du journal et résultat CA − charge
   await expect(page.getByText("Pièce enregistrée.")).toBeVisible();
   await expect(page.getByTestId("invoices-table")).toContainText("FAE2E-1");
 
-  // Import d'un journal d'achats (classe 6) avec une structure inconnue.
+  // Import d'un journal d'achats (classe 6) avec une structure inconnue et
+  // une colonne STATUT (étape 51) appliquée à la création.
   await page.getByTestId("import-invoices-button").click();
   await page.getByTestId("invoices-class").click();
   await page.getByRole("option", { name: /6 — Charge/ }).click();
@@ -41,9 +42,9 @@ test("compta : saisie d'une pièce, import du journal et résultat CA − charge
     mimeType: "text/csv",
     buffer: Buffer.from(
       [
-        "Type de pièce;N° pièce;Date Pièce;Client;Total HT;Total TVA;Total TTC",
-        "Facture;CHE2E-1;05/07/2026;411E2E;400,00;80,00;480,00",
-        "Facture;CHE2E-2;06/07/2026;411ABSENT;50,00;10,00;60,00",
+        "Type de pièce;N° pièce;Date Pièce;Client;Total HT;Total TVA;Total TTC;Statut",
+        "Facture;CHE2E-1;05/07/2026;411E2E;400,00;80,00;480,00;Impayé",
+        "Facture;CHE2E-2;06/07/2026;411ABSENT;50,00;10,00;60,00;",
       ].join("\n"),
       "utf8"
     ),
@@ -56,6 +57,11 @@ test("compta : saisie d'une pièce, import du journal et résultat CA − charge
     "411ABSENT"
   );
   await page.keyboard.press("Escape");
+
+  // La colonne STATUT du fichier a posé « Impayée » sur la pièce importée.
+  await expect(
+    page.getByRole("row").filter({ hasText: "CHE2E-1" })
+  ).toContainText("Impayée");
 
   // Résultat : 1000 (classe 7) − 400 (classe 6) = 600.
   await expect(page.getByTestId("result-revenue")).toContainText("1 000,00");
@@ -70,8 +76,33 @@ test("compta : saisie d'une pièce, import du journal et résultat CA − charge
   await expect(page.getByText("Pièce mise à jour.")).toBeVisible();
   await expect(page.getByTestId("invoices-table")).toContainText("Payée");
 
+  // PJ d'une pièce (étape 51) : upload puis compteur et lien visibles.
+  await page.getByTestId("invoice-files-FAE2E-1").click();
+  await page.getByTestId("invoice-files-input").setInputFiles({
+    name: "facture-scan.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4 scan facture e2e"),
+  });
+  await page.getByTestId("invoice-files-submit").click();
+  await expect(page.getByText("1 document ajouté.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("invoice-files-FAE2E-1").click();
+  await expect(page.getByTestId("invoice-files-list")).toContainText(
+    "facture-scan.pdf"
+  );
+  await page.keyboard.press("Escape");
+
   // La liste des clients comptables agrège CA / charges / résultat.
   await page.goto("/compta/structures");
   const row = page.getByRole("row").filter({ hasText: "411E2E" });
   await expect(row).toContainText("600,00"); // résultat
+
+  // Fiche client (étape 51) : infos, agrégats et pièces du journal.
+  await page.getByTestId("structure-link-411E2E").click();
+  await expect(page.getByTestId("structure-title")).toContainText(
+    "Structure journal"
+  );
+  await expect(page.getByTestId("structure-revenue")).toContainText("1 000,00");
+  await expect(page.getByTestId("structure-invoices")).toContainText("FAE2E-1");
+  await expect(page.getByTestId("structure-invoices")).toContainText("CHE2E-1");
 });

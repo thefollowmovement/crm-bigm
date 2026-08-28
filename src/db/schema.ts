@@ -227,6 +227,8 @@ export const attachmentEntityEnum = pgEnum("attachment_entity", [
   "ACCT_IMPORT",
   // TRANSMISSION : pièces jointes des transmissions comptables (étape 48)
   "TRANSMISSION",
+  // ACCT_INVOICE : documents attachés à une pièce du journal (étape 51)
+  "ACCT_INVOICE",
 ]);
 
 // ─────────────── ANIMATION TERRAIN (étape 14) ───────────────

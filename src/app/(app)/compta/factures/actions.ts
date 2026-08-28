@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth/current-user";
 import { ForbiddenError, assertCan } from "@/lib/authz/guards";
 import { nullable, safeFormAction } from "@/lib/actions/safe-action";
 import {
+  addInvoiceAttachments,
   createInvoice,
   importInvoices,
   updateInvoice,
@@ -84,6 +85,34 @@ export const updateInvoiceAction = safeFormAction(
     revalidatePath("/compta/factures");
     revalidatePath("/compta/structures");
     return "Pièce mise à jour.";
+  }
+);
+
+// PJ d'une pièce du journal (étape 51) : facture scannée, justificatif…
+const invoiceFilesField = z.array(z.custom<File>((v) => v instanceof File));
+
+const extractInvoiceFiles = (formData: FormData): File[] =>
+  formData
+    .getAll("files")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+
+export const addInvoiceFilesAction = safeFormAction(
+  {
+    permission: "accounting:write",
+    schema: z.object({
+      invoiceId: z.string().uuid(),
+      files: invoiceFilesField.min(1, "Choisissez au moins un fichier."),
+    }),
+    prepare: (formData) => ({
+      invoiceId: formData.get("invoiceId"),
+      files: extractInvoiceFiles(formData),
+    }),
+  },
+  async (input, actor) => {
+    const count = await addInvoiceAttachments(actor, input.invoiceId, input.files);
+    revalidatePath("/compta/factures");
+    revalidatePath("/compta/structures");
+    return `${count} document${count > 1 ? "s" : ""} ajouté${count > 1 ? "s" : ""}.`;
   }
 );
 

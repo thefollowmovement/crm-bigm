@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { FileUp, Pencil, Plus } from "lucide-react";
+import { FileUp, Paperclip, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import {
 import type { ActionState } from "@/lib/actions/safe-action";
 
 import {
+  addInvoiceFilesAction,
   createInvoiceAction,
   importInvoicesAction,
   updateInvoiceAction,
@@ -253,8 +254,9 @@ export function EditInvoiceDialog({
         <DialogHeader>
           <DialogTitle>Pièce {invoice.pieceNumber}</DialogTitle>
           <DialogDescription>
-            Le statut est renseigné à la main par la comptabilité au fil du
-            traitement (il n&apos;est jamais écrasé par un import).
+            Le statut est renseigné par la comptabilité au fil du traitement
+            (un réimport ne l&apos;écrase que si le fichier porte une colonne
+            Statut).
           </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="space-y-4">
@@ -338,6 +340,85 @@ export function EditInvoiceDialog({
   );
 }
 
+// PJ d'une pièce du journal (étape 51) : liste des documents + ajout.
+export function InvoiceAttachmentsDialog({
+  invoice,
+  attachments,
+  canWrite,
+}: {
+  invoice: { id: string; pieceNumber: string };
+  attachments: { id: string; originalName: string }[];
+  canWrite: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const { formAction, pending } = useToastedState(addInvoiceFilesAction);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1 px-2"
+          aria-label={`Documents de ${invoice.pieceNumber}`}
+          data-testid={`invoice-files-${invoice.pieceNumber}`}
+        >
+          <Paperclip />
+          {attachments.length > 0 ? (
+            <span className="text-xs tabular-nums">{attachments.length}</span>
+          ) : null}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Documents — pièce {invoice.pieceNumber}</DialogTitle>
+          <DialogDescription>
+            Facture scannée, justificatif, bon de livraison… Les fichiers sont
+            servis uniquement aux profils comptabilité/direction.
+          </DialogDescription>
+        </DialogHeader>
+        {attachments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun document.</p>
+        ) : (
+          <ul className="space-y-1 text-sm" data-testid="invoice-files-list">
+            {attachments.map((file) => (
+              <li key={file.id}>
+                <a
+                  href={`/api/files/${file.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline-offset-2 hover:underline"
+                >
+                  {file.originalName}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+        {canWrite ? (
+          <form action={formAction} className="space-y-3">
+            <input type="hidden" name="invoiceId" value={invoice.id} />
+            <Input
+              name="files"
+              type="file"
+              multiple
+              required
+              data-testid="invoice-files-input"
+            />
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={pending}
+              data-testid="invoice-files-submit"
+            >
+              {pending ? "Envoi…" : "Ajouter les documents"}
+            </Button>
+          </form>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ImportInvoicesDialog() {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<
@@ -364,8 +445,10 @@ export function ImportInvoicesDialog() {
           <DialogDescription>
             Formats : .xlsx, .xls, .xlsb, .csv. Colonnes attendues : Type de
             pièce, N° pièce, Date Pièce, Client (= code du référentiel
-            Structures), Société, Total HT, Total TVA, Total TTC. Le statut des
-            pièces reste « En attente », à renseigner ensuite à la main.
+            Structures), Société, Total HT, Total TVA, Total TTC. Colonne
+            Statut optionnelle (Payé, Impayé, En retard, En attente, Annulé) :
+            si elle est renseignée, elle est appliquée aux pièces créées et
+            mises à jour ; sinon le statut reste géré à la main dans le CRM.
           </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="space-y-4">
@@ -406,7 +489,7 @@ export function ImportInvoicesDialog() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="METTRE_A_JOUR">
-                  Mettre à jour les doublons (statut conservé)
+                  Mettre à jour les doublons
                 </SelectItem>
                 <SelectItem value="IGNORER">Ignorer les doublons</SelectItem>
               </SelectContent>
