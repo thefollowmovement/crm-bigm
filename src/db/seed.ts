@@ -35,17 +35,15 @@ import {
   prospectEvents,
   prospects,
   resaleListings,
+  acctInvoices,
+  acctStructures,
   commTasks,
   companyBudgets,
   companyFlows,
-  invoices,
   partners,
-  payments,
   productFamilies,
   products,
   productSales,
-  reminders,
-  revenueEntries,
   softwareRegistry,
   storeExpenses,
   storeVisits,
@@ -368,97 +366,117 @@ async function main() {
     }
   }
 
-  // ── Factures de démonstration ───────────────────────────────────
+  // ── Comptabilité de démonstration (structures + journal, étape 52) ──
+  // Les stats (cockpit, dashboards, ratio achats/CA, P&L succursale) lisent
+  // le journal comptable : deux structures « Boutique » rattachées à BM-001
+  // et BM-003 + des pièces classe 7/6 sur le mois courant.
   const comptaUser = await db.query.users.findFirst({
     where: eq(users.email, "compta@bigm.fr"),
   });
-  if (bm001 && comptaUser) {
-    const existingInvoice = await db.query.invoices.findFirst({
-      where: eq(invoices.label, "Redevance de démonstration"),
+  if (bm001 && bm003 && comptaUser) {
+    const structuresSeed = [
+      {
+        code: "411BM001",
+        name: "321 Chicken Lyon Part-Dieu",
+        type: "BOUTIQUE" as const,
+        storeId: bm001.id,
+        email: "franchise@bigm.fr",
+        city: "Lyon",
+      },
+      {
+        code: "411BM003",
+        name: "321 Chicken Paris Bastille",
+        type: "BOUTIQUE" as const,
+        storeId: bm003.id,
+        city: "Paris",
+      },
+      {
+        code: "401ORAN",
+        name: "Orangina Suntory",
+        type: "FOURNISSEUR" as const,
+        storeId: null,
+        city: "Paris",
+      },
+    ];
+    const structureIds = new Map<string, string>();
+    for (const s of structuresSeed) {
+      const existing = await db.query.acctStructures.findFirst({
+        where: eq(acctStructures.code, s.code),
+      });
+      const row =
+        existing ?? (await db.insert(acctStructures).values(s).returning())[0];
+      structureIds.set(s.code, row.id);
+    }
+
+    const existingPiece = await db.query.acctInvoices.findFirst({
+      where: eq(acctInvoices.pieceNumber, "FA-DEMO-3001"),
     });
-    if (!existingInvoice) {
-      const year = new Date().getFullYear();
+    if (!existingPiece) {
+      const month = new Date().toISOString().slice(0, 7);
       const overdueDate = new Date();
       overdueDate.setDate(overdueDate.getDate() - 30);
       const overdueIso = overdueDate.toISOString().slice(0, 10);
 
-      const [paidInvoice] = await db
-        .insert(invoices)
-        .values({
-          number: `F${year}-9001`,
-          storeId: bm001.id,
-          type: "REDEVANCE",
-          label: "Redevance de démonstration",
-          amountHT: "2500.00",
-          vatRate: "20.00",
-          amountTTC: "3000.00",
-          issuedAt: `${year}-01-05`,
-          dueDate: `${year}-02-05`,
+      await db.insert(acctInvoices).values([
+        // CA du mois : BM-003 (payée) puis BM-001 — alimente top/flop,
+        // ratio achats/CA et P&L de la succursale BM-003.
+        {
+          pieceNumber: "FA-DEMO-3001",
+          pieceType: "FACTURE",
+          accountClass: "PRODUIT",
+          pieceDate: `${month}-01`,
+          structureId: structureIds.get("411BM003")!,
+          amountHT: "4984.80",
+          amountVAT: "996.96",
+          amountTTC: "5981.76",
+          company: "BIG M CIE",
           status: "PAYEE",
-        })
-        .returning();
-      await db.insert(payments).values({
-        invoiceId: paidInvoice.id,
-        amount: "3000.00",
-        paidAt: `${year}-01-28`,
-        method: "PRELEVEMENT",
-        reference: "PRLV-0128",
-      });
-
-      const [overdueInvoice] = await db
-        .insert(invoices)
-        .values({
-          number: `F${year}-9002`,
-          storeId: bm001.id,
-          type: "REDEVANCE_COMMUNICATION",
-          label: "Redevance communication (démo impayée)",
-          amountHT: "800.00",
-          vatRate: "20.00",
-          amountTTC: "960.00",
-          issuedAt: `${year}-01-05`,
+          label: "Marchandises + redevance (démo)",
+        },
+        {
+          pieceNumber: "FA-DEMO-1001",
+          pieceType: "FACTURE",
+          accountClass: "PRODUIT",
+          pieceDate: `${month}-02`,
+          structureId: structureIds.get("411BM001")!,
+          amountHT: "2500.00",
+          amountVAT: "500.00",
+          amountTTC: "3000.00",
+          company: "BIG M CIE",
+          status: "PAYEE",
+          label: "Redevance de démonstration",
+        },
+        // Impayé à échéance dépassée : restant dû + agenda + relance e-mail.
+        {
+          pieceNumber: "FA-DEMO-1002",
+          pieceType: "FACTURE",
+          accountClass: "PRODUIT",
+          pieceDate: `${month}-02`,
           dueDate: overdueIso,
-          status: "EMISE",
-        })
-        .returning();
-      await db.insert(reminders).values({
-        invoiceId: overdueInvoice.id,
-        level: 1,
-        channel: "EMAIL",
-        sentAt: new Date().toISOString().slice(0, 10),
-        sentById: comptaUser.id,
-        notes: "Première relance amiable.",
-      });
-      console.log("Factures de démonstration créées (BM-001).");
-    }
-  }
-
-  // ── Chiffre d'affaires de démonstration (succursale BM-003) ─────
-  if (bm003 && comptaUser) {
-    const existingRevenue = await db.query.revenueEntries.findFirst({
-      where: eq(revenueEntries.storeId, bm003.id),
-    });
-    if (!existingRevenue) {
-      const month = new Date().toISOString().slice(0, 7);
-      await db.insert(revenueEntries).values(
-        (
-          [
-            [`${month}-01`, "SUR_PLACE", "1850.50", null, 118],
-            [`${month}-01`, "UBER_EATS", "620.00", "545.60", 31],
-            [`${month}-02`, "SUR_PLACE", "2104.00", null, 131],
-            [`${month}-02`, "EMPORTE", "410.30", null, null],
-          ] as const
-        ).map(([date, channel, gross, net, orders]) => ({
-          storeId: bm003.id,
-          date,
-          channel,
-          grossAmount: gross,
-          netAmount: net,
-          orderCount: orders,
-          source: "SAISIE" as const,
-          enteredById: comptaUser.id,
-        }))
-      );
-      console.log("CA de démonstration créé (BM-003).");
+          structureId: structureIds.get("411BM001")!,
+          amountHT: "800.00",
+          amountVAT: "160.00",
+          amountTTC: "960.00",
+          company: "BIG M CIE",
+          status: "EN_ATTENTE",
+          label: "Redevance communication (démo impayée)",
+        },
+        // Charge fournisseur classe 6 (résultat = CA − charges).
+        {
+          pieceNumber: "CH-DEMO-2001",
+          pieceType: "FACTURE",
+          accountClass: "CHARGE",
+          pieceDate: `${month}-03`,
+          structureId: structureIds.get("401ORAN")!,
+          amountHT: "650.00",
+          amountVAT: "130.00",
+          amountTTC: "780.00",
+          company: "BIG M CIE",
+          status: "PAYEE",
+          label: "Boissons (démo)",
+        },
+      ]);
+      console.log("Journal comptable de démonstration créé (étape 52).");
     }
   }
 

@@ -3,8 +3,9 @@ import "server-only";
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { dpsPurchases, revenueEntries, users } from "@/db/schema";
+import { dpsPurchases, users } from "@/db/schema";
 import { todayParis } from "@/lib/dates";
+import { sumStoreRevenueByMonth } from "@/services/acct-analytics.service";
 import { getMaterialVariance } from "@/services/material-variance.service";
 import { purchaseRatioPct } from "@/services/purchases.service";
 import { notify } from "@/services/notifications.service";
@@ -75,19 +76,17 @@ export async function runPurchaseAnomalyJob(now: Date = new Date()) {
   const prevMonth = month === 1 ? 12 : month - 1;
   const from = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
   const toExclusive = `${year}-${String(month).padStart(2, "0")}-01`;
+  // dernier jour du mois précédent (borne incluse du journal comptable)
+  const lastDay = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
+  const to = `${from.slice(0, 7)}-${String(lastDay).padStart(2, "0")}`;
   const monthKey = from.slice(0, 7);
 
   const thresholds = purchaseThresholds();
 
+  // CA du mois = journal comptable (classe 7 HT des structures liées aux
+  // boutiques — étape 52, le module CA par canal a disparu).
   const [revenueRows, purchaseRows, variance, storeRows] = await Promise.all([
-    db
-      .select({
-        storeId: revenueEntries.storeId,
-        total: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::numeric(12,2)::text`,
-      })
-      .from(revenueEntries)
-      .where(and(gte(revenueEntries.date, from), lt(revenueEntries.date, toExclusive)))
-      .groupBy(revenueEntries.storeId),
+    sumStoreRevenueByMonth({ from, to }),
     db
       .select({
         storeId: dpsPurchases.storeId,
@@ -100,7 +99,7 @@ export async function runPurchaseAnomalyJob(now: Date = new Date()) {
     db.query.stores.findMany({ columns: { id: true, code: true, name: true } }),
   ]);
 
-  const revenueByStore = new Map(revenueRows.map((r) => [r.storeId, r.total]));
+  const revenueByStore = new Map(revenueRows.map((r) => [r.storeId, r.revenueHT]));
   const varianceByStore = new Map(variance.map((v) => [v.store.id, v]));
   const storeById = new Map(storeRows.map((s) => [s.id, s]));
 

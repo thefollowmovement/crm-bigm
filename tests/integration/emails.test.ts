@@ -10,12 +10,11 @@ import {
   saveEmailSettings,
   saveEmailTemplate,
 } from "@/services/email.service";
-import { addReminder } from "@/services/invoices.service";
+import { sendInvoiceReminder } from "@/services/acct-invoices.service";
 import { resetDb } from "./setup/reset-db";
 import {
-  createTestFranchisee,
-  createTestInvoice,
-  createTestStore,
+  createTestAcctInvoice,
+  createTestAcctStructure,
   createTestUser,
 } from "../helpers/factories";
 
@@ -115,50 +114,40 @@ describe("e-mails : paramètres SMTP et modèles", () => {
     ).rejects.toThrow(/Niveau/);
   });
 
-  it("relance avec envoi : erreurs claires et AUCUNE trace si l'e-mail ne part pas", async () => {
+  // Étape 52 : relance d'une pièce du journal comptable — l'envoi précède la
+  // trace (échec SMTP → lastReminder* jamais posés).
+  it("relance du journal : erreurs claires et AUCUNE trace si l'e-mail ne part pas", async () => {
     const compta = asSession(await createTestUser({ role: "COMPTABILITE" }));
 
-    // Boutique sans franchisé (donc sans adresse e-mail).
-    const orphan = await createTestStore();
-    const invoiceOrphan = await createTestInvoice(orphan.id, {
-      dueDate: "2026-09-15",
+    // Structure sans adresse e-mail.
+    const orphan = await createTestAcctStructure({ email: null });
+    const pieceOrphan = await createTestAcctInvoice(orphan.id, {
+      status: "EN_RETARD",
     });
     await expect(
-      addReminder(compta, invoiceOrphan.id, {
-        level: 1,
-        channel: "EMAIL",
-        sentAt: "2026-09-20",
-        notes: null,
-        sendEmail: true,
-      })
+      sendInvoiceReminder(compta, pieceOrphan.id, 1)
     ).rejects.toThrow(/adresse e-mail/);
 
-    // Franchisé avec e-mail mais SMTP non configuré.
-    const franchisee = await createTestFranchisee({ email: "farid@test.fr" });
-    const store = await createTestStore({ franchiseeId: franchisee.id });
-    const invoice = await createTestInvoice(store.id, { dueDate: "2026-09-15" });
-    await expect(
-      addReminder(compta, invoice.id, {
-        level: 1,
-        channel: "EMAIL",
-        sentAt: "2026-09-20",
-        notes: null,
-        sendEmail: true,
-      })
-    ).rejects.toThrow(/Paramètres SMTP non configurés/);
-
-    // Envoi impossible → aucune relance enregistrée.
-    expect(await db.query.reminders.findMany()).toHaveLength(0);
-
-    // Sans envoi automatique : la relance se crée normalement, sans trace e-mail.
-    const reminder = await addReminder(compta, invoice.id, {
-      level: 1,
-      channel: "EMAIL",
-      sentAt: "2026-09-20",
-      notes: null,
-      sendEmail: false,
+    // Structure avec e-mail mais SMTP non configuré.
+    const structure = await createTestAcctStructure({ email: "farid@test.fr" });
+    const piece = await createTestAcctInvoice(structure.id, {
+      status: "EN_RETARD",
     });
-    expect(reminder.emailSentTo).toBeNull();
-    expect(await db.query.reminders.findMany()).toHaveLength(1);
+    await expect(sendInvoiceReminder(compta, piece.id, 1)).rejects.toThrow(
+      /Paramètres SMTP non configurés/
+    );
+
+    // Envoi impossible → aucune trace posée sur la pièce.
+    const after = await db.query.acctInvoices.findFirst({
+      where: (t, { eq: eqOp }) => eqOp(t.id, piece.id),
+    });
+    expect(after!.lastReminderLevel).toBeNull();
+    expect(after!.lastReminderAt).toBeNull();
+
+    // Une pièce soldée n'est pas relançable.
+    const paid = await createTestAcctInvoice(structure.id, { status: "PAYEE" });
+    await expect(sendInvoiceReminder(compta, paid.id, 1)).rejects.toThrow(
+      /non soldée/
+    );
   });
 });

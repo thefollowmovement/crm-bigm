@@ -14,7 +14,8 @@ import {
 } from "@/services/purchases.service";
 import { resetDb } from "./setup/reset-db";
 import {
-  createRevenueEntry,
+  createTestAcctInvoice,
+  createTestAcctStructure,
   createTestDepot,
   createTestFranchisee,
   createTestPurchase,
@@ -137,10 +138,12 @@ describe("achats DPS", () => {
     const other = await createTestStore();
     const depot = await createTestDepot();
 
-    await createRevenueEntry(mine.id, {
-      date: "2026-08-10",
-      grossAmount: "1000.00",
-      enteredById: compta.id,
+    // CA = journal comptable des structures rattachées (étape 52).
+    const mineStructure = await createTestAcctStructure({ storeId: mine.id });
+    await createTestAcctInvoice(mineStructure.id, {
+      pieceDate: "2026-08-10",
+      amountHT: "1000.00",
+      amountTTC: "1200.00",
     });
     await createTestPurchase(mine.id, {
       date: "2026-08-11",
@@ -148,10 +151,11 @@ describe("achats DPS", () => {
       depotId: depot.id,
       enteredById: compta.id,
     });
-    await createRevenueEntry(other.id, {
-      date: "2026-08-10",
-      grossAmount: "500.00",
-      enteredById: compta.id,
+    const otherStructure = await createTestAcctStructure({ storeId: other.id });
+    await createTestAcctInvoice(otherStructure.id, {
+      pieceDate: "2026-08-10",
+      amountHT: "500.00",
+      amountTTC: "600.00",
     });
     await createTestPurchase(other.id, {
       date: "2026-08-12",

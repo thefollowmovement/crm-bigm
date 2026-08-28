@@ -4,10 +4,10 @@ import { and, eq, gte, inArray, lte } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
+  acctInvoices,
   actionPlans,
   commTasks,
   contracts,
-  invoices,
   leaveRequests,
   openingSteps,
   storeVisits,
@@ -49,7 +49,7 @@ export const AGENDA_TYPE_LABELS: Record<AgendaEventType, string> = {
   VISITE: "Visite / audit",
   FORMATION: "Formation",
   CONTRAT: "Échéance contrat",
-  FACTURE: "Échéance facture",
+  FACTURE: "Échéance pièce comptable",
   PLAN_ACTION: "Plan d'action",
   JALON: "Jalon d'ouverture",
   COMM: "Tâche communication",
@@ -63,7 +63,7 @@ export function hasAgendaAccess(user: SessionUser): boolean {
     can(user, "visit:read") ||
     can(user, "training:read") ||
     can(user, "contract:read") ||
-    can(user, "finance:read") ||
+    can(user, "accounting:read") ||
     can(user, "actionplan:read") ||
     can(user, "opening:read") ||
     can(user, "commtask:read") ||
@@ -160,24 +160,25 @@ export async function getAgenda(
     );
   }
 
-  if (can(actor, "finance:read")) {
+  // Échéances des pièces non soldées du journal comptable (étape 52) —
+  // module compta, donc jamais visible du périmètre franchisé.
+  if (scope === null && can(actor, "accounting:read")) {
     sources.push(
-      db.query.invoices
+      db.query.acctInvoices
         .findMany({
           where: and(
-            inArray(invoices.status, ["EMISE", "PARTIELLEMENT_PAYEE"]),
-            gte(invoices.dueDate, range.from),
-            lte(invoices.dueDate, range.to),
-            ...(scope ? [inArray(invoices.storeId, scope)] : [])
+            inArray(acctInvoices.status, ["EN_ATTENTE", "EN_RETARD", "IMPAYEE"]),
+            gte(acctInvoices.dueDate, range.from),
+            lte(acctInvoices.dueDate, range.to)
           ),
-          with: { store: { columns: { code: true } } },
+          with: { structure: { columns: { code: true } } },
         })
         .then((rows) =>
           rows.map((i) => ({
-            date: i.dueDate,
+            date: i.dueDate!,
             type: "FACTURE" as const,
-            label: `Facture ${i.number} — ${i.store.code}`,
-            link: `/finances/${i.id}`,
+            label: `Pièce ${i.pieceNumber} — ${i.structure.code}`,
+            link: `/compta/factures?structure=${i.structureId}`,
           }))
         )
     );

@@ -10,6 +10,7 @@ import {
   addInvoiceAttachments,
   createInvoice,
   importInvoices,
+  sendInvoiceReminder,
   updateInvoice,
 } from "@/services/acct-invoices.service";
 
@@ -85,6 +86,28 @@ export const updateInvoiceAction = safeFormAction(
     revalidatePath("/compta/factures");
     revalidatePath("/compta/structures");
     return "Pièce mise à jour.";
+  }
+);
+
+// Relance par e-mail d'une pièce non soldée (étape 52) — modèles de
+// l'étape 43, envoyée à l'adresse de la structure.
+export const sendInvoiceReminderAction = safeFormAction(
+  {
+    permission: "accounting:write",
+    schema: z.object({
+      invoiceId: z.string().uuid(),
+      level: z.coerce.number().int().min(1).max(3),
+    }),
+    prepare: (formData) => ({
+      invoiceId: formData.get("invoiceId"),
+      level: formData.get("level"),
+    }),
+  },
+  async (input, actor) => {
+    const updated = await sendInvoiceReminder(actor, input.invoiceId, input.level);
+    revalidatePath("/compta/factures");
+    revalidatePath("/compta/structures");
+    return `Relance niveau ${input.level} envoyée pour la pièce ${updated.pieceNumber}.`;
   }
 );
 

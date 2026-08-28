@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { FileUp, Paperclip, Pencil, Plus } from "lucide-react";
+import { FileUp, Mail, Paperclip, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ import {
   addInvoiceFilesAction,
   createInvoiceAction,
   importInvoicesAction,
+  sendInvoiceReminderAction,
   updateInvoiceAction,
   type InvoiceImportState,
 } from "./actions";
@@ -333,6 +334,76 @@ export function EditInvoiceDialog({
             data-testid="invoice-update-submit"
           >
             {pending ? "Enregistrement…" : "Enregistrer"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Relance par e-mail d'une pièce non soldée (étape 52) : modèles de relance
+// niveaux 1-3 (Administration → E-mails), envoyée à l'adresse de la structure.
+export function InvoiceReminderDialog({
+  invoice,
+}: {
+  invoice: {
+    id: string;
+    pieceNumber: string;
+    structureEmail: string | null;
+    lastReminderLevel: number | null;
+  };
+}) {
+  const [open, setOpen] = useState(false);
+  const { formAction, pending } = useToastedState(sendInvoiceReminderAction, () =>
+    setOpen(false)
+  );
+  const defaultLevel = Math.min(3, Math.max(1, invoice.lastReminderLevel ?? 1));
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Relancer ${invoice.pieceNumber}`}
+          data-testid={`remind-invoice-${invoice.pieceNumber}`}
+        >
+          <Mail />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Relancer — pièce {invoice.pieceNumber}</DialogTitle>
+          <DialogDescription>
+            {invoice.structureEmail
+              ? `L'e-mail de relance (modèle du niveau choisi) sera envoyé à ${invoice.structureEmail}.`
+              : "Cette structure n'a pas d'adresse e-mail : complétez sa fiche avant de relancer."}
+            {invoice.lastReminderLevel
+              ? ` Dernière relance envoyée : niveau ${invoice.lastReminderLevel}.`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <form action={formAction} className="space-y-4">
+          <input type="hidden" name="invoiceId" value={invoice.id} />
+          <div className="space-y-1.5">
+            <Label htmlFor="reminder-level">Niveau de relance</Label>
+            <Select name="level" defaultValue={String(defaultLevel)}>
+              <SelectTrigger id="reminder-level" data-testid="reminder-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Niveau 1 — rappel amiable</SelectItem>
+                <SelectItem value="2">Niveau 2 — relance ferme</SelectItem>
+                <SelectItem value="3">Niveau 3 — mise en demeure</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={pending || !invoice.structureEmail}
+            data-testid="reminder-send"
+          >
+            {pending ? "Envoi…" : "Envoyer la relance"}
           </Button>
         </form>
       </DialogContent>

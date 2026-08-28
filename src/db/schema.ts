@@ -105,47 +105,14 @@ export const exchangeStatusEnum = pgEnum("exchange_status", [
   "CLOS",
 ]);
 
-export const revenueChannelEnum = pgEnum("revenue_channel", [
-  "SUR_PLACE",
-  "EMPORTE",
-  "TABLETTE",
-  "UBER_EATS",
-  "DELIVEROO",
-  "AUTRE",
-]);
+// Les anciens modules « Factures & impayés » (invoices/payments/reminders) et
+// « CA par canal » (revenueEntries) ont été SUPPRIMÉS à l'étape 52 : le CA,
+// les charges et les impayés se lisent désormais dans le journal comptable
+// (acctInvoices, classes 6/7), alimenté par les exports du logiciel comptable.
 
+// Origine d'une ligne de ventes produits (référentiel conservé — Food Cost et
+// stats produits/familles en dépendent).
 export const revenueSourceEnum = pgEnum("revenue_source", ["SAISIE", "IMPORT_CSV"]);
-
-export const invoiceTypeEnum = pgEnum("invoice_type", [
-  "DROIT_ENTREE",
-  "REDEVANCE",
-  "REDEVANCE_COMMUNICATION",
-  "AUTRE",
-]);
-
-export const invoiceStatusEnum = pgEnum("invoice_status", [
-  "EMISE",
-  "PARTIELLEMENT_PAYEE",
-  "PAYEE",
-  "ANNULEE",
-]);
-
-export const paymentMethodEnum = pgEnum("payment_method", [
-  "VIREMENT",
-  "PRELEVEMENT",
-  "CHEQUE",
-  "CB",
-  "ESPECES",
-  "AUTRE",
-]);
-
-export const reminderChannelEnum = pgEnum("reminder_channel", [
-  "EMAIL",
-  "TELEPHONE",
-  "COURRIER",
-  "LRAR",
-  "AUTRE",
-]);
 
 // tickets.extraPoles (étape 36) : pôles destinataires supplémentaires en plus
 // de toPole — un ticket peut viser plusieurs services à la fois.
@@ -720,87 +687,6 @@ export const exchangeMessages = pgTable(
   (t) => [index("exchange_messages_exchange_idx").on(t.exchangeId, t.createdAt)]
 );
 
-// ─────────────── FINANCES ───────────────
-
-export const invoices = pgTable(
-  "invoices",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    // "F2026-0042" — séquence gérée par le service en transaction
-    number: text("number").notNull(),
-    storeId: uuid("store_id")
-      .notNull()
-      .references(() => stores.id),
-    type: invoiceTypeEnum("type").notNull(),
-    // ex. "Redevance juillet 2026"
-    label: text("label"),
-    // période couverte (redevances)
-    periodStart: date("period_start"),
-    periodEnd: date("period_end"),
-    amountHT: numeric("amount_ht", { precision: 12, scale: 2 }).notNull(),
-    vatRate: numeric("vat_rate", { precision: 5, scale: 2 }).notNull().default("20.00"),
-    amountTTC: numeric("amount_ttc", { precision: 12, scale: 2 }).notNull(),
-    issuedAt: date("issued_at").notNull(),
-    dueDate: date("due_date").notNull(),
-    // EN_RETARD est dérivé (due_date dépassée), jamais stocké
-    status: invoiceStatusEnum("status").notNull().default("EMISE"),
-    // idempotence du cron de retards
-    overdueNotifiedAt: timestamp("overdue_notified_at", { withTimezone: true }),
-    notes: text("notes"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (t) => [
-    uniqueIndex("invoices_number_unique").on(t.number),
-    index("invoices_store_status_idx").on(t.storeId, t.status),
-    index("invoices_due_date_status_idx").on(t.dueDate, t.status),
-  ]
-);
-
-export const payments = pgTable(
-  "payments",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    invoiceId: uuid("invoice_id")
-      .notNull()
-      .references(() => invoices.id),
-    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-    paidAt: date("paid_at").notNull(),
-    method: paymentMethodEnum("method").notNull(),
-    // n° de virement…
-    reference: text("reference"),
-    notes: text("notes"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index("payments_invoice_idx").on(t.invoiceId)]
-);
-
-export const reminders = pgTable(
-  "reminders",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    invoiceId: uuid("invoice_id")
-      .notNull()
-      .references(() => invoices.id),
-    // 1, 2, 3 (mise en demeure)
-    level: integer("level").notNull(),
-    channel: reminderChannelEnum("channel").notNull(),
-    sentAt: date("sent_at").notNull(),
-    sentById: uuid("sent_by_id")
-      .notNull()
-      .references(() => users.id),
-    notes: text("notes"),
-    // destinataire réel quand la relance a été envoyée par e-mail (étape 43)
-    emailSentTo: text("email_sent_to"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    // PJ (courrier scanné) via file_attachments(entity_type: REMINDER)
-  },
-  (t) => [index("reminders_invoice_idx").on(t.invoiceId, t.level)]
-);
-
 // ─────────────── E-MAILS (SMTP + modèles de relance, étape 43) ───────────────
 
 // Paramètres SMTP — une seule ligne, mot de passe chiffré avec VAULT_KEY
@@ -840,47 +726,6 @@ export const emailTemplates = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [uniqueIndex("email_templates_level_unique").on(t.level)]
-);
-
-// ─────────────── CHIFFRE D'AFFAIRES ───────────────
-
-export const revenueEntries = pgTable(
-  "revenue_entries",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    storeId: uuid("store_id")
-      .notNull()
-      .references(() => stores.id),
-    date: date("date").notNull(),
-    channel: revenueChannelEnum("channel").notNull(),
-    // libellé si AUTRE
-    channelLabel: text("channel_label"),
-    // brut (TTC plateforme)
-    grossAmount: numeric("gross_amount", { precision: 12, scale: 2 }).notNull(),
-    // net (après commission) — canaux de livraison
-    netAmount: numeric("net_amount", { precision: 12, scale: 2 }),
-    // nombre de commandes du jour sur ce canal (panier moyen dérivé en SQL)
-    orderCount: integer("order_count"),
-    source: revenueSourceEnum("source").notNull().default("SAISIE"),
-    enteredById: uuid("entered_by_id")
-      .notNull()
-      .references(() => users.id),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (t) => [
-    // idempotence de l'import CSV (upsert)
-    uniqueIndex("revenue_entries_store_date_channel_unique").on(
-      t.storeId,
-      t.date,
-      t.channel
-    ),
-    index("revenue_entries_store_date_idx").on(t.storeId, t.date),
-    index("revenue_entries_date_idx").on(t.date),
-  ]
 );
 
 // ─────────────── PRODUITS & VENTES ───────────────
@@ -1971,8 +1816,9 @@ export const companyFlows = pgTable(
     category: companyFlowCategoryEnum("category").notNull(),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     label: text("label"),
-    // rapprochement d'une facture réseau (redevances encaissées)
-    invoiceId: uuid("invoice_id").references(() => invoices.id),
+    // rapprochement d'une pièce du journal comptable (étape 52 — les
+    // anciennes factures réseau F-XXXX ont été remplacées par acctInvoices)
+    invoiceId: uuid("invoice_id").references((): AnyPgColumn => acctInvoices.id),
     // dépense liée à un partenaire / prestataire
     partnerId: uuid("partner_id").references(() => partners.id),
     enteredById: uuid("entered_by_id")
@@ -2242,8 +2088,6 @@ export const storesRelations = relations(stores, ({ one, many }) => ({
   platforms: many(storePlatforms),
   contracts: many(contracts),
   exchanges: many(exchanges),
-  invoices: many(invoices),
-  revenueEntries: many(revenueEntries),
   tickets: many(tickets),
 }));
 
@@ -2326,29 +2170,6 @@ export const exchangeMessagesRelations = relations(exchangeMessages, ({ one }) =
     references: [exchanges.id],
   }),
   author: one(users, { fields: [exchangeMessages.authorId], references: [users.id] }),
-}));
-
-export const invoicesRelations = relations(invoices, ({ one, many }) => ({
-  store: one(stores, { fields: [invoices.storeId], references: [stores.id] }),
-  payments: many(payments),
-  reminders: many(reminders),
-}));
-
-export const paymentsRelations = relations(payments, ({ one }) => ({
-  invoice: one(invoices, { fields: [payments.invoiceId], references: [invoices.id] }),
-}));
-
-export const remindersRelations = relations(reminders, ({ one }) => ({
-  invoice: one(invoices, { fields: [reminders.invoiceId], references: [invoices.id] }),
-  sentBy: one(users, { fields: [reminders.sentById], references: [users.id] }),
-}));
-
-export const revenueEntriesRelations = relations(revenueEntries, ({ one }) => ({
-  store: one(stores, { fields: [revenueEntries.storeId], references: [stores.id] }),
-  enteredBy: one(users, {
-    fields: [revenueEntries.enteredById],
-    references: [users.id],
-  }),
 }));
 
 export const productFamiliesRelations = relations(productFamilies, ({ many }) => ({
@@ -2718,9 +2539,9 @@ export const softwareUsersRelations = relations(softwareUsers, ({ one }) => ({
 }));
 
 export const companyFlowsRelations = relations(companyFlows, ({ one }) => ({
-  invoice: one(invoices, {
+  invoice: one(acctInvoices, {
     fields: [companyFlows.invoiceId],
-    references: [invoices.id],
+    references: [acctInvoices.id],
   }),
   partner: one(partners, {
     fields: [companyFlows.partnerId],
@@ -2928,6 +2749,9 @@ export const acctInvoices = pgTable(
     status: acctInvoiceStatusEnum("status").notNull().default("EN_ATTENTE"),
     label: text("label"),
     notes: text("notes"),
+    // Dernière relance envoyée par e-mail (étape 52 — modèles de l'étape 43).
+    lastReminderLevel: integer("last_reminder_level"),
+    lastReminderAt: timestamp("last_reminder_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

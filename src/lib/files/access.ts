@@ -12,7 +12,6 @@ import {
   exchangeMessages,
   openingSteps,
   fileAttachments,
-  reminders,
   storeVisits,
   ticketComments,
   tickets,
@@ -94,11 +93,9 @@ export async function canDownloadFile(
       return { allowed: true, audit: false };
     }
     case "REMINDER": {
-      if (!can(user, "finance:read")) return deny;
-      const reminder = await db.query.reminders.findFirst({
-        where: eq(reminders.id, attachment.entityId ?? ""),
-      });
-      if (!reminder) return deny;
+      // Héritage du module Finances supprimé (étape 52) : les PJ de relance
+      // orphelines restent lisibles de la compta.
+      if (!can(user, "accounting:read")) return deny;
       return { allowed: true, audit: false };
     }
     case "STORE": {

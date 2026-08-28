@@ -51,7 +51,7 @@ describe("droits d'accès dynamiques", () => {
     await expect(
       setPermissionOverride(direction, {
         role: "RH",
-        permission: "finance:read",
+        permission: "accounting:read",
         allowed: true,
       })
     ).rejects.toThrow(ForbiddenError);
@@ -60,7 +60,7 @@ describe("droits d'accès dynamiques", () => {
     await expect(
       setPermissionOverride(admin, {
         role: "ADMIN",
-        permission: "finance:read",
+        permission: "accounting:read",
         allowed: false,
       })
     ).rejects.toThrow(/ADMIN/);
@@ -81,7 +81,7 @@ describe("droits d'accès dynamiques", () => {
     // Octroi d'une permission hors matrice → écart créé.
     const granted = await setPermissionOverride(admin, {
       role: "RH",
-      permission: "finance:read",
+      permission: "accounting:read",
       allowed: true,
     });
     expect(granted).toEqual({ override: true, allowed: true });
@@ -95,10 +95,10 @@ describe("droits d'accès dynamiques", () => {
     });
     expect(createLog?.userId).toBe(admin.id);
 
-    // Poser la valeur par défaut (RH n'a pas finance:read) → écart supprimé.
+    // Poser la valeur par défaut (RH n'a pas accounting:read) → écart supprimé.
     const reset = await setPermissionOverride(admin, {
       role: "RH",
-      permission: "finance:read",
+      permission: "accounting:read",
       allowed: false,
     });
     expect(reset).toEqual({ override: false, allowed: false });
@@ -114,7 +114,7 @@ describe("droits d'accès dynamiques", () => {
     // Reposer la valeur par défaut sans écart existant : sans effet.
     await setPermissionOverride(admin, {
       role: "RH",
-      permission: "finance:read",
+      permission: "accounting:read",
       allowed: false,
     });
     expect(await db.query.permissionOverrides.findMany()).toHaveLength(0);
@@ -131,7 +131,7 @@ describe("droits d'accès dynamiques", () => {
     });
     await setPermissionOverride(admin, {
       role: "ANIMATION",
-      permission: "finance:read",
+      permission: "accounting:read",
       allowed: true,
     });
 
@@ -139,10 +139,10 @@ describe("droits d'accès dynamiques", () => {
     const sessionUser = await validateSessionToken(token);
     expect(sessionUser?.permissionOverrides).toEqual({
       "visit:write": false,
-      "finance:read": true,
+      "accounting:read": true,
     });
     expect(can(sessionUser!, "visit:write")).toBe(false);
-    expect(can(sessionUser!, "finance:read")).toBe(true);
+    expect(can(sessionUser!, "accounting:read")).toBe(true);
     // Les permissions sans écart suivent la matrice.
     expect(can(sessionUser!, "visit:read")).toBe(true);
 

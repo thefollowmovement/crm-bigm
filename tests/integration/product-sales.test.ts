@@ -11,7 +11,6 @@ import {
   getTopProducts,
   importRows,
 } from "@/services/product-sales.service";
-import { getStoreMonth, upsertEntry } from "@/services/revenue.service";
 import { resetDb } from "./setup/reset-db";
 import {
   createTestFamily,
@@ -168,49 +167,14 @@ describe("import des ventes produits", () => {
       ["Desserts", 5],
     ]);
 
+    // Étape 52 : les stats produits sont réservées au siège (cockpit) —
+    // le franchisé n'a plus revenue:read.
     const franchise = asSession(
       await createTestUser({ role: "FRANCHISE", franchiseeId: franchisee.id })
     );
-    const scopedTop = await getTopProducts(franchise, period);
-    expect(scopedTop).toHaveLength(1);
-    expect(scopedTop[0].quantity).toBe(30);
+    await expect(getTopProducts(franchise, period)).rejects.toThrow(
+      ForbiddenError
+    );
   });
 
-  it("calcule le panier moyen du mois sur les seules lignes renseignées", async () => {
-    const compta = asSession(await createTestUser({ role: "COMPTABILITE" }));
-    const store = await createTestStore();
-    await upsertEntry(compta, {
-      storeId: store.id,
-      date: "2026-08-01",
-      channel: "SUR_PLACE",
-      channelLabel: null,
-      grossAmount: "1000.00",
-      netAmount: null,
-      orderCount: 100,
-    });
-    await upsertEntry(compta, {
-      storeId: store.id,
-      date: "2026-08-02",
-      channel: "SUR_PLACE",
-      channelLabel: null,
-      grossAmount: "500.00",
-      netAmount: null,
-      orderCount: 25,
-    });
-    // ligne sans nb de commandes : exclue du panier moyen
-    await upsertEntry(compta, {
-      storeId: store.id,
-      date: "2026-08-03",
-      channel: "EMPORTE",
-      channelLabel: null,
-      grossAmount: "999.99",
-      netAmount: null,
-      orderCount: null,
-    });
-
-    const month = await getStoreMonth(compta, store.id, "2026-08");
-    expect(month.orderTotal).toBe(125);
-    expect(month.averageBasket).toBe("12.00"); // 1500 / 125
-    expect(month.grandTotal).toBe("2499.99");
-  });
 });

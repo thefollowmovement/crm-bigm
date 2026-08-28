@@ -81,46 +81,6 @@ export const EXCHANGE_STATUS_LABELS: Record<string, string> = {
   CLOS: "Clos",
 };
 
-export const REVENUE_CHANNEL_LABELS: Record<string, string> = {
-  SUR_PLACE: "Sur place",
-  EMPORTE: "À emporter",
-  TABLETTE: "Tablette Big M",
-  UBER_EATS: "Uber Eats",
-  DELIVEROO: "Deliveroo",
-  AUTRE: "Autre",
-};
-
-export const INVOICE_TYPE_LABELS: Record<string, string> = {
-  DROIT_ENTREE: "Droit d'entrée",
-  REDEVANCE: "Redevance",
-  REDEVANCE_COMMUNICATION: "Redevance communication",
-  AUTRE: "Autre",
-};
-
-export const INVOICE_STATUS_LABELS: Record<string, string> = {
-  EMISE: "Émise",
-  PARTIELLEMENT_PAYEE: "Partiellement payée",
-  PAYEE: "Payée",
-  ANNULEE: "Annulée",
-};
-
-export const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  VIREMENT: "Virement",
-  PRELEVEMENT: "Prélèvement",
-  CHEQUE: "Chèque",
-  CB: "Carte bancaire",
-  ESPECES: "Espèces",
-  AUTRE: "Autre",
-};
-
-export const REMINDER_CHANNEL_LABELS: Record<string, string> = {
-  EMAIL: "E-mail",
-  TELEPHONE: "Téléphone",
-  COURRIER: "Courrier",
-  LRAR: "LRAR",
-  AUTRE: "Autre",
-};
-
 export const TICKET_STATUS_LABELS: Record<string, string> = {
   NOUVEAU: "Nouveau",
   AFFECTE: "Affecté",
@@ -349,11 +309,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "document:folder": "Documents — gérer les dossiers",
   "exchange:read": "Échanges franchisés — consulter",
   "exchange:write": "Échanges franchisés — participer",
-  "finance:read": "Factures & impayés — consulter",
-  "finance:write": "Factures & impayés — gérer",
-  "revenue:read": "Chiffre d'affaires — consulter",
-  "revenue:write": "Chiffre d'affaires — saisir",
-  "revenue:import": "Chiffre d'affaires — importer (CSV)",
+  "revenue:read": "Ventes produits — consulter",
+  "revenue:import": "Ventes produits — importer (CSV)",
   "product:manage": "Référentiel produits — gérer",
   "ticket:read": "Tickets — consulter",
   "ticket:write": "Tickets — créer & traiter",
@@ -400,6 +357,11 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "permission:manage": "Droits d'accès — administrer",
   "backup:manage": "Sauvegardes de la base — gérer",
   "email:manage": "E-mails — SMTP & modèles de relance",
+  "accounting:read": "Comptabilité — consulter",
+  "accounting:write": "Comptabilité — gérer",
+  "accounting:import": "Comptabilité — importer",
+  "transmission:create": "Transmissions — soumettre",
+  "transmission:manage": "Transmissions — traiter",
   "audit:read": "Journal d'audit — consulter",
 };
 

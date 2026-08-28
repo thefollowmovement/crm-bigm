@@ -6,11 +6,12 @@ import type { SessionUser } from "@/lib/auth/session";
 import { getAgenda, hasAgendaAccess } from "@/services/agenda.service";
 import { resetDb } from "./setup/reset-db";
 import {
+  createTestAcctInvoice,
+  createTestAcctStructure,
   createTestActionPlan,
   createTestContract,
   createTestEmployee,
   createTestFranchisee,
-  createTestInvoice,
   createTestStore,
   createTestTraining,
   createTestUser,
@@ -57,14 +58,23 @@ describe("agenda du tableau de bord", () => {
       status: "PLANIFIEE",
     });
     await createTestContract(mine.id, { endDate: "2026-09-15" });
-    await createTestInvoice(other.id, { dueDate: "2026-09-20", status: "EMISE" });
+    // Échéances du journal comptable (étape 52) — visibles de la compta et
+    // de la direction uniquement.
+    const structure = await createTestAcctStructure({ storeId: other.id });
+    await createTestAcctInvoice(structure.id, {
+      dueDate: "2026-09-20",
+      status: "EN_ATTENTE",
+    });
     await createTestActionPlan(mine.id, {
       dueDate: "2026-09-10",
       status: "A_FAIRE",
     });
     // Hors période ou statut clos : ignorés.
     await createTestVisit(other.id, { visitDate: "2026-10-15" });
-    await createTestInvoice(other.id, { dueDate: "2026-09-25", status: "PAYEE" });
+    await createTestAcctInvoice(structure.id, {
+      dueDate: "2026-09-25",
+      status: "PAYEE",
+    });
     // Congé validé à cheval sur le début de la période.
     const emp = await createTestEmployee({ storeId: mine.id });
     await db.insert(leaveRequests).values({
@@ -87,8 +97,11 @@ describe("agenda du tableau de bord", () => {
     ]);
     expect(all[0].date).toBe("2026-09-01");
     expect(all[1].link).toContain("/animation/visites/");
+    expect(all.find((e) => e.type === "FACTURE")!.link).toContain(
+      "/compta/factures"
+    );
 
-    // Animateur : ni finances ni RH.
+    // Animateur : ni journal comptable ni RH.
     expect((await getAgenda(animateur, range)).map((e) => e.type)).toEqual([
       "VISITE",
       "FORMATION",

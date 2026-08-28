@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { depots, dpsPurchases, revenueEntries, stores } from "@/db/schema";
+import { depots, dpsPurchases, stores } from "@/db/schema";
 import { auditAggregate, auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import {
   accessibleStoreIds,
@@ -12,7 +12,9 @@ import {
   assertStoreAccess,
 } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
-import { toCents } from "@/lib/money";
+import { monthEndIso } from "@/lib/dates";
+import { fromCents, toCents } from "@/lib/money";
+import { sumStoreRevenueByMonth } from "@/services/acct-analytics.service";
 import type { ParsedPurchaseRow } from "@/lib/csv/purchase-import";
 
 // Achats DPS (cdc §4) : montants, fréquence, évolution et comparaison au CA.
@@ -220,7 +222,7 @@ export async function getStorePurchases(
     where: and(
       eq(dpsPurchases.storeId, storeId),
       gte(dpsPurchases.date, `${month}-01`),
-      lte(dpsPurchases.date, `${month}-31`)
+      lte(dpsPurchases.date, monthEndIso(month))
     ),
     orderBy: [desc(dpsPurchases.date)],
     with: { depot: { columns: { code: true, name: true } } },
@@ -234,7 +236,7 @@ export async function getStorePurchases(
       and(
         eq(dpsPurchases.storeId, storeId),
         gte(dpsPurchases.date, `${month}-01`),
-        lte(dpsPurchases.date, `${month}-31`)
+        lte(dpsPurchases.date, monthEndIso(month))
       )
     );
   return { rows, total: total.amount };
@@ -247,7 +249,9 @@ export type PurchasesVsRevenueRow = {
   ratioPct: string | null; // achats / CA en %, 1 décimale
 };
 
-// Achats vs CA par mois (cdc §4 : montants, évolution, comparaison au CA).
+// Achats vs CA par mois (cdc §4). Depuis l'étape 52, le CA vient du journal
+// comptable : classe 7 HT des structures rattachées aux boutiques
+// (acctStructures.storeId) — une boutique sans structure liée a un CA nul.
 export async function getPurchasesVsRevenue(
   actor: SessionUser,
   filter: { from: string; to: string; storeId?: string; region?: string }
@@ -262,25 +266,17 @@ export async function getPurchasesVsRevenue(
     gte(dpsPurchases.date, filter.from),
     lte(dpsPurchases.date, filter.to),
   ];
-  const revenueConditions: SQL[] = [
-    gte(revenueEntries.date, filter.from),
-    lte(revenueEntries.date, filter.to),
-  ];
   if (filter.storeId) {
     purchaseConditions.push(eq(dpsPurchases.storeId, filter.storeId));
-    revenueConditions.push(eq(revenueEntries.storeId, filter.storeId));
   }
   if (filter.region) {
     purchaseConditions.push(eq(stores.region, filter.region));
-    revenueConditions.push(eq(stores.region, filter.region));
   }
   if (scoped !== null) {
     purchaseConditions.push(inArray(dpsPurchases.storeId, scoped));
-    revenueConditions.push(inArray(revenueEntries.storeId, scoped));
   }
 
   const purchaseBucket = sql<string>`to_char(date_trunc('month', ${dpsPurchases.date}), 'YYYY-MM')`;
-  const revenueBucket = sql<string>`to_char(date_trunc('month', ${revenueEntries.date}), 'YYYY-MM')`;
 
   const [purchaseRows, revenueRows] = await Promise.all([
     db
@@ -292,24 +288,29 @@ export async function getPurchasesVsRevenue(
       .innerJoin(stores, eq(dpsPurchases.storeId, stores.id))
       .where(and(...purchaseConditions))
       .groupBy(purchaseBucket),
-    db
-      .select({
-        period: revenueBucket,
-        total: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::text`,
-      })
-      .from(revenueEntries)
-      .innerJoin(stores, eq(revenueEntries.storeId, stores.id))
-      .where(and(...revenueConditions))
-      .groupBy(revenueBucket),
+    sumStoreRevenueByMonth({
+      from: filter.from,
+      to: filter.to,
+      storeId: filter.storeId ?? null,
+      storeIds: scoped,
+      region: filter.region ?? null,
+    }),
   ]);
 
   const purchasesByMonth = new Map(purchaseRows.map((r) => [r.period, r.total]));
-  const revenueByMonth = new Map(revenueRows.map((r) => [r.period, r.total]));
+  const revenueByMonth = new Map<string, number>();
+  for (const row of revenueRows) {
+    revenueByMonth.set(
+      row.month,
+      (revenueByMonth.get(row.month) ?? 0) + toCents(row.revenueHT)
+    );
+  }
   const months = [...new Set([...purchasesByMonth.keys(), ...revenueByMonth.keys()])].sort();
 
   return months.map((period) => {
     const purchases = purchasesByMonth.get(period) ?? "0";
-    const revenue = revenueByMonth.get(period) ?? "0";
+    const revenueCents = revenueByMonth.get(period) ?? 0;
+    const revenue = fromCents(revenueCents);
     return {
       period,
       purchases,

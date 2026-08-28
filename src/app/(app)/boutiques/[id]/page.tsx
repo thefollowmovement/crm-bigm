@@ -14,13 +14,14 @@ import { getStore } from "@/services/stores.service";
 import { getProjectForStore } from "@/services/openings.service";
 import { listStoreContracts } from "@/services/contracts.service";
 import { listExchanges } from "@/services/exchanges.service";
-import { isOverdue, listStoreInvoices } from "@/services/invoices.service";
-import { getStoreMonth } from "@/services/revenue.service";
-import { REVENUE_CHANNEL_LABELS } from "@/lib/labels";
+import { listInvoicesForStore } from "@/services/acct-invoices.service";
 import { formatEUR } from "@/lib/money";
 import { todayParis } from "@/lib/dates";
-import { INVOICE_STATUS_LABELS, INVOICE_TYPE_LABELS } from "@/lib/labels";
-import { invoiceStatusVariant } from "@/app/(app)/finances/status-variant";
+import {
+  ACCT_CLASS_LABELS,
+  ACCT_INVOICE_STATUS_LABELS,
+  ACCT_PIECE_TYPE_LABELS,
+} from "@/lib/labels";
 import { EXCHANGE_STATUS_LABELS, EXCHANGE_TYPE_LABELS } from "@/lib/labels";
 import { exchangeStatusVariant } from "@/app/(app)/echanges/status-variant";
 import { NewExchangeDialog } from "@/app/(app)/echanges/new-exchange-dialog";
@@ -162,11 +163,8 @@ export default async function FicheBoutiquePage({
           {can(user, "exchange:read") ? (
             <TabsTrigger value="echanges">Échanges</TabsTrigger>
           ) : null}
-          {can(user, "finance:read") ? (
-            <TabsTrigger value="finances">Finances</TabsTrigger>
-          ) : null}
-          {can(user, "revenue:read") ? (
-            <TabsTrigger value="ca">CA</TabsTrigger>
+          {can(user, "accounting:read") ? (
+            <TabsTrigger value="compta">Comptabilité</TabsTrigger>
           ) : null}
           {can(user, "actionplan:read") ? (
             <TabsTrigger value="animation">Animation</TabsTrigger>
@@ -300,15 +298,9 @@ export default async function FicheBoutiquePage({
           </TabsContent>
         ) : null}
 
-        {can(user, "finance:read") ? (
-          <TabsContent value="finances">
-            <StoreInvoicesTab user={user} storeId={store.id} />
-          </TabsContent>
-        ) : null}
-
-        {can(user, "revenue:read") ? (
-          <TabsContent value="ca">
-            <StoreRevenueTab user={user} storeId={store.id} />
+        {can(user, "accounting:read") ? (
+          <TabsContent value="compta">
+            <StoreJournalTab user={user} storeId={store.id} />
           </TabsContent>
         ) : null}
 
@@ -464,91 +456,64 @@ async function StoreExchangesTab({
   );
 }
 
-async function StoreInvoicesTab({
+// Pièces du journal comptable des structures rattachées à la boutique
+// (étape 52 — remplace les anciens onglets Finances et CA).
+async function StoreJournalTab({
   user,
   storeId,
 }: {
   user: Awaited<ReturnType<typeof requireUser>>;
   storeId: string;
 }) {
-  const rows = await listStoreInvoices(user, storeId);
+  const rows = await listInvoicesForStore(user, storeId);
   const today = todayParis();
+  const STATUS_BADGES: Record<string, "success" | "secondary" | "destructive" | "outline"> = {
+    PAYEE: "success",
+    EN_ATTENTE: "secondary",
+    EN_RETARD: "destructive",
+    IMPAYEE: "destructive",
+    ANNULEE: "outline",
+  };
   return rows.length === 0 ? (
     <p className="py-8 text-center text-sm text-muted-foreground">
-      Aucune facture pour cette boutique.
+      Aucune pièce du journal pour cette boutique — rattachez sa structure
+      comptable (fiche client comptable → champ « Boutique liée »).
     </p>
   ) : (
     <ul className="space-y-2" data-testid="store-invoices">
-      {rows.map((invoice) => (
-        <li
-          key={invoice.id}
-          className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 text-sm"
-        >
-          <Link
-            href={`/finances/${invoice.id}`}
-            className="font-medium text-brand hover:underline"
+      {rows.map((invoice) => {
+        const overdue =
+          invoice.dueDate !== null &&
+          invoice.dueDate < today &&
+          (invoice.status === "EN_ATTENTE" ||
+            invoice.status === "EN_RETARD" ||
+            invoice.status === "IMPAYEE");
+        return (
+          <li
+            key={invoice.id}
+            className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3 text-sm"
           >
-            {invoice.number}
-          </Link>
-          <span className="text-muted-foreground">
-            {INVOICE_TYPE_LABELS[invoice.type]}
-            {invoice.label ? ` — ${invoice.label}` : ""}
-          </span>
-          <Badge variant={invoiceStatusVariant(invoice.status)}>
-            {INVOICE_STATUS_LABELS[invoice.status]}
-          </Badge>
-          {isOverdue(invoice, today) ? (
-            <Badge variant="destructive">En retard</Badge>
-          ) : null}
-          <span className="ml-auto font-medium">{formatEUR(invoice.amountTTC)}</span>
-        </li>
-      ))}
+            <Link
+              href={`/compta/structures/${invoice.structure.id}`}
+              className="font-mono font-medium text-brand hover:underline"
+            >
+              {invoice.pieceNumber}
+            </Link>
+            <span className="text-muted-foreground">
+              {ACCT_PIECE_TYPE_LABELS[invoice.pieceType]} ·{" "}
+              {ACCT_CLASS_LABELS[invoice.accountClass]}
+            </span>
+            <Badge variant={STATUS_BADGES[invoice.status] ?? "secondary"}>
+              {ACCT_INVOICE_STATUS_LABELS[invoice.status]}
+            </Badge>
+            {overdue ? <Badge variant="destructive">Échéance dépassée</Badge> : null}
+            <span className="ml-auto font-medium">
+              {formatEUR(invoice.amountTTC)}
+            </span>
+          </li>
+        );
+      })}
     </ul>
-  );
-}
-
-async function StoreRevenueTab({
-  user,
-  storeId,
-}: {
-  user: Awaited<ReturnType<typeof requireUser>>;
-  storeId: string;
-}) {
-  const month = todayParis().slice(0, 7);
-  const data = await getStoreMonth(user, storeId, month);
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Mois en cours ({month}) — total :{" "}
-          <span className="font-semibold text-foreground">
-            {formatEUR(data.grandTotal)}
-          </span>
-        </p>
-        <Link
-          href={`/ca?boutique=${storeId}`}
-          className="text-sm text-brand hover:underline"
-        >
-          Saisie et historique complet →
-        </Link>
-      </div>
-      {data.totals.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          Aucune donnée ce mois-ci.
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-3">
-          {data.totals.map((t) => (
-            <div key={t.channel} className="rounded-lg border bg-card p-3 text-sm">
-              <div className="text-xs text-muted-foreground">
-                {REVENUE_CHANNEL_LABELS[t.channel]}
-              </div>
-              <div className="font-semibold">{formatEUR(t.gross)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 

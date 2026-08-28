@@ -1,6 +1,5 @@
 import {
   ArrowLeftRight,
-  Banknote,
   Bell,
   Calculator,
   Receipt,
@@ -21,7 +20,6 @@ import {
   MonitorSmartphone,
   Rocket,
   ShoppingCart,
-  ChartLine,
   ClipboardCheck,
   Contact,
   FileText,
@@ -147,10 +145,10 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: "Finances",
+    // L'ancien module Finances (factures F-XXXX + CA par canal) a été
+    // remplacé par la Comptabilité (journal des pièces) à l'étape 52.
+    title: "Achats & Food Cost",
     items: [
-      { href: "/finances", label: "Factures & impayés", icon: Banknote, permission: "finance:read" },
-      { href: "/ca", label: "Chiffre d'affaires", icon: ChartLine, permission: "revenue:read" },
       { href: "/achats", label: "Achats DPS", icon: ShoppingCart, permission: "purchase:read" },
       { href: "/foodcost", label: "Food Cost", icon: ChefHat, permission: "foodcost:read" },
     ],

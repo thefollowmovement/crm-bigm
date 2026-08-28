@@ -17,7 +17,9 @@ import {
   type ParsedInvoiceRow,
 } from "@/lib/import/invoices-import";
 import { readTabularFile } from "@/lib/import/tabular";
-import { fromCents, toCents } from "@/lib/money";
+import { formatDateFr } from "@/lib/dates";
+import { formatEUR, fromCents, toCents } from "@/lib/money";
+import { sendReminderEmail } from "@/services/email.service";
 import type { SessionUser } from "@/lib/auth/session";
 
 export type AcctInvoice = typeof acctInvoices.$inferSelect;
@@ -68,7 +70,8 @@ export async function listInvoices(
     orderBy: [desc(acctInvoices.pieceDate), desc(acctInvoices.pieceNumber)],
     limit,
     with: {
-      structure: { columns: { id: true, code: true, name: true } },
+      // email : destinataire des relances (étape 52).
+      structure: { columns: { id: true, code: true, name: true, email: true } },
     },
   });
 
@@ -93,6 +96,81 @@ export async function listInvoices(
     ...invoice,
     attachments: byInvoice.get(invoice.id) ?? [],
   }));
+}
+
+// Pièces du journal rattachées à une boutique du réseau, via les structures
+// liées (acctStructures.storeId) — onglet Comptabilité de la fiche boutique.
+export async function listInvoicesForStore(
+  actor: SessionUser,
+  storeId: string,
+  limit = 100
+) {
+  assertCan(actor, "accounting:read");
+  const linked = await db.query.acctStructures.findMany({
+    where: eq(acctStructures.storeId, storeId),
+    columns: { id: true },
+  });
+  if (linked.length === 0) return [];
+  return db.query.acctInvoices.findMany({
+    where: inArray(
+      acctInvoices.structureId,
+      linked.map((s) => s.id)
+    ),
+    orderBy: [desc(acctInvoices.pieceDate), desc(acctInvoices.pieceNumber)],
+    limit,
+    with: { structure: { columns: { id: true, code: true, name: true } } },
+  });
+}
+
+// Relance par e-mail d'une pièce non soldée (étape 52) : réutilise les
+// modèles de relance niveaux 1-3 de l'étape 43. L'envoi précède la trace :
+// pas d'e-mail parti → rien n'est enregistré.
+export async function sendInvoiceReminder(
+  actor: SessionUser,
+  invoiceId: string,
+  level: number
+) {
+  assertCan(actor, "accounting:write");
+  if (!Number.isInteger(level) || level < 1 || level > 3) {
+    throw new Error("Le niveau de relance doit être compris entre 1 et 3.");
+  }
+  const invoice = await db.query.acctInvoices.findFirst({
+    where: eq(acctInvoices.id, invoiceId),
+    with: { structure: true },
+  });
+  if (!invoice) throw new Error("Pièce introuvable.");
+  if (!["EN_ATTENTE", "EN_RETARD", "IMPAYEE"].includes(invoice.status)) {
+    throw new Error("Seule une pièce non soldée peut être relancée.");
+  }
+  if (invoice.lastReminderLevel !== null && level < invoice.lastReminderLevel) {
+    throw new Error(
+      `Le niveau de relance ne peut pas régresser (dernier niveau envoyé : ${invoice.lastReminderLevel}).`
+    );
+  }
+  const to = invoice.structure.email;
+  if (!to) {
+    throw new Error(
+      "Cette structure n'a pas d'adresse e-mail : complétez sa fiche avant de relancer."
+    );
+  }
+  await sendReminderEmail({
+    level,
+    to,
+    variables: {
+      contact_prenom: "",
+      contact_nom: invoice.structure.contactName ?? invoice.structure.name,
+      societe: invoice.structure.company ?? invoice.structure.name,
+      boutique: invoice.structure.code,
+      facture_numero: invoice.pieceNumber,
+      facture_montant: formatEUR(invoice.amountTTC),
+      facture_echeance: invoice.dueDate ? formatDateFr(invoice.dueDate) : "—",
+      niveau: String(level),
+    },
+  });
+  return auditedUpdate(actor, acctInvoices, invoiceId, {
+    lastReminderLevel: level,
+    lastReminderAt: new Date(),
+  });
 }
 
 // PJ d'une pièce du journal (facture scannée, justificatif…) — étape 51.

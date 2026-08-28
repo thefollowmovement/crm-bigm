@@ -13,7 +13,7 @@ import {
   getNetworkDashboard,
   getStoreDashboard,
 } from "@/services/dashboard.service";
-import { getSeries, listRegions } from "@/services/revenue-analytics.service";
+import { getMonthlyResults } from "@/services/acct-analytics.service";
 import { listStores } from "@/services/stores.service";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +28,7 @@ import {
 import { TimeSeriesChart } from "@/components/charts/charts";
 
 import { DashboardAgenda } from "./dashboard-agenda";
-import { RegionFilter, StoreFilter } from "./dashboard-filters";
+import { StoreFilter } from "./dashboard-filters";
 
 export const metadata: Metadata = { title: "Tableau de bord" };
 
@@ -68,24 +68,12 @@ function Kpi({
   );
 }
 
-async function MonthChart({
-  user,
-  storeId,
-  region,
-  title,
-}: {
-  user: SessionUser;
-  storeId?: string;
-  region?: string;
-  title: string;
-}) {
+// Évolution mensuelle du CA HT (classe 7 du journal comptable — étape 52).
+async function MonthChart({ user, title }: { user: SessionUser; title: string }) {
   const today = todayParis();
-  const series = await getSeries(user, {
-    granularity: "month",
+  const series = await getMonthlyResults(user, {
     from: `${addMonthsIso(today, -11).slice(0, 7)}-01`,
     to: today,
-    storeId,
-    region,
   });
   if (series.length === 0) return null;
   return (
@@ -95,8 +83,11 @@ async function MonthChart({
       </CardHeader>
       <CardContent>
         <TimeSeriesChart
-          data={series.map((p) => ({ label: formatMonthFr(p.period), gross: p.gross }))}
-          seriesLabel="CA brut"
+          data={series.map((p) => ({
+            label: formatMonthFr(p.month),
+            gross: p.revenueHT,
+          }))}
+          seriesLabel="CA HT"
           height={260}
           testId="dashboard-chart"
         />
@@ -131,7 +122,7 @@ export default async function DashboardPage({
       ) : user.role === "SALARIE" ? (
         <SalarieDashboard />
       ) : (
-        <NetworkDashboard user={user} params={params} />
+        <NetworkDashboard user={user} />
       )}
     </div>
   );
@@ -192,32 +183,31 @@ async function FranchiseDashboard({
         />
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
-          label={`CA ${formatMonthFr(`${data.month}`)}`}
-          value={formatEUR(data.revenue.current)}
-          extra={<DeltaBadge delta={data.revenue.deltaPct} />}
-          testId="kpi-revenue"
-        />
-        <Kpi
-          label="Panier moyen"
-          value={data.averageBasket ? formatEUR(data.averageBasket) : "—"}
-          extra={
-            data.orderTotal > 0 ? (
-              <span className="text-xs text-muted-foreground">
-                {data.orderTotal} commandes
-              </span>
-            ) : null
-          }
-        />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {data.plans ? (
           <Kpi
             label="Plans d'action ouverts"
             value={data.plans.open}
+            testId="kpi-plans"
             extra={
               data.plans.late > 0 ? (
                 <Badge variant="destructive">{data.plans.late} en retard</Badge>
               ) : null
+            }
+          />
+        ) : null}
+        {data.lastAudit ? (
+          <Kpi
+            label="Dernier audit"
+            value={
+              data.lastAudit.scorePct !== null
+                ? `${String(data.lastAudit.scorePct).replace(".", ",")} %`
+                : "—"
+            }
+            extra={
+              <span className="text-xs text-muted-foreground">
+                le {formatDateFr(data.lastAudit.visitDate)}
+              </span>
             }
           />
         ) : null}
@@ -234,12 +224,6 @@ async function FranchiseDashboard({
           }
         />
       </div>
-
-      <MonthChart
-        user={user}
-        storeId={storeId}
-        title={`Évolution du CA — ${store.code}`}
-      />
 
       <DashboardAgenda user={user} />
     </div>
@@ -285,7 +269,7 @@ async function AnimateurDashboard({ user }: { user: SessionUser }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Mes boutiques — CA {formatMonthFr(data.month)}</CardTitle>
+          <CardTitle>Mes boutiques</CardTitle>
         </CardHeader>
         <CardContent>
           {data.stores.length === 0 ? (
@@ -298,7 +282,6 @@ async function AnimateurDashboard({ user }: { user: SessionUser }) {
                 <TableRow>
                   <TableHead>Boutique</TableHead>
                   <TableHead>Ville</TableHead>
-                  <TableHead className="text-right">CA du mois</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -315,9 +298,6 @@ async function AnimateurDashboard({ user }: { user: SessionUser }) {
                     <TableCell className="text-muted-foreground">
                       {store.city ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatEUR(store.monthGross)}
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -326,43 +306,26 @@ async function AnimateurDashboard({ user }: { user: SessionUser }) {
         </CardContent>
       </Card>
 
-      <MonthChart user={user} title="Évolution du CA réseau" />
-
       <DashboardAgenda user={user} />
     </div>
   );
 }
 
-// ── Vue Réseau / Région (direction et rôles siège) ───────────────
+// ── Vue Réseau (direction et rôles siège) ────────────────────────
 
-async function NetworkDashboard({
-  user,
-  params,
-}: {
-  user: SessionUser;
-  params: Params;
-}) {
-  const canRevenue = can(user, "revenue:read");
-  const regions = canRevenue ? await listRegions(user) : [];
-  const region =
-    typeof params.region === "string" && regions.includes(params.region)
-      ? params.region
-      : undefined;
-  const data = await getNetworkDashboard(user, { region });
+async function NetworkDashboard({ user }: { user: SessionUser }) {
+  const data = await getNetworkDashboard(user);
   if (!data) return null;
 
   const today = todayParis();
+  const canAccounting = can(user, "accounting:read");
 
   return (
     <div className="space-y-6" data-testid="network-dashboard">
-      {regions.length > 0 ? (
-        <RegionFilter regions={regions} current={region ?? ""} />
-      ) : null}
-
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {data.revenue ? (
           <Kpi
-            label={`CA ${region ?? "réseau"} — ${formatMonthFr(data.month)}`}
+            label={`CA HT — ${formatMonthFr(data.month)}`}
             value={formatEUR(data.revenue.current)}
             extra={<DeltaBadge delta={data.revenue.deltaPct} />}
             testId="kpi-revenue"
@@ -370,13 +333,13 @@ async function NetworkDashboard({
         ) : null}
         {data.unpaid ? (
           <Kpi
-            label="Impayés (échéance dépassée)"
+            label="Restant dû (journal)"
             value={formatEUR(data.unpaid.totalTTC)}
             extra={
               <span className="text-xs text-muted-foreground">
-                {data.unpaid.count} facture{data.unpaid.count > 1 ? "s" : ""} —{" "}
+                {data.unpaid.count} pièce{data.unpaid.count > 1 ? "s" : ""} —{" "}
                 <Link
-                  href="/finances"
+                  href="/compta/factures"
                   className="font-medium underline-offset-2 hover:underline"
                 >
                   voir
@@ -414,11 +377,11 @@ async function NetworkDashboard({
         ) : null}
       </div>
 
-      {canRevenue ? (
+      {canAccounting && data.topStores.length > 0 ? (
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Meilleures boutiques du mois</CardTitle>
+              <CardTitle>Meilleures boutiques du mois (CA facturé)</CardTitle>
             </CardHeader>
             <CardContent>
               <RankingTable rows={data.topStores} testId="top-stores" />
@@ -435,12 +398,8 @@ async function NetworkDashboard({
         </div>
       ) : null}
 
-      {canRevenue ? (
-        <MonthChart
-          user={user}
-          region={region}
-          title={`Évolution du CA ${region ?? "réseau"}`}
-        />
+      {canAccounting ? (
+        <MonthChart user={user} title="Évolution du CA (journal comptable)" />
       ) : null}
 
       <DashboardAgenda user={user} />

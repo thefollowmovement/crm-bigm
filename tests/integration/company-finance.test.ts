@@ -121,6 +121,6 @@ describe("finances Big M CIE", () => {
         invoiceId: "00000000-0000-0000-0000-000000000000",
         partnerId: null,
       })
-    ).rejects.toThrow(/Facture introuvable/);
+    ).rejects.toThrow(/Pièce comptable introuvable/);
   });
 });

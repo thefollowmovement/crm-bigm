@@ -45,7 +45,7 @@ test("direction : paramètres SMTP, modèle de relance et aperçu avec variables
   await expect(page.getByText("Sujet : Rappel F2026-0042")).toBeVisible();
 });
 
-test("page réservée ; case « envoyer l'e-mail » sur la relance de facture", async ({
+test("page réservée ; relance e-mail sur une pièce du journal (étape 52)", async ({
   page,
 }) => {
   // La compta n'a pas email:manage : page refusée, entrée de menu absente.
@@ -54,12 +54,12 @@ test("page réservée ; case « envoyer l'e-mail » sur la relance de facture", 
   await page.goto("/hq-18b8ba/emails");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 
-  // Mais elle voit la case d'envoi automatique dans le dialogue de relance
-  // (canal E-mail par défaut) — décochée, l'enregistrement reste inchangé.
-  await page.goto("/finances");
-  // La facture impayée du seed (F<année>-9002) — la payée n'a pas de bouton
-  // « Relancer ».
-  await page.getByRole("link", { name: /^F\d{4}-9002$/ }).click();
-  await page.getByTestId("add-reminder-button").click();
-  await expect(page.getByTestId("reminder-send-email")).toBeVisible();
+  // Mais elle relance les pièces non soldées du journal : la pièce impayée du
+  // seed (FA-DEMO-1002) porte un bouton de relance, la payée (FA-DEMO-1001)
+  // n'en a pas.
+  await page.goto("/compta/factures");
+  await expect(page.getByTestId("remind-invoice-FA-DEMO-1001")).toHaveCount(0);
+  await page.getByTestId("remind-invoice-FA-DEMO-1002").click();
+  await expect(page.getByTestId("reminder-level")).toBeVisible();
+  await expect(page.getByTestId("reminder-send")).toBeEnabled();
 });

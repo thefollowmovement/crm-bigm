@@ -16,7 +16,8 @@ import { getDirectionCockpit } from "@/services/dashboard.service";
 import { runPurchaseAnomalyJob } from "@/lib/jobs/purchase-anomaly";
 import { resetDb } from "./setup/reset-db";
 import {
-  createRevenueEntry,
+  createTestAcctInvoice,
+  createTestAcctStructure,
   createTestDepot,
   createTestProduct,
   createTestProductSale,
@@ -106,7 +107,8 @@ describe("écart matière & cockpit direction", () => {
       await createTestUser({ role: "DIRECTION", pole: "DIRECTION" })
     );
     const store = await createTestStore();
-    await createRevenueEntry(store.id, { grossAmount: "1234.56" });
+    const structure = await createTestAcctStructure({ storeId: store.id });
+    await createTestAcctInvoice(structure.id, { amountHT: "1234.56" });
 
     const cockpit = await getDirectionCockpit(direction);
     expect(cockpit.revenue.current).toBeDefined();
@@ -131,7 +133,12 @@ describe("écart matière & cockpit direction", () => {
     const now = new Date();
     const prev = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15));
     const prevDate = prev.toISOString().slice(0, 10);
-    await createRevenueEntry(store.id, { date: prevDate, grossAmount: "1000.00" });
+    const anomalyStructure = await createTestAcctStructure({ storeId: store.id });
+    await createTestAcctInvoice(anomalyStructure.id, {
+      pieceDate: prevDate,
+      amountHT: "1000.00",
+      amountTTC: "1200.00",
+    });
     await createTestPurchase(store.id, { date: prevDate, amount: "600.00" });
 
     const first = await runPurchaseAnomalyJob();

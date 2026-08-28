@@ -36,31 +36,31 @@ test("l'admin accorde un droit hors matrice, puis le retire", async ({ page }) =
   await login(page, ACCOUNTS.admin);
   await page.goto("/hq-18b8ba/permissions");
 
-  // Accorde « Factures & impayés — consulter » à la COMMUNICATION.
-  await page.getByTestId("perm-COMMUNICATION-finance:read").click();
+  // Accorde « Comptabilité — consulter » à la COMMUNICATION.
+  await page.getByTestId("perm-COMMUNICATION-accounting:read").click();
   await expect(page.getByText("Droits mis à jour.").first()).toBeVisible();
 
   await login(page, ACCOUNTS.communication);
-  await page.goto("/finances");
+  await page.goto("/compta/structures");
   await expect(page.getByTestId("access-denied")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
   // Retour au défaut : l'accès disparaît.
   await login(page, ACCOUNTS.admin);
   await page.goto("/hq-18b8ba/permissions");
-  await page.getByTestId("perm-COMMUNICATION-finance:read").click();
+  await page.getByTestId("perm-COMMUNICATION-accounting:read").click();
   await expect(page.getByText("Droits mis à jour.").first()).toBeVisible();
 
   await login(page, ACCOUNTS.communication);
-  await page.goto("/finances");
+  await page.goto("/compta/structures");
   await expect(page.getByTestId("access-denied")).toBeVisible();
 });
 
 test("rôle personnalisé : création, droits ajustés, assignation à un utilisateur", async ({
   page,
 }) => {
-  // 1. L'admin crée un rôle basé sur RH, retire l'écriture RH, accorde les
-  //    finances en lecture.
+  // 1. L'admin crée un rôle basé sur RH, retire l'écriture RH, accorde la
+  //    comptabilité en lecture.
   await login(page, ACCOUNTS.admin);
   await page.goto("/hq-18b8ba/permissions");
   await page.getByTestId("new-custom-role-button").click();
@@ -76,9 +76,9 @@ test("rôle personnalisé : création, droits ajustés, assignation à un utilis
   await expect(
     page.getByTestId("perm-Manager RH junior-hr:write")
   ).toHaveAttribute("aria-checked", "false");
-  await page.getByTestId("perm-Manager RH junior-finance:read").click();
+  await page.getByTestId("perm-Manager RH junior-accounting:read").click();
   await expect(
-    page.getByTestId("perm-Manager RH junior-finance:read")
+    page.getByTestId("perm-Manager RH junior-accounting:read")
   ).toHaveAttribute("aria-checked", "true");
 
   // 2. Création d'un utilisateur portant ce rôle.
@@ -96,12 +96,12 @@ test("rôle personnalisé : création, droits ajustés, assignation à un utilis
     "Manager RH junior"
   );
 
-  // 3. Le compte hérite de RH… ajusté : lecture RH sans écriture, finances OK.
+  // 3. Le compte hérite de RH… ajusté : lecture RH sans écriture, compta OK.
   await login(page, { email: "junior.rh@bigm.fr", password: "MdpJunior!2026" });
   await page.goto("/rh/salaries");
   await expect(page.getByTestId("employees-table")).toBeVisible();
   await expect(page.getByTestId("new-employee-button")).toHaveCount(0);
-  await page.goto("/finances");
+  await page.goto("/compta/structures");
   await expect(page.getByTestId("access-denied")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });

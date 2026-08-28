@@ -12,7 +12,7 @@ import {
   getYearSummary,
   listFlows,
 } from "@/services/company-finance.service";
-import { listInvoices } from "@/services/invoices.service";
+import { listInvoices } from "@/services/acct-invoices.service";
 import { listPartners } from "@/services/partners.service";
 import { AccessDenied } from "@/components/access-denied";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +71,7 @@ export default async function CompanyFinancePage({
       listFlows(user, { year, month }),
       getYearSummary(user, year),
       getExpenseBreakdown(user, year),
-      can(user, "finance:read") ? listInvoices(user, {}) : Promise.resolve([]),
+      can(user, "accounting:read") ? listInvoices(user, {}) : Promise.resolve([]),
       can(user, "partner:read") ? listPartners(user) : Promise.resolve([]),
     ]);
 
@@ -90,7 +90,7 @@ export default async function CompanyFinancePage({
         {canWrite ? (
           <AddFlowDialog
             today={today}
-            invoices={invoices.map((i) => ({ id: i.id, label: i.number }))}
+            invoices={invoices.map((i) => ({ id: i.id, label: i.pieceNumber }))}
             partners={partners.map((p) => ({ id: p.id, label: p.companyName }))}
           />
         ) : null}
@@ -217,7 +217,7 @@ export default async function CompanyFinancePage({
                           {formatEUR(flow.amount)}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {flow.invoice?.number ?? flow.partner?.companyName ?? "—"}
+                          {flow.invoice?.pieceNumber ?? flow.partner?.companyName ?? "—"}
                         </TableCell>
                         {canWrite ? (
                           <TableCell>

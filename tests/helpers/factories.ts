@@ -2,6 +2,8 @@
 // défaut, surchargées librement par chaque test.
 import { db } from "@/lib/db/client";
 import {
+  acctInvoices,
+  acctStructures,
   actionPlans,
   auditCriteria,
   contracts,
@@ -9,12 +11,10 @@ import {
   dpsPurchases,
   employees,
   franchisees,
-  invoices,
   productFamilies,
   products,
   productSales,
   fileAttachments,
-  revenueEntries,
   storeVisits,
   stores,
   trainings,
@@ -103,26 +103,48 @@ export async function createTestContract(
   return contract;
 }
 
-type RevenueEntryOverrides = Partial<typeof revenueEntries.$inferInsert>;
+type AcctStructureOverrides = Partial<typeof acctStructures.$inferInsert>;
 
-export async function createRevenueEntry(
-  storeId: string,
-  overrides: RevenueEntryOverrides = {}
+// Structure comptable (étape 52) — le CA des tests passe par le journal.
+export async function createTestAcctStructure(
+  overrides: AcctStructureOverrides = {}
 ) {
-  const enteredById = overrides.enteredById ?? (await createTestUser()).id;
-  const [entry] = await db
-    .insert(revenueEntries)
+  const n = nextId();
+  const [structure] = await db
+    .insert(acctStructures)
     .values({
-      storeId,
-      date: "2026-08-01",
-      channel: "SUR_PLACE",
-      grossAmount: "100.00",
-      source: "SAISIE",
+      code: `411T${String(n).padStart(4, "0")}`,
+      name: `Structure Test ${n}`,
+      type: "BOUTIQUE",
       ...overrides,
-      enteredById,
     })
     .returning();
-  return entry;
+  return structure;
+}
+
+type AcctInvoiceOverrides = Partial<typeof acctInvoices.$inferInsert>;
+
+// Pièce du journal comptable — classe 7 (CA) par défaut.
+export async function createTestAcctInvoice(
+  structureId: string,
+  overrides: AcctInvoiceOverrides = {}
+) {
+  const n = nextId();
+  const [invoice] = await db
+    .insert(acctInvoices)
+    .values({
+      pieceNumber: `FA-T${String(n).padStart(4, "0")}`,
+      pieceType: "FACTURE",
+      accountClass: "PRODUIT",
+      pieceDate: "2026-08-01",
+      structureId,
+      amountHT: "100.00",
+      amountVAT: "20.00",
+      amountTTC: "120.00",
+      ...overrides,
+    })
+    .returning();
+  return invoice;
 }
 
 type FamilyOverrides = Partial<typeof productFamilies.$inferInsert>;
@@ -302,30 +324,6 @@ export async function createTestFile(overrides: FileOverrides = {}) {
     })
     .returning();
   return file;
-}
-
-type InvoiceOverrides = Partial<typeof invoices.$inferInsert>;
-
-export async function createTestInvoice(
-  storeId: string,
-  overrides: InvoiceOverrides = {}
-) {
-  const n = nextId();
-  const [invoice] = await db
-    .insert(invoices)
-    .values({
-      number: `F-TEST-${String(n).padStart(4, "0")}`,
-      storeId,
-      type: "REDEVANCE",
-      amountHT: "1000.00",
-      vatRate: "20.00",
-      amountTTC: "1200.00",
-      issuedAt: "2026-01-05",
-      dueDate: "2026-02-05",
-      ...overrides,
-    })
-    .returning();
-  return invoice;
 }
 
 type EmployeeOverrides = Partial<typeof employees.$inferInsert>;

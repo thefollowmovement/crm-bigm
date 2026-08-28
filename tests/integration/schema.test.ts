@@ -2,9 +2,10 @@ import { beforeEach, afterAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { db, pool } from "@/lib/db/client";
-import { notifications, revenueEntries, sessions, stores, users } from "@/db/schema";
+import { acctInvoices, notifications, sessions, stores, users } from "@/db/schema";
 import { resetDb } from "./setup/reset-db";
 import {
+  createTestAcctStructure,
   createTestFranchisee,
   createTestStore,
   createTestUser,
@@ -29,22 +30,21 @@ describe("contraintes du schéma", () => {
     await expect(createTestUser({ email: "double@test.fr" })).rejects.toThrow();
   });
 
-  it("refuse deux lignes de CA pour la même boutique/date/canal", async () => {
-    const user = await createTestUser();
-    const store = await createTestStore();
-    const entry = {
-      storeId: store.id,
-      date: "2026-08-01",
-      channel: "SUR_PLACE" as const,
-      grossAmount: "1500.00",
-      enteredById: user.id,
+  it("refuse deux pièces comptables portant le même numéro", async () => {
+    const structure = await createTestAcctStructure();
+    const piece = {
+      pieceNumber: "FA-UNIQUE-1",
+      pieceType: "FACTURE" as const,
+      accountClass: "PRODUIT" as const,
+      pieceDate: "2026-08-01",
+      structureId: structure.id,
+      amountHT: "100.00",
+      amountTTC: "120.00",
     };
-    await db.insert(revenueEntries).values(entry);
-    await expect(db.insert(revenueEntries).values(entry)).rejects.toThrow();
-    // même boutique/date mais autre canal : accepté
-    await db
-      .insert(revenueEntries)
-      .values({ ...entry, channel: "EMPORTE" as const });
+    await db.insert(acctInvoices).values(piece);
+    await expect(db.insert(acctInvoices).values(piece)).rejects.toThrow();
+    // autre numéro : accepté
+    await db.insert(acctInvoices).values({ ...piece, pieceNumber: "FA-UNIQUE-2" });
   });
 
   it("supprime les sessions en cascade avec l'utilisateur", async () => {

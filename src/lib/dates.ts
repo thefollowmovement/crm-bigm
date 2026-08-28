@@ -25,6 +25,15 @@ export function addMonthsIso(iso: string, months: number): string {
   return `${String(targetYear).padStart(4, "0")}-${String(normalizedMonth + 1).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
 }
 
+// Dernier jour d'un mois "YYYY-MM" en ISO (étape 52) : « YYYY-MM-31 » est
+// une date invalide pour Postgres sur les mois courts — toujours passer par
+// cette borne réelle dans les BETWEEN sur colonnes date.
+export function monthEndIso(month: string): string {
+  const [year, m] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, m, 0)).getUTCDate();
+  return `${month}-${String(lastDay).padStart(2, "0")}`;
+}
+
 // Lundi de la semaine ISO contenant la date.
 export function startOfWeekIso(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);

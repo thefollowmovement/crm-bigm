@@ -41,6 +41,7 @@ import {
   EditInvoiceDialog,
   ImportInvoicesDialog,
   InvoiceAttachmentsDialog,
+  InvoiceReminderDialog,
 } from "./invoice-dialogs";
 
 export const metadata: Metadata = { title: "Journal factures" };
@@ -315,17 +316,31 @@ export default async function FacturesComptaPage({
                       </TableCell>
                       {canWrite ? (
                         <TableCell className="text-right">
-                          <EditInvoiceDialog
-                            invoice={{
-                              id: invoice.id,
-                              pieceNumber: invoice.pieceNumber,
-                              status: invoice.status,
-                              invoiceType: invoice.invoiceType,
-                              accountClass: invoice.accountClass,
-                              dueDate: invoice.dueDate,
-                              notes: invoice.notes,
-                            }}
-                          />
+                          <div className="flex items-center justify-end gap-1">
+                            {invoice.status === "EN_ATTENTE" ||
+                            invoice.status === "EN_RETARD" ||
+                            invoice.status === "IMPAYEE" ? (
+                              <InvoiceReminderDialog
+                                invoice={{
+                                  id: invoice.id,
+                                  pieceNumber: invoice.pieceNumber,
+                                  structureEmail: invoice.structure.email,
+                                  lastReminderLevel: invoice.lastReminderLevel,
+                                }}
+                              />
+                            ) : null}
+                            <EditInvoiceDialog
+                              invoice={{
+                                id: invoice.id,
+                                pieceNumber: invoice.pieceNumber,
+                                status: invoice.status,
+                                invoiceType: invoice.invoiceType,
+                                accountClass: invoice.accountClass,
+                                dueDate: invoice.dueDate,
+                                notes: invoice.notes,
+                              }}
+                            />
+                          </div>
                         </TableCell>
                       ) : null}
                     </TableRow>

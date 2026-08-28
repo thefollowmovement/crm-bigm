@@ -20,6 +20,7 @@ import {
   CreateProductDialog,
   ToggleActiveButton,
 } from "./product-dialogs";
+import { ProductCsvImportCard } from "./product-sales-components";
 
 export const metadata: Metadata = { title: "Produits & familles" };
 
@@ -144,6 +145,8 @@ export default async function ProduitsAdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      {can(user, "revenue:import") ? <ProductCsvImportCard /> : null}
     </div>
   );
 }

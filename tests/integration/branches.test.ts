@@ -11,7 +11,8 @@ import {
 } from "@/services/branches.service";
 import { resetDb } from "./setup/reset-db";
 import {
-  createRevenueEntry,
+  createTestAcctInvoice,
+  createTestAcctStructure,
   createTestPurchase,
   createTestStore,
   createTestUser,
@@ -44,14 +45,17 @@ describe("rentabilité des succursales", () => {
     );
     const branch = await createTestStore({ type: "SUCCURSALE" });
 
-    await createRevenueEntry(branch.id, {
-      date: "2026-08-05",
-      grossAmount: "8000.00",
+    // CA = journal comptable de la structure rattachée (étape 52).
+    const structure = await createTestAcctStructure({ storeId: branch.id });
+    await createTestAcctInvoice(structure.id, {
+      pieceDate: "2026-08-05",
+      amountHT: "8000.00",
+      amountTTC: "9600.00",
     });
-    await createRevenueEntry(branch.id, {
-      date: "2026-08-12",
-      channel: "EMPORTE",
-      grossAmount: "2000.00",
+    await createTestAcctInvoice(structure.id, {
+      pieceDate: "2026-08-12",
+      amountHT: "2000.00",
+      amountTTC: "2400.00",
     });
     await createTestPurchase(branch.id, { date: "2026-08-10", amount: "3000.50" });
     await addExpense(compta, {

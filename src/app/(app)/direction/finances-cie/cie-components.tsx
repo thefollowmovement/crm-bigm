@@ -158,7 +158,7 @@ export function AddFlowDialog({
               <Input id="flow-label" name="label" />
             </div>
             <div className="space-y-1.5">
-              <Label>Facture liée</Label>
+              <Label>Pièce comptable liée</Label>
               <Select name="invoiceId" defaultValue="none">
                 <SelectTrigger data-testid="flow-invoice-select">
                   <SelectValue />

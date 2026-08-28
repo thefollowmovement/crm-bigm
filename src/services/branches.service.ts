@@ -3,14 +3,17 @@ import "server-only";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { dpsPurchases, revenueEntries, storeExpenses, stores } from "@/db/schema";
+import { dpsPurchases, storeExpenses, stores } from "@/db/schema";
 import { auditedDelete, auditedInsert } from "@/lib/db/audited";
 import { assertCan } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
 import { fromCents, toCents } from "@/lib/money";
+import { sumStoreRevenueByMonth } from "@/services/acct-analytics.service";
 
 // Rentabilité des boutiques en propre (cdc §16) : le P&L mensuel se dérive
-// CA brut − achats DPS − dépenses par catégorie. Tout en centimes entiers.
+// CA − achats DPS − dépenses par catégorie. Tout en centimes entiers.
+// Depuis l'étape 52, le CA vient du journal comptable (classe 7 HT des
+// structures rattachées à la succursale via acctStructures.storeId).
 
 type ExpenseRow = typeof storeExpenses.$inferSelect;
 type ExpenseCategory = ExpenseRow["category"];
@@ -92,20 +95,9 @@ export async function getBranchPnL(
   const monthExpr = (col: unknown) => sql<string>`to_char(${col}, 'YYYY-MM')`;
 
   const [revenueRows, purchaseRows, expenseRows] = await Promise.all([
-    db
-      .select({
-        month: monthExpr(revenueEntries.date).as("month"),
-        total: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::numeric(12,2)::text`,
-      })
-      .from(revenueEntries)
-      .where(
-        and(
-          eq(revenueEntries.storeId, storeId),
-          gte(revenueEntries.date, from),
-          lte(revenueEntries.date, to)
-        )
-      )
-      .groupBy(sql`1`),
+    sumStoreRevenueByMonth({ from, to, storeId }).then((rows) =>
+      rows.map((r) => ({ month: r.month, total: r.revenueHT }))
+    ),
     db
       .select({
         month: monthExpr(dpsPurchases.date).as("month"),

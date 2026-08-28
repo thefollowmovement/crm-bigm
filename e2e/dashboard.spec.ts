@@ -2,29 +2,31 @@ import { expect, test } from "@playwright/test";
 
 import { ACCOUNTS, login } from "./fixtures/auth";
 
-test("la direction voit le dashboard réseau : KPI, classements, graphique, filtre région", async ({
+// Étape 52 : les blocs CA/impayés des dashboards viennent du journal
+// comptable (structures rattachées aux boutiques — seed FA-DEMO-*).
+
+test("la direction voit le dashboard réseau : CA du journal, impayés, classements", async ({
   page,
 }) => {
   await login(page, ACCOUNTS.direction);
   await expect(page.getByTestId("network-dashboard")).toBeVisible();
   await expect(page.getByTestId("kpi-revenue")).toBeVisible();
+  // Restant dû non nul : au moins FA-DEMO-1002 du seed (960,00 TTC en
+  // attente) — le montant exact dépend des pièces créées par d'autres specs.
+  await expect(page.getByTestId("kpi-unpaid")).toContainText("€");
+  await expect(page.getByTestId("kpi-unpaid")).toContainText(/pièce/);
   await expect(page.getByTestId("top-stores")).toContainText("BM-003");
   await expect(page.getByTestId("dashboard-chart")).toBeVisible();
-
-  // Filtre région : Île-de-France (BM-003) reste, la vue se recharge.
-  await page.getByTestId("dashboard-region-filter").click();
-  await page.getByRole("option", { name: "Île-de-France" }).click();
-  await expect(page.getByTestId("kpi-revenue")).toContainText("Île-de-France");
-  await expect(page.getByTestId("top-stores")).toContainText("BM-003");
 });
 
-test("le franchisé a une vue boutique scopée, sans blocs finances réseau", async ({
+test("le franchisé a une vue boutique scopée, sans aucune donnée comptable", async ({
   page,
 }) => {
   await login(page, ACCOUNTS.franchise);
   await expect(page.getByTestId("store-dashboard")).toBeVisible();
-  await expect(page.getByTestId("kpi-revenue")).toBeVisible();
+  await expect(page.getByTestId("kpi-plans")).toBeVisible();
   await expect(page.getByTestId("network-dashboard")).toHaveCount(0);
+  await expect(page.getByTestId("kpi-revenue")).toHaveCount(0);
   await expect(page.getByTestId("kpi-unpaid")).toHaveCount(0);
 });
 
@@ -57,11 +59,12 @@ test("l'agenda des 30 prochains jours s'affiche selon le périmètre", async ({
   await expect(page.getByTestId("dashboard-agenda")).toHaveCount(0);
 });
 
-test("un rôle sans revenue:read garde un accueil fonctionnel sans bloc CA", async ({
+test("un rôle sans accounting:read garde un accueil fonctionnel sans bloc CA", async ({
   page,
 }) => {
   await login(page, ACCOUNTS.communication);
   await expect(page.getByTestId("network-dashboard")).toBeVisible();
   await expect(page.getByTestId("kpi-revenue")).toHaveCount(0);
+  await expect(page.getByTestId("kpi-unpaid")).toHaveCount(0);
   await expect(page.getByText("Tickets en retard")).toBeVisible();
 });

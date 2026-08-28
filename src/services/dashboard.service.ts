@@ -10,13 +10,10 @@ import {
   auditItems,
   contracts,
   dpsPurchases,
-  invoices,
   openingProjects,
   openingSteps,
-  payments,
   prospects,
   resaleListings,
-  revenueEntries,
   storeVisits,
   stores,
   tickets,
@@ -29,91 +26,48 @@ import {
 import { can } from "@/lib/authz/permissions";
 import type { SessionUser } from "@/lib/auth/session";
 import { percentChange } from "@/lib/analytics";
-import { addDaysIso, addMonthsIso, startOfWeekIso, todayParis } from "@/lib/dates";
+import {
+  addDaysIso,
+  addMonthsIso,
+  monthEndIso,
+  startOfWeekIso,
+  todayParis,
+} from "@/lib/dates";
 import { auditMaxDays, isAuditOverdue } from "@/lib/jobs/audit-overdue";
+import {
+  getAmountDue,
+  getMonthlyResults,
+  getStoreRevenues,
+} from "@/services/acct-analytics.service";
+import { computeResult } from "@/services/acct-invoices.service";
 import { getMaterialVariance } from "@/services/material-variance.service";
 
 // Tableaux de bord multi-niveaux (cdc §18) : chaque bloc n'existe dans le
-// payload QUE si le rôle y a droit (jamais « masqué en CSS »).
+// payload QUE si le rôle y a droit (jamais « masqué en CSS »). Depuis
+// l'étape 52, le CA et les impayés se lisent dans le journal comptable
+// (classes 6/7) — les blocs correspondants exigent accounting:read.
 
 function monthBounds(month: string) {
-  return { from: `${month}-01`, to: `${month}-31` };
-}
-
-async function sumRevenue(conditions: SQL[]): Promise<string> {
-  const [row] = await db
-    .select({
-      gross: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::text`,
-    })
-    .from(revenueEntries)
-    .innerJoin(stores, eq(revenueEntries.storeId, stores.id))
-    .where(and(...conditions));
-  return row.gross;
+  return { from: `${month}-01`, to: monthEndIso(month) };
 }
 
 // ── Vue boutique (franchisé, ou fiche d'une boutique) ────────────
 
 export async function getStoreDashboard(actor: SessionUser, storeId: string) {
-  assertCan(actor, "revenue:read");
+  assertCan(actor, "store:read");
   await assertStoreAccess(actor, storeId);
   const today = todayParis();
   const month = today.slice(0, 7);
-  const { from, to } = monthBounds(month);
-  const prev = monthBounds(addMonthsIso(from, -12).slice(0, 7));
 
-  const [currentRow, previousRow, orders, plans] = await Promise.all([
-    db
-      .select({
-        gross: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::text`,
-      })
-      .from(revenueEntries)
-      .where(
-        and(
-          eq(revenueEntries.storeId, storeId),
-          gte(revenueEntries.date, from),
-          lte(revenueEntries.date, to)
-        )
-      ),
-    db
-      .select({
-        gross: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::text`,
-      })
-      .from(revenueEntries)
-      .where(
-        and(
-          eq(revenueEntries.storeId, storeId),
-          gte(revenueEntries.date, prev.from),
-          lte(revenueEntries.date, prev.to)
-        )
-      ),
-    db
-      .select({
-        orders: sql<number>`COALESCE(SUM(${revenueEntries.orderCount}), 0)::int`,
-        basket: sql<string | null>`
-          CASE WHEN COALESCE(SUM(${revenueEntries.orderCount}), 0) > 0 THEN
-            (COALESCE(SUM(${revenueEntries.grossAmount})
-               FILTER (WHERE ${revenueEntries.orderCount} IS NOT NULL), 0)
-             / SUM(${revenueEntries.orderCount}))::numeric(12,2)::text
-          ELSE NULL END`,
-      })
-      .from(revenueEntries)
-      .where(
-        and(
-          eq(revenueEntries.storeId, storeId),
-          gte(revenueEntries.date, from),
-          lte(revenueEntries.date, to)
-        )
-      ),
-    can(actor, "actionplan:read")
-      ? db
-          .select({
-            open: sql<number>`COUNT(*) FILTER (WHERE ${actionPlans.status} IN ('A_FAIRE','EN_COURS'))::int`,
-            late: sql<number>`COUNT(*) FILTER (WHERE ${actionPlans.status} IN ('A_FAIRE','EN_COURS') AND ${actionPlans.dueDate} < ${today})::int`,
-          })
-          .from(actionPlans)
-          .where(eq(actionPlans.storeId, storeId))
-      : Promise.resolve(null),
-  ]);
+  const plans = can(actor, "actionplan:read")
+    ? await db
+        .select({
+          open: sql<number>`COUNT(*) FILTER (WHERE ${actionPlans.status} IN ('A_FAIRE','EN_COURS'))::int`,
+          late: sql<number>`COUNT(*) FILTER (WHERE ${actionPlans.status} IN ('A_FAIRE','EN_COURS') AND ${actionPlans.dueDate} < ${today})::int`,
+        })
+        .from(actionPlans)
+        .where(eq(actionPlans.storeId, storeId))
+    : null;
 
   const lastAudit = can(actor, "visit:read")
     ? await db
@@ -139,42 +93,19 @@ export async function getStoreDashboard(actor: SessionUser, storeId: string) {
         .limit(1)
     : null;
 
-  const unpaid = can(actor, "finance:read")
-    ? await db
-        .select({
-          count: sql<number>`COUNT(*)::int`,
-          totalTTC: sql<string>`COALESCE(SUM(${invoices.amountTTC}), 0)::text`,
-        })
-        .from(invoices)
-        .where(
-          and(
-            eq(invoices.storeId, storeId),
-            inArray(invoices.status, ["EMISE", "PARTIELLEMENT_PAYEE"]),
-            lt(invoices.dueDate, today)
-          )
-        )
-    : null;
-
-  const current = currentRow[0].gross;
-  const previous = previousRow[0].gross;
   return {
     month,
-    revenue: { current, previous, deltaPct: percentChange(current, previous) },
-    orderTotal: orders[0].orders,
-    averageBasket: orders[0].basket,
     plans: plans ? plans[0] : null,
     lastAudit: lastAudit ? (lastAudit[0] ?? null) : null,
-    unpaid: unpaid ? unpaid[0] : null,
   };
 }
 
 // ── Vue animateur ────────────────────────────────────────────────
 
 export async function getAnimateurDashboard(actor: SessionUser) {
-  assertCan(actor, "revenue:read");
+  assertCan(actor, "store:read");
   const today = todayParis();
   const month = today.slice(0, 7);
-  const { from, to } = monthBounds(month);
 
   const myStores = await db.query.stores.findMany({
     where: and(eq(stores.animateurId, actor.id), eq(stores.status, "OUVERTE")),
@@ -183,23 +114,7 @@ export async function getAnimateurDashboard(actor: SessionUser) {
   });
   const storeIds = myStores.map((s) => s.id);
 
-  const [revenues, latePlans, weekCount] = await Promise.all([
-    storeIds.length
-      ? db
-          .select({
-            storeId: revenueEntries.storeId,
-            gross: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::text`,
-          })
-          .from(revenueEntries)
-          .where(
-            and(
-              inArray(revenueEntries.storeId, storeIds),
-              gte(revenueEntries.date, from),
-              lte(revenueEntries.date, to)
-            )
-          )
-          .groupBy(revenueEntries.storeId)
-      : Promise.resolve([]),
+  const [latePlans, weekCount] = await Promise.all([
     storeIds.length && can(actor, "actionplan:read")
       ? db
           .select({ count: sql<number>`COUNT(*)::int` })
@@ -224,14 +139,10 @@ export async function getAnimateurDashboard(actor: SessionUser) {
         )
       ),
   ]);
-  const grossByStore = new Map(revenues.map((r) => [r.storeId, r.gross]));
 
   return {
     month,
-    stores: myStores.map((s) => ({
-      ...s,
-      monthGross: grossByStore.get(s.id) ?? "0",
-    })),
+    stores: myStores,
     latePlans: latePlans[0].count,
     weekEntries: weekCount[0].count,
   };
@@ -250,70 +161,35 @@ export async function getNetworkDashboard(
   const { from, to } = monthBounds(month);
   const prev = monthBounds(addMonthsIso(from, -12).slice(0, 7));
 
-  const baseConditions: SQL[] = [];
-  if (filter.region) baseConditions.push(eq(stores.region, filter.region));
   const scoped = await accessibleStoreIds(actor);
-  if (scoped !== null) {
-    if (scoped.length === 0) {
-      return null;
-    }
-    baseConditions.push(inArray(stores.id, scoped));
-  }
+  if (scoped !== null && scoped.length === 0) return null;
 
-  const canRevenue = can(actor, "revenue:read");
-  const [current, previous, ranking] = canRevenue
+  // CA / impayés / classements : journal comptable (compta + direction).
+  const canAccounting = scoped === null && can(actor, "accounting:read");
+  const [currentMonths, previousMonths, storeRevenues, amountDue] = canAccounting
     ? await Promise.all([
-        sumRevenue([
-          ...baseConditions,
-          gte(revenueEntries.date, from),
-          lte(revenueEntries.date, to),
-        ]),
-        sumRevenue([
-          ...baseConditions,
-          gte(revenueEntries.date, prev.from),
-          lte(revenueEntries.date, prev.to),
-        ]),
-        db
-          .select({
-            storeId: stores.id,
-            code: stores.code,
-            name: stores.name,
-            gross: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::text`,
-          })
-          .from(revenueEntries)
-          .innerJoin(stores, eq(revenueEntries.storeId, stores.id))
-          .where(
-            and(
-              ...baseConditions,
-              gte(revenueEntries.date, from),
-              lte(revenueEntries.date, to)
-            )
-          )
-          .groupBy(stores.id, stores.code, stores.name)
-          .orderBy(desc(sql`SUM(${revenueEntries.grossAmount})`)),
+        getMonthlyResults(actor, { from, to }),
+        getMonthlyResults(actor, { from: prev.from, to: prev.to }),
+        getStoreRevenues(actor, { from, to }),
+        getAmountDue(actor),
       ])
-    : [null, null, [] as { storeId: string; code: string; name: string; gross: string }[]];
+    : [null, null, [], null];
+
+  const current = currentMonths?.[0]?.revenueHT ?? "0";
+  const previous = previousMonths?.[0]?.revenueHT ?? "0";
+  const ranking = filter.region
+    ? [] // le journal n'est pas régionalisé : classement réseau uniquement
+    : storeRevenues.map((r) => ({
+        storeId: r.storeId,
+        code: r.code,
+        name: r.name,
+        gross: r.revenueHT,
+      }));
 
   const storeFilter: SQL[] = [];
   if (filter.region) storeFilter.push(eq(stores.region, filter.region));
 
-  const [unpaid, lateTickets, latePlans, auditsLate] = await Promise.all([
-    can(actor, "finance:read")
-      ? db
-          .select({
-            count: sql<number>`COUNT(*)::int`,
-            totalTTC: sql<string>`COALESCE(SUM(${invoices.amountTTC}), 0)::text`,
-          })
-          .from(invoices)
-          .innerJoin(stores, eq(invoices.storeId, stores.id))
-          .where(
-            and(
-              ...storeFilter,
-              inArray(invoices.status, ["EMISE", "PARTIELLEMENT_PAYEE"]),
-              lt(invoices.dueDate, today)
-            )
-          )
-      : Promise.resolve(null),
+  const [lateTickets, latePlans, auditsLate] = await Promise.all([
     can(actor, "ticket:read")
       ? db
           .select({ count: sql<number>`COUNT(*)::int` })
@@ -345,13 +221,12 @@ export async function getNetworkDashboard(
 
   return {
     month,
-    revenue:
-      current !== null && previous !== null
-        ? { current, previous, deltaPct: percentChange(current, previous) }
-        : null,
+    revenue: canAccounting
+      ? { current, previous, deltaPct: percentChange(current, previous) }
+      : null,
     topStores: ranking.slice(0, 5),
     flopStores: [...ranking].reverse().slice(0, 5),
-    unpaid: unpaid ? unpaid[0] : null,
+    unpaid: amountDue,
     lateTickets: lateTickets ? lateTickets[0].count : null,
     latePlans: latePlans ? latePlans[0].count : null,
     auditsOverdue: auditsLate,
@@ -382,9 +257,9 @@ async function countAuditsOverdue(today: string, region?: string): Promise<numbe
   ).length;
 }
 
-// ── Cockpit Direction (cdc §18/§19) ──────────────────────────────
-// Tous les indicateurs réseau sur une page — réservé à la direction
-// (permission direction:cockpit), tout en Promise.all.
+// ── Cockpit Direction (cdc §18/§19, refondu à l'étape 52) ────────
+// Tous les indicateurs sur une page — permission direction:cockpit. Le CA,
+// les charges et le résultat viennent du journal comptable (classes 6/7).
 
 export async function getDirectionCockpit(actor: SessionUser) {
   assertCan(actor, "direction:cockpit");
@@ -396,15 +271,12 @@ export async function getDirectionCockpit(actor: SessionUser) {
   const prevMonth = prevMonthIso.slice(0, 7);
   const in180Days = addDaysIso(today, 180);
 
-  const royaltyTypes = ["REDEVANCE", "REDEVANCE_COMMUNICATION"] as const;
-
   const [
-    revenueMonth,
-    revenueMonthN1,
+    resultMonth,
+    resultMonthN1,
+    resultYear,
+    amountDue,
     purchasesMonth,
-    royaltiesInvoiced,
-    royaltiesCollected,
-    overdueInvoices,
     storeRevenues,
     latePlans,
     openTickets,
@@ -416,14 +288,10 @@ export async function getDirectionCockpit(actor: SessionUser) {
     variance,
     auditsOverdue,
   ] = await Promise.all([
-    sumRevenue([
-      gte(revenueEntries.date, monthBounds(month).from),
-      lte(revenueEntries.date, monthBounds(month).to),
-    ]),
-    sumRevenue([
-      gte(revenueEntries.date, monthBounds(monthN1).from),
-      lte(revenueEntries.date, monthBounds(monthN1).to),
-    ]),
+    computeResult(actor, monthBounds(month)),
+    computeResult(actor, monthBounds(monthN1)),
+    computeResult(actor, { from: `${year}-01-01`, to: `${year}-12-31` }),
+    getAmountDue(actor),
     db
       .select({
         total: sql<string>`COALESCE(SUM(${dpsPurchases.amount}), 0)::numeric(12,2)::text`,
@@ -435,60 +303,7 @@ export async function getDirectionCockpit(actor: SessionUser) {
           lte(dpsPurchases.date, monthBounds(month).to)
         )
       ),
-    db
-      .select({
-        total: sql<string>`COALESCE(SUM(${invoices.amountTTC}), 0)::numeric(12,2)::text`,
-        count: sql<number>`COUNT(*)::int`,
-      })
-      .from(invoices)
-      .where(
-        and(
-          inArray(invoices.type, [...royaltyTypes]),
-          sql`${invoices.status} <> 'ANNULEE'`,
-          gte(invoices.issuedAt, `${year}-01-01`)
-        )
-      ),
-    db
-      .select({
-        total: sql<string>`COALESCE(SUM(${payments.amount}), 0)::numeric(12,2)::text`,
-      })
-      .from(payments)
-      .innerJoin(invoices, eq(payments.invoiceId, invoices.id))
-      .where(
-        and(
-          inArray(invoices.type, [...royaltyTypes]),
-          gte(invoices.issuedAt, `${year}-01-01`)
-        )
-      ),
-    db
-      .select({
-        count: sql<number>`COUNT(*)::int`,
-        total: sql<string>`COALESCE(SUM(${invoices.amountTTC}), 0)::numeric(12,2)::text`,
-      })
-      .from(invoices)
-      .where(
-        and(
-          inArray(invoices.status, ["EMISE", "PARTIELLEMENT_PAYEE"]),
-          lt(invoices.dueDate, today)
-        )
-      ),
-    db
-      .select({
-        storeId: revenueEntries.storeId,
-        code: stores.code,
-        name: stores.name,
-        total: sql<string>`COALESCE(SUM(${revenueEntries.grossAmount}), 0)::numeric(12,2)::text`,
-      })
-      .from(revenueEntries)
-      .innerJoin(stores, eq(revenueEntries.storeId, stores.id))
-      .where(
-        and(
-          gte(revenueEntries.date, monthBounds(month).from),
-          lte(revenueEntries.date, monthBounds(month).to)
-        )
-      )
-      .groupBy(revenueEntries.storeId, stores.code, stores.name)
-      .orderBy(desc(sql`SUM(${revenueEntries.grossAmount})`)),
+    getStoreRevenues(actor, monthBounds(month)),
     db
       .select({ count: sql<number>`COUNT(*)::int` })
       .from(actionPlans)
@@ -547,22 +362,27 @@ export async function getDirectionCockpit(actor: SessionUser) {
     countAuditsOverdue(today),
   ]);
 
+  const ranking = storeRevenues.map((r) => ({
+    storeId: r.storeId,
+    code: r.code,
+    name: r.name,
+    total: r.revenueHT,
+  }));
+
   return {
     month,
     revenue: {
-      current: revenueMonth,
-      previousYear: revenueMonthN1,
-      deltaPct: percentChange(revenueMonth, revenueMonthN1),
+      current: resultMonth.revenueHT,
+      previousYear: resultMonthN1.revenueHT,
+      deltaPct: percentChange(resultMonth.revenueHT, resultMonthN1.revenueHT),
     },
+    expensesMonth: resultMonth.expensesHT,
+    resultMonth: resultMonth.result,
+    resultYear,
+    amountDue,
     purchasesMonth: purchasesMonth[0].total,
-    royalties: {
-      invoiced: royaltiesInvoiced[0].total,
-      invoicedCount: royaltiesInvoiced[0].count,
-      collected: royaltiesCollected[0].total,
-    },
-    overdueInvoices: overdueInvoices[0],
-    topStores: storeRevenues.slice(0, 3),
-    flopStores: [...storeRevenues].reverse().slice(0, 3),
+    topStores: ranking.slice(0, 3),
+    flopStores: [...ranking].reverse().slice(0, 3),
     latePlans: latePlans[0].count,
     openTickets: openTickets[0].count,
     openings: {

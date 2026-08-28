@@ -3,7 +3,7 @@ import "server-only";
 import { and, desc, eq, gte, lt, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { companyBudgets, companyFlows, invoices, partners } from "@/db/schema";
+import { acctInvoices, companyBudgets, companyFlows, partners } from "@/db/schema";
 import { auditedDelete, auditedInsert, auditedUpdate } from "@/lib/db/audited";
 import { assertCan } from "@/lib/authz/guards";
 import type { SessionUser } from "@/lib/auth/session";
@@ -68,7 +68,7 @@ export async function listFlows(
       lt(companyFlows.flowDate, toExclusive)
     ),
     with: {
-      invoice: { columns: { id: true, number: true } },
+      invoice: { columns: { id: true, pieceNumber: true } },
       partner: { columns: { id: true, companyName: true } },
       enteredBy: { columns: { firstName: true, lastName: true } },
     },
@@ -238,10 +238,11 @@ export type FlowInput = {
 export async function addFlow(actor: SessionUser, input: FlowInput) {
   assertCan(actor, "company-finance:write");
   if (input.invoiceId) {
-    const invoice = await db.query.invoices.findFirst({
-      where: eq(invoices.id, input.invoiceId),
+    // Rapprochement d'une pièce du journal comptable (étape 52).
+    const invoice = await db.query.acctInvoices.findFirst({
+      where: eq(acctInvoices.id, input.invoiceId),
     });
-    if (!invoice) throw new Error("Facture introuvable.");
+    if (!invoice) throw new Error("Pièce comptable introuvable.");
   }
   if (input.partnerId) {
     const partner = await db.query.partners.findFirst({

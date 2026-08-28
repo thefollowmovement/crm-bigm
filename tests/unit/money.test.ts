@@ -8,7 +8,6 @@ import {
   fromCents,
   toCents,
 } from "@/lib/money";
-import { computeInvoiceStatus, isOverdue } from "@/services/invoices.service";
 
 describe("arithmétique monétaire (centimes entiers)", () => {
   it("convertit strings ↔ centimes sans perte", () => {
@@ -45,38 +44,5 @@ describe("arithmétique monétaire (centimes entiers)", () => {
 
   it("formate en euros français", () => {
     expect(formatEUR("1234.5")).toMatch(/1\s?234,50\s?€/);
-  });
-});
-
-describe("statut de facture dérivé des paiements", () => {
-  it("EMISE sans paiement, PARTIELLEMENT_PAYEE en dessous, PAYEE au solde", () => {
-    expect(computeInvoiceStatus("1200.00", [], "EMISE")).toBe("EMISE");
-    expect(
-      computeInvoiceStatus("1200.00", [{ amount: "500.00" }], "EMISE")
-    ).toBe("PARTIELLEMENT_PAYEE");
-    expect(
-      computeInvoiceStatus("1200.00", [{ amount: "500.00" }, { amount: "700.00" }], "PARTIELLEMENT_PAYEE")
-    ).toBe("PAYEE");
-  });
-
-  it("une facture annulée le reste", () => {
-    expect(computeInvoiceStatus("100.00", [{ amount: "100.00" }], "ANNULEE")).toBe(
-      "ANNULEE"
-    );
-  });
-});
-
-describe("retard de facture (dérivé)", () => {
-  it("échéance dépassée + non payée = en retard", () => {
-    expect(isOverdue({ dueDate: "2026-08-01", status: "EMISE" }, "2026-08-21")).toBe(true);
-    expect(
-      isOverdue({ dueDate: "2026-08-01", status: "PARTIELLEMENT_PAYEE" }, "2026-08-21")
-    ).toBe(true);
-  });
-
-  it("jamais en retard si payée, annulée ou échéance future", () => {
-    expect(isOverdue({ dueDate: "2026-08-01", status: "PAYEE" }, "2026-08-21")).toBe(false);
-    expect(isOverdue({ dueDate: "2026-08-01", status: "ANNULEE" }, "2026-08-21")).toBe(false);
-    expect(isOverdue({ dueDate: "2026-08-21", status: "EMISE" }, "2026-08-21")).toBe(false);
   });
 });

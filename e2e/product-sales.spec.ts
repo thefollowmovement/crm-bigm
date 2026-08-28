@@ -23,8 +23,9 @@ test("référentiel produits puis import CSV des ventes, idempotent", async ({
   await expect(page.getByText("Produit créé.")).toBeVisible();
   await expect(page.getByTestId("products-table")).toContainText("MENU-E2E");
 
-  // Import CSV : 2 lignes valides + 1 code produit inconnu.
-  await page.goto("/ca?vue=produits");
+  // Import CSV : 2 lignes valides + 1 code produit inconnu — la carte
+  // d'import vit sur la page du référentiel (étape 52).
+  await page.goto("/hq-18b8ba/produits");
   const csv =
     "boutique;date;produit;quantite;montant\n" +
     "BM-001;05/08/2026;MENU-E2E;12;144,00\n" +
@@ -55,24 +56,19 @@ test("référentiel produits puis import CSV des ventes, idempotent", async ({
   ).toBeVisible();
 });
 
-test("les meilleures ventes du seed s'affichent pour la compta", async ({
+test("les meilleures ventes du seed s'affichent sur le cockpit direction", async ({
   page,
 }) => {
-  await login(page, ACCOUNTS.compta);
-  await page.goto("/ca?vue=produits");
+  await login(page, ACCOUNTS.direction);
+  await page.goto("/direction/cockpit?vue=produits");
   await expect(page.getByTestId("top-products")).toContainText("BURGER-CLASSIC");
   await expect(page.getByTestId("family-breakdown")).toBeVisible();
-  // Panier moyen du seed visible sur l'onglet mois (BM-003 sélectionnée).
 });
 
-test("le référentiel est interdit hors compta/direction/hq-18b8ba", async ({
+test("le référentiel est interdit hors compta/direction", async ({
   page,
 }) => {
   await login(page, ACCOUNTS.animateur);
   await page.goto("/hq-18b8ba/produits");
   await expect(page.getByTestId("access-denied")).toBeVisible();
-
-  // L'onglet Produits reste lisible, mais sans carte d'import.
-  await page.goto("/ca?vue=produits");
-  await expect(page.getByTestId("product-csv-file-input")).toHaveCount(0);
 });

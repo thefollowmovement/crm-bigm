@@ -97,7 +97,7 @@ describe("rôles personnalisés", () => {
     });
     await setCustomRolePermission(admin, {
       customRoleId: role.id,
-      permission: "finance:read",
+      permission: "accounting:read",
       allowed: true,
     });
     // Re-basculer une valeur ne crée pas de doublon : la ligne est mise à jour.
@@ -125,13 +125,13 @@ describe("rôles personnalisés", () => {
   it("assignation : rôle de base dérivé, écarts appliqués à la session (priorité au rôle personnalisé)", async () => {
     const admin = asSession(await createTestUser({ role: "ADMIN" }));
     const role = await createCustomRole(admin, {
-      name: "RH étendu finances",
+      name: "RH étendu compta",
       baseRole: "RH",
       description: null,
     });
     await setCustomRolePermission(admin, {
       customRoleId: role.id,
-      permission: "finance:read",
+      permission: "accounting:read",
       allowed: true,
     });
     await setCustomRolePermission(admin, {
@@ -168,7 +168,7 @@ describe("rôles personnalisés", () => {
     const { token } = await createSession(created.id);
     const session = await validateSessionToken(token);
     // Valeurs figées du rôle personnalisé appliquées…
-    expect(can(session!, "finance:read")).toBe(true);
+    expect(can(session!, "accounting:read")).toBe(true);
     expect(can(session!, "commtask:request")).toBe(false); // retirée vs la base
     // …et prioritaires sur l'ajustement à chaud du rôle de base…
     expect(can(session!, "planning:write")).toBe(false);

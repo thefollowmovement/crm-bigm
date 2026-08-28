@@ -19,10 +19,7 @@ export type Permission =
   | "document:folder"
   | "exchange:read"
   | "exchange:write"
-  | "finance:read"
-  | "finance:write"
   | "revenue:read"
-  | "revenue:write"
   | "revenue:import"
   | "product:manage"
   | "ticket:read"
@@ -94,10 +91,9 @@ const ALL: readonly Permission[] = [
   "document:folder",
   "exchange:read",
   "exchange:write",
-  "finance:read",
-  "finance:write",
+  // Ventes produits (référentiel + stats familles — étape 52 : les anciens
+  // droits finance:*/revenue:write ont disparu avec le module Finances).
   "revenue:read",
-  "revenue:write",
   "revenue:import",
   "product:manage",
   "ticket:read",
@@ -177,10 +173,7 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "document:read",
     "exchange:read",
     "exchange:write",
-    "finance:read",
-    "finance:write",
     "revenue:read",
-    "revenue:write",
     "revenue:import",
     "product:manage",
     "ticket:read",
@@ -322,8 +315,6 @@ export const PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "document:read",
     "exchange:read",
     "exchange:write",
-    "revenue:read",
-    "revenue:write",
     "actionplan:read",
     "purchase:read",
     "training:read",

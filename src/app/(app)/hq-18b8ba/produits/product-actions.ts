@@ -66,7 +66,8 @@ export const confirmProductImportAction = safeFormAction(
   async ({ rows }, actor) => {
     if (rows.length === 0) throw new Error("Aucune ligne valide à importer.");
     const result = await importRows(actor, rows);
-    revalidatePath("/ca");
+    revalidatePath("/hq-18b8ba/produits");
+    revalidatePath("/direction/cockpit");
     const parts = [
       `${result.imported} ligne${result.imported > 1 ? "s" : ""} créée${result.imported > 1 ? "s" : ""}`,
       `${result.updated} mise${result.updated > 1 ? "s" : ""} à jour`,

@@ -117,8 +117,8 @@ export async function saveEmailTemplate(
 
 // ── Envoi ────────────────────────────────────────────────────────
 
-// Lecture interne (sans permission) pour l'envoi : relances (finance:write)
-// et test SMTP passent par ici.
+// Lecture interne (sans permission) pour l'envoi : relances du journal
+// comptable (accounting:write) et test SMTP passent par ici.
 async function loadSmtpOrThrow() {
   const settings = await db.query.emailSettings.findFirst();
   if (!settings) {

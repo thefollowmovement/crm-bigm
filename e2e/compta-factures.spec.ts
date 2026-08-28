@@ -63,7 +63,12 @@ test("compta : saisie d'une pièce, import du journal et résultat CA − charge
     page.getByRole("row").filter({ hasText: "CHE2E-1" })
   ).toContainText("Impayée");
 
-  // Résultat : 1000 (classe 7) − 400 (classe 6) = 600.
+  // Résultat filtré sur la structure du test (le seed comporte d'autres
+  // pièces) : 1000 (classe 7) − 400 (classe 6) = 600.
+  await page
+    .locator('select[name="structure"]')
+    .selectOption({ label: "411E2E — Structure journal" });
+  await page.getByRole("button", { name: "Filtrer" }).click();
   await expect(page.getByTestId("result-revenue")).toContainText("1 000,00");
   await expect(page.getByTestId("result-expenses")).toContainText("400,00");
   await expect(page.getByTestId("result-total")).toContainText("600,00");

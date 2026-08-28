@@ -14,7 +14,7 @@ const ROLES: Role[] = [
   "SALARIE",
 ];
 
-const SENSITIVE: Permission[] = ["finance:read", "finance:write", "user:manage", "audit:read"];
+const SENSITIVE: Permission[] = ["accounting:read", "accounting:write", "user:manage", "audit:read"];
 
 describe("matrice de permissions", () => {
   it("chaque rôle a une entrée dans la matrice", () => {
@@ -67,15 +67,15 @@ describe("matrice de permissions", () => {
     // Octroi d'une permission que la matrice refuse.
     expect(
       can(
-        { role: "COMMUNICATION", permissionOverrides: { "finance:read": true } },
-        "finance:read"
+        { role: "COMMUNICATION", permissionOverrides: { "accounting:read": true } },
+        "accounting:read"
       )
     ).toBe(true);
     // Sans écart pour cette permission : la matrice par défaut s'applique.
     expect(
       can(
-        { role: "COMMUNICATION", permissionOverrides: { "finance:read": true } },
-        "finance:write"
+        { role: "COMMUNICATION", permissionOverrides: { "accounting:read": true } },
+        "accounting:write"
       )
     ).toBe(false);
     // Le rôle ADMIN n'est jamais restreint par un écart.
@@ -104,12 +104,12 @@ describe("matrice de permissions", () => {
     }
   );
 
-  it("la comptabilité gère les finances, l'import de CA et le référentiel produits", () => {
+  it("la comptabilité gère le journal comptable, les ventes produits et le référentiel", () => {
     for (const perm of [
-      "finance:read",
-      "finance:write",
+      "accounting:read",
+      "accounting:write",
+      "accounting:import",
       "revenue:read",
-      "revenue:write",
       "revenue:import",
       "product:manage",
     ] as Permission[]) {
@@ -178,11 +178,11 @@ describe("matrice de permissions", () => {
     }
   });
 
-  it("le franchisé peut lire ses données et saisir son CA, sans import ni finances", () => {
+  it("le franchisé lit ses données sans jamais toucher à la comptabilité", () => {
     expect(can({ role: "FRANCHISE" }, "store:read")).toBe(true);
     expect(can({ role: "FRANCHISE" }, "contract:read")).toBe(true);
     expect(can({ role: "FRANCHISE" }, "exchange:write")).toBe(true);
-    expect(can({ role: "FRANCHISE" }, "revenue:write")).toBe(true);
+    expect(can({ role: "FRANCHISE" }, "accounting:read")).toBe(false);
     expect(can({ role: "FRANCHISE" }, "revenue:import")).toBe(false);
     expect(can({ role: "FRANCHISE" }, "store:write")).toBe(false);
   });
