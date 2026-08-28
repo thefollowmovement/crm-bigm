@@ -6,18 +6,21 @@
 > + améliorations post-V1 (étapes 28 à 33, 34 à 40, 41 à 43, 44, 45 :
 > vitrine publique + administration masquée) + module comptabilité
 > (étapes 46 à 50 : structures, journal factures, transmissions, accès
-> externe sécurisé, imports calés sur les exports réels du client).
+> externe sécurisé, imports calés sur les exports réels du client)
+> + étapes 51 à 54 : le journal comptable devient LA source des stats
+> (le module Finances historique est supprimé), espace prestataires
+> (rôle PRESTATAIRE), notes de frais des visites, éditeur de texte riche.
 
 ## Vue d'ensemble
 
 - **Stack** : Next.js 15 (App Router, TypeScript strict) · PostgreSQL 16 ·
   Drizzle ORM · Tailwind v4 · composants shadcn maison · recharts (graphiques).
-- **Volumétrie** : 75 tables · 64 enums · 29 migrations · 45 services ·
-  68 pages · 69 permissions · 9 rôles (+ rôles personnalisés dynamiques) ·
-  10 jobs cron · 184 tests unitaires · 165 tests d'intégration ·
-  103 parcours e2e Playwright.
+- **Volumétrie** : 73 tables · 60 enums · 33 migrations · 45 services ·
+  70 pages · 67 permissions · 10 rôles (+ rôles personnalisés dynamiques) ·
+  8 jobs cron · 182 tests unitaires · 157 tests d'intégration ·
+  98 parcours e2e Playwright.
 - **Branche de travail** : `claude/crm-interne-plan-docker-s3neyk`
-  (commits « Étape 1 » à « Étape 50 », un commit par étape, gate complet vert
+  (commits « Étape 1 » à « Étape 54 », un commit par étape, gate complet vert
   avant chacun).
 
 ## Architecture en couches (règles non négociables du CLAUDE.md)
@@ -44,7 +47,11 @@ Europe/Paris) · `src/lib/files/` (fichiers servis uniquement via
 `VAULT_KEY`) · `src/lib/backup/` (pg_dump quotidien + manuel, rétention,
 envoi FTP optionnel) · `src/components/calendar-month.tsx` (grille mensuelle
 partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
-ℹ posée sur les valeurs pilotées par un réglage hors page ou dérivées).
+ℹ posée sur les valeurs pilotées par un réglage hors page ou dérivées) ·
+`src/lib/html/sanitize.ts` (HTML riche nettoyé par liste blanche, appliqué à
+l'écriture ET avant tout `dangerouslySetInnerHTML`) +
+`src/components/rich-text-editor.tsx` (éditeur contenteditable sans
+dépendance, images uniquement par référence `/api/files/…`).
 
 ## Cartographie fonctionnelle (navigation → pages → accès)
 
@@ -70,7 +77,7 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 ### Réseau
 | Page | Permission | Contenu |
 |---|---|---|
-| `/boutiques` (+fiche à onglets) | `store:read` | Photo (vignette en liste) + carte/lien OpenStreetMap (GPS). Fiche : infos, plateformes, contrats, échanges, finances, CA, animation, achats, rentabilité (succursales), historique + bandeau ouverture. |
+| `/boutiques` (+fiche à onglets) | `store:read` | Photo (vignette en liste) + carte/lien OpenStreetMap (GPS). Fiche : infos, plateformes, contrats, échanges, comptabilité (pièces du journal de la structure liée), animation, achats, rentabilité (succursales), historique + bandeau ouverture. |
 | `/franchises` (+fiche) | `franchisee:read` | Fiche franchisé, docs signés de formation. |
 | `/succursales` (+P&L) | `branch:read` (compta+dir) | Rentabilité mensuelle CA − achats DPS − dépenses. |
 | `/contrats` | `contract:read` | Contrats + alerte échéance J-180. |
@@ -79,7 +86,7 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 ### Animation
 | Page | Permission | Contenu |
 |---|---|---|
-| `/animation/visites` (+grille) | `visit:read` (siège) | Audits/visites, grille de critères paramétrable, note % dérivée. |
+| `/animation/visites` (+grille) | `visit:read` (siège) | Audits/visites, grille de critères paramétrable, note % dérivée. Compte rendu en TEXTE RICHE (étape 54 : gras/listes/titres/images par référence `/api/files/…`, HTML nettoyé par liste blanche `src/lib/html/sanitize.ts` à l'écriture ET à la lecture), pièces jointes TITRÉES, notes de frais (titre, prix TTC, justificatifs, note) validées par la direction puis transmises à la file compta. |
 | `/animation/plans-action` | `actionplan:read` (siège+franchisé scopé) | Plans « PA-… », machine à états, validation créateur/direction. |
 | `/animation/planning` | `planning:read` (siège) | Créneaux animateurs (unique animateur+jour+période), vues jour/semaine/mois (`?vue=`), glisser-déposer vers un autre jour (conflits refusés, animateur notifié si tiers). |
 | `/animation/animateurs` | `planning:read` | Fiches animateurs : zone, coût/km, stats km/visites. |
@@ -91,19 +98,27 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 | `/communication` | `commtask:read` | Tâches « COM-… » ; tout rôle dépose une DEMANDE, le demandeur valide. |
 | `/partenaires` | `partner:read` (pas franchisé) | Fiches partenaires, notes internes réservées à `partner:write`. |
 
-### Finances
+### Achats & Food Cost
 | Page | Permission | Contenu |
 |---|---|---|
-| `/finances` | `finance:read` (compta+dir) | Factures `F<année>-XXXX`, paiements, relances 1-3 — canal E-mail : envoi réel au franchisé (modèle du niveau, SMTP de /hq-18b8ba/emails, destinataire tracé). |
-| `/ca` | `revenue:read` | Saisie en TABLEAU (tous les canaux d'un jour en une fois, seuls les canaux renseignés sont écrits), import CSV, évolution, N vs N-1, produits & familles, panier moyen. |
-| `/achats` (+dépôts) | `purchase:read` | Achats DPS, ratio achats/CA, import CSV. |
+| `/achats` (+dépôts) | `purchase:read` | Achats DPS, ratio achats/CA (CA = journal comptable classe 7 de la structure liée à la boutique), import CSV. |
 | `/foodcost` | `foodcost:read` (siège sauf franchisé) | Ingrédients, tarifs par dépôt à date (dépôt créable à la volée depuis le formulaire de tarif avec `purchase:write`), recettes, synthèse, MENUS (formules produits × qté + emballages/ingrédients directs, coût et % du PV par dépôt), écart matière. |
 
-### Comptabilité (étapes 46-50 — cdc « Transmission comptable & Factures »)
+> **Module Finances supprimé (étape 52)** : les anciennes pages `/finances`
+> (factures réseau `F<année>-XXXX`, paiements, relances) et `/ca` (saisie du
+> CA par canal) n'existent plus. Le CA et les charges viennent du **journal
+> comptable** (classe 7 / classe 6, annulées exclues), rattaché aux boutiques
+> par `acctStructures.storeId`. L'import des ventes PRODUITS (nécessaire au
+> Food Cost et à l'écart matière) est conservé et déplacé sur
+> `/hq-18b8ba/produits` (`revenue:import`).
+
+### Comptabilité (étapes 46-54 — cdc « Transmission comptable & Factures »)
 | Page | Permission | Contenu |
 |---|---|---|
-| `/compta/structures` | `accounting:read` (compta+dir) | Liste des CLIENTS COMPTABLES : référentiel (code 411…, encours, TVA/SIRET, type, actif, lien boutique) + agrégats calculés en base sur la période choisie (nb pièces, CA HT, charges HT, résultat, restant dû TTC, dernière pièce), tri/recherche/filtre impayés, export CSV, import multi-formats **xlsx/xls/xlsb/csv** détecté par signature binaire avec rapport détaillé persistant et fichier original conservé — lecture par VALEUR de cellule (montants « x EUR », dates américaines en serial, lignes de totaux ignorées : étape 50, calée sur les exports réels). |
-| `/compta/factures` | `accounting:read` | Journal factures/avoirs : pièce unique, Facture/Avoir signé, Standard/RFA, classe 6 charge / 7 produit (choisie à l'import), échéance, source ; **statut saisi à la main par la compta** (jamais écrasé par un réimport) ; résultat = Σ HT classe 7 − Σ HT classe 6 (annulées exclues) ; import du journal avec structure inconnue nommée par son code. |
+| `/compta/structures` (+fiche) | `accounting:read` (compta+dir) | Liste des CLIENTS COMPTABLES : référentiel (code 411…, encours, TVA/SIRET, type, actif, lien boutique) + agrégats calculés en base sur la période choisie (nb pièces, CA HT, charges HT, résultat, restant dû TTC, dernière pièce), tri/recherche/filtre impayés, export CSV, import multi-formats **xlsx/xls/xlsb/csv** détecté par signature binaire avec rapport détaillé persistant et fichier original conservé — lecture par VALEUR de cellule (montants « x EUR », dates américaines en serial, lignes de totaux ignorées : étape 50, calée sur les exports réels). Fiche client `/compta/structures/[id]` (étape 51) : infos, agrégats, pièces du journal, création d'un compte PRESTATAIRE (étape 53). |
+| `/compta/factures` (+fiche) | `accounting:read` | Journal factures/avoirs : pièce unique, Facture/Avoir signé, Standard/RFA, classe 6 charge / 7 produit (choisie à l'import), échéance, source ; **statut saisi à la main par la compta** (jamais écrasé par un réimport, l'import peut aussi fournir la colonne STATUT — étape 51) ; résultat = Σ HT classe 7 − Σ HT classe 6 (annulées exclues) ; import du journal avec structure inconnue nommée par son code ; documents joints par pièce (étape 51) ; relance par e-mail (modèles de niveau 1-3, SMTP de /hq-18b8ba/emails, destinataire tracé) ; fiche `/compta/factures/[id]` avec discussion interne/prestataire (étape 53). |
+| `/compta/notes-de-frais` | `accounting:read` | File des notes de frais VALIDÉES à rembourser (étape 54) — pastille de compteur dans la navigation, marquage « remboursée » (`accounting:write`), historique filtrable par statut. |
+| `/prestataire` (+fiche facture) | `provider:portal` (rôle PRESTATAIRE seul) | Espace client comptable externe (étape 53), scopé sur SA structure (`users.acctStructureId`) : ses factures du journal (statut de paiement, SANS notes internes), discussion par facture (notifications croisées avec la compta), dépôt de factures/notes de frais (transmissions vers la compta), tickets de demande au pôle comptabilité. Compte créé depuis la fiche structure (`user:manage`). |
 | `/compta/transmissions` (+fiche) | `transmission:create` (tous sauf SALARIE) | Transmissions « TR-… » : Demande ou Facture, cas d'usage (influenceur, ticket, achat succursale, note de frais, quittance, fournisseur…), PJ multiples, historique des statuts, notifications ; hors `transmission:manage` chacun ne voit que LES SIENNES (franchisé : sa boutique uniquement) ; la compta valide/rejette/traite et convertit une Facture validée en pièce du journal (source « Transmission »). Génération de liens externes + suivi (actif/utilisé/expiré/révoqué). |
 | `/transmission/[jeton]` | public (lien à usage unique) | Formulaire externe SANS compte : jeton 32 octets stocké haché, expiration ≤ 90 j, usage unique atomique, limitation de débit par IP, fichiers restreints (pdf/images ≤ 10 Mo, 5 max), IP tracée, notification compta ; rien n'entre en comptabilité sans validation manuelle. |
 
@@ -124,7 +139,7 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 ### Direction
 | Page | Permission | Contenu |
 |---|---|---|
-| `/direction/cockpit` | `direction:cockpit` (admin+dir) | 12 KPI cliquables, CA 12 mois, top/flop, écart matière M-1. |
+| `/direction/cockpit` | `direction:cockpit` (admin+dir) | KPI cliquables assis sur le JOURNAL COMPTABLE (étape 52) : CA classe 7, charges classe 6, résultat mois/année, restant dû ; onglets « Par mois » (évolution), « N vs N-1 » (comparaison mensuelle), « Produits & familles » (ventes produits) ; écart matière M-1, top/flop boutiques. |
 | `/direction/finances-cie` | `company-finance:read` (compta+dir) | Flux Big M CIE (12 catégories), réel vs budget, ventilation. |
 
 ### Organisation & Administration
@@ -141,18 +156,21 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 | `/hq-18b8ba/coffre` | `vault:read` (admin+dir SEULS) | Secrets AES-256-GCM, révélation à l'unité auditée REVEAL. |
 | `/hq-18b8ba/audit` | `audit:read` | Journal d'audit complet (qui, quoi, avant/après). |
 
-## Rôles (9)
+## Rôles (10)
 
 ADMIN et DIRECTION : tout — sauf « se connecter en tant que »
 (`user:impersonate`) et la gestion des droits (`permission:manage`), réservés
-au SEUL ADMIN. COMPTABILITE : finances, CA, achats, food cost, produits,
-succursales, Big M CIE. ANIMATION : visites, plans, planning, formations.
-COMMUNICATION : tâches com + partenaires (écriture). RH : dossiers salariés +
-congés + formations. DEVELOPPEMENT : boutiques/franchisés/contrats (écriture),
-ouvertures, prospection, cessions. FRANCHISE : scopé à SES boutiques (CA,
-contrats, docs partagés, plans d'action, achats, formations, demandes com,
-son projet d'ouverture). SALARIE : `self:clock` + `self:leave` uniquement
-(pointeuse + congés).
+au SEUL ADMIN. COMPTABILITE : comptabilité (structures, journal, transmissions,
+notes de frais), achats, food cost, produits, succursales, Big M CIE.
+ANIMATION : visites, plans, planning, formations. COMMUNICATION : tâches com +
+partenaires (écriture). RH : dossiers salariés + congés + formations.
+DEVELOPPEMENT : boutiques/franchisés/contrats (écriture), ouvertures,
+prospection, cessions. FRANCHISE : scopé à SES boutiques (contrats, docs
+partagés, plans d'action, achats, formations, demandes com, son projet
+d'ouverture). SALARIE : `self:clock` + `self:leave` uniquement (pointeuse +
+congés). PRESTATAIRE (étape 53) : `provider:portal` uniquement — espace
+`/prestataire` scopé sur sa structure comptable, hors de tout autre module
+(la permission est volontairement ABSENTE de la matrice des rôles internes).
 
 Ces droits par défaut sont modifiables À CHAUD par l'admin via
 `/hq-18b8ba/permissions` (table `permissionOverrides` : seuls les écarts sont
@@ -163,22 +181,24 @@ du rôle de base) et l'**entité FRANCHISEUR** : `users.franchisorMember`
 (ADMIN inclus d'office) réserve les dossiers RH/congés/fichiers des salariés
 du siège Big M CIE (`employees.storeId` NULL).
 
-## Données (65 tables, par domaine)
+## Données (73 tables, par domaine)
 
-- **Socle** : users (franchisorMember, customRoleId), sessions, franchisees,
-  stores, storePlatforms, contracts, documents, documentVersions,
-  documentFolders, fileAttachments, notifications, auditLogs,
+- **Socle** : users (franchisorMember, customRoleId, acctStructureId), sessions,
+  franchisees, stores, storePlatforms, contracts, documents, documentVersions,
+  documentFolders, fileAttachments (title), notifications, auditLogs,
   permissionOverrides, customRoles, customRolePermissions, backups.
 - **Échanges & tickets** : exchanges, exchangeMessages, tickets (extraPoles),
   ticketComments, ticketAssignees.
-- **Finances réseau** : invoices, payments, reminders (emailSentTo).
 - **E-mails** : emailSettings (SMTP, mot de passe chiffré), emailTemplates
   (modèles de relance par niveau).
-- **CA & ventes** : revenueEntries (orderCount), productFamilies, products,
-  productSales.
+- **Ventes produits** (Food Cost / écart matière) : productFamilies, products,
+  productSales. *(Les tables invoices/payments/reminders/revenueEntries de
+  l'ancien module Finances ont été SUPPRIMÉES à l'étape 52 — le journal
+  comptable les remplace.)*
 - **Animation** : auditCriteria, storeVisits, auditItems, actionPlans,
   actionPlanComments, animatorProfiles, animatorPlanEntries, trainings,
-  trainingParticipants, trainingDocuments.
+  trainingParticipants, trainingDocuments, expenseClaims (notes de frais,
+  étape 54).
 - **Achats & food cost** : depots, dpsPurchases, ingredients, ingredientPrices,
   recipes, recipeItems, menus, menuItems.
 - **Communication** : partners, partnerStores, commTasks, commTaskComments.
@@ -188,26 +208,29 @@ du siège Big M CIE (`employees.storeId` NULL).
   agents, prospects, prospectEvents, premises, resaleListings.
 - **Succursales & CIE** : storeExpenses, companyFlows, companyBudgets.
 - **Logiciels & coffre** : softwareRegistry, softwareUsers, vaultSecrets.
-- **Comptabilité (étapes 46-49)** : acctStructures, acctImports,
-  acctInvoices, transmissions, transmissionEvents, transmissionInvites.
+- **Comptabilité (étapes 46-53)** : acctStructures, acctImports, acctInvoices
+  (lastReminderLevel/At), acctInvoiceMessages (discussion compta ↔
+  prestataire), transmissions, transmissionEvents, transmissionInvites.
 
 Dérivés jamais stockés : statuts « en retard », note % d'audit, panier moyen,
 P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
 
-## Jobs cron (10, Europe/Paris, rejouables via POST /api/admin/jobs/run)
+## Jobs cron (8, Europe/Paris, rejouables via POST /api/admin/jobs/run)
 
 | Heure | Job | Rôle |
 |---|---|---|
 | 05h30 | db-backup | Sauvegarde pg_dump + rétention + envoi FTP optionnel |
 | 06h00 | contract-expiry | Échéances de contrats J-180 |
-| 06h15 | invoice-overdue | Factures impayées |
 | 06h25 | action-plan-overdue | Plans d'action en retard |
-| 06h30 | revenue-drop | Baisse de CA 7 j vs N-1 (`REVENUE_DROP_THRESHOLD_PCT`) |
 | 06h40 | audit-overdue | Boutiques sans audit (`AUDIT_MAX_DAYS`) |
 | 06h50 | comm-task-overdue | Tâches communication en retard |
 | 07h00 | opening-late | Jalons d'ouverture en retard |
 | 07h10 | prospect-followup | Relances prospects (quotidien, dedupe/jour) |
 | 07h20 | purchase-anomaly | Ratio achats/CA hors bornes ou écart matière (mensuel) |
+
+> Les jobs `invoice-overdue` et `revenue-drop` ont disparu avec le module
+> Finances (étape 52) : l'échéance dépassée d'une pièce du journal est un
+> statut DÉRIVÉ signalé visuellement, pas une notification.
 
 ## Feuille de route — état
 
@@ -251,6 +274,17 @@ P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
   accès externe par lien sécurisé à usage unique (formulaire public, rate
   limiting, validation stricte, IP tracée) · étape 50 : lecture Excel par
   valeur de cellule, calée et validée sur les exports réels du client.
+- ✅ **Améliorations post-V1, 4ᵉ vague** — étapes 51 à 54 : statut des pièces
+  à l'import + fiche client comptable + documents joints aux pièces + relance
+  par e-mail (51) · le journal comptable devient LA source du CA/charges —
+  suppression des modules `/finances` et `/ca`, cockpit refondu (par mois,
+  N vs N-1, produits & familles), ratio achats, P&L succursales, dashboards
+  et agenda repointés (52) · espace prestataires : rôle PRESTATAIRE scopé sur
+  sa structure, factures + discussion + transmissions + tickets compta (53) ·
+  notes de frais des visites (validation direction → file
+  `/compta/notes-de-frais` avec pastille de compteur → remboursement compta),
+  compte rendu de visite en texte riche (sanitizer maison) et pièces jointes
+  titrées (54).
 - ⬜ **V2 (hors périmètre — nouveau devis)** : HACCP/hygiène, contrôles
   officiels, litiges, assurances/sinistres, maintenance/travaux, parc
   matériel, fournisseurs/ruptures, notes Google/Uber Eats/Deliveroo,

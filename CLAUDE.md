@@ -280,8 +280,46 @@ numérotation sans en-tête ignorées — validé de bout en bout sur les export
 réels du client (92 structures + 158 pièces dont avoirs, 0 erreur, réimport
 idempotent : 0 doublon / 158 MAJ, statuts conservés).
 
+**AMÉLIORATIONS POST-V1, 4ᵉ VAGUE LIVRÉE (commits « Étape 51 » à
+« Étape 54 », août 2026)** : journal enrichi (colonne STATUT optionnelle à
+l'import — Payé/Impayé/En retard/En attente/Annulé, appliquée en création ET
+en MAJ —, fiche client `/compta/structures/[id]` avec agrégats + pièces,
+documents joints par pièce (PJ ACCT_INVOICE, compteur en liste), relance par
+e-mail des pièces — modèles de niveau 1-3 de l'étape 43,
+`acctInvoices.lastReminderLevel/At`, envoi avant trace) · **le journal
+comptable devient LA source unique du CA et des charges (étape 52)** : les
+modules `/finances` (factures F<année>-XXXX, paiements, relances) et `/ca`
+(saisie par canal) sont SUPPRIMÉS — tables invoices/payments/reminders/
+revenue_entries dropées (migration 0030), jobs `invoice-overdue` et
+`revenue-drop` retirés (8 jobs cron restants, 05h30→07h20), permissions
+`finance:*`/`revenue:write` supprimées ; CA = Σ HT classe 7, charges = Σ HT
+classe 6 (annulées exclues), par boutique via `acctStructures.storeId`
+(`services/acct-analytics.service.ts`) ; cockpit refondu (KPI journal +
+onglets Par mois / N vs N-1 / Produits & familles), ratio achats/CA, P&L
+succursales, dashboards, agenda et rapprochement Big M CIE repointés ;
+l'import des ventes PRODUITS (Food Cost/écart matière) est conservé et
+déplacé sur `/hq-18b8ba/produits` (`revenue:read`/`revenue:import` relabellisés
+« Ventes produits ») · espace prestataires (étape 53) : rôle **PRESTATAIRE**
+scopé sur SA structure (`users.acctStructureId`, permission `provider:portal`
+hors de ALL — aucun rôle interne ne l'a), portail `/prestataire` = ses
+factures (DTO sans notes internes) + discussion par facture
+(`acctInvoiceMessages`, notifications croisées avec /compta/factures/[id]) +
+dépôt de factures/notes de frais (transmissions forcées vers la compta) +
+tickets au pôle comptabilité ; compte créé depuis la fiche structure
+(`user:manage`) · notes de frais des visites (étape 54) : `expenseClaims`
+(titre, prix TTC, note, justificatifs EXPENSE_CLAIM) saisies sur la visite,
+validation DIRECTION (`decideExpenseClaim`) → file `/compta/notes-de-frais`
+avec PASTILLE de compteur dans la nav (`countClaimsToProcess`, testid
+`nav-badge-compta-notes-de-frais`) → remboursement `accounting:write` avec
+notification de l'auteur ; compte rendu de visite en TEXTE RICHE : éditeur
+contenteditable maison `components/rich-text-editor.tsx` (aucune dépendance,
+images UNIQUEMENT par référence `/api/files/<uuid>` depuis les PJ de la
+visite) + sanitizer liste blanche `lib/html/sanitize.ts` appliqué à
+l'écriture ET avant chaque `dangerouslySetInnerHTML` ; pièces jointes
+TITRÉES partout (`fileAttachments.title`).
+
 **FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-45 +
-module comptabilité 46-50).**
+module comptabilité 46-50 + 4ᵉ vague 51-54).**
 Reste hors périmètre : la « V2 » (pôle 15 « Modules complémentaires » du cdc
 §24 : HACCP, litiges, assurances, maintenance, parc matériel, notes
 plateformes…) — nouveau devis.
@@ -290,7 +328,7 @@ plateformes…) — nouveau devis.
 dans `src/db/schema.ts` + `npm run db:generate`, jamais de SQL à la main) →
 `npm run gate` (ou `gate:full` si UI) vert → commit en français « Étape N : … »
 → push sur la branche de travail. S'inspirer d'un module existant proche
-(ex. tickets ou finances) pour les patterns.
+(ex. tickets ou comptabilité) pour les patterns.
 
 ## Pièges connus de l'environnement
 
@@ -306,8 +344,18 @@ dans `src/db/schema.ts` + `npm run db:generate`, jamais de SQL à la main) →
 - Fichier « use server » : jamais d'arrow inline dans un schéma Zod au niveau
   d'un export (`z.custom()`, `.transform()`, etc.) — hisser le schéma en const
   module (« Server Actions must be async functions » au build Next sinon).
+- E2E, deux pièges récurrents : (1) ne JAMAIS asserter un toast émis par un
+  composant qui disparaît au rafraîchissement serveur (bouton « Valider »
+  remplacé par un badge…) — l'effet du `useActionState` est perdu au
+  démontage, asserter l'état durable (texte du badge, ligne du tableau) ;
+  (2) après `Escape` sur un dialogue, attendre
+  `expect(page.getByRole("dialog")).toHaveCount(0)` avant de re-cliquer le
+  trigger : pendant l'animation de fermeture le dialogue est encore monté et
+  avale le clic.
 - Comptes seed démo (`SEED_DEMO=true`) : `admin@bigm.fr` (mdp du .env) ;
   `direction@ / compta@ / animateur@ / communication@ / rh@ / developpement@ /
   franchise@ / salarie@bigm.fr`, mdp commun `Test1234!` ; `inactif@bigm.fr`
   désactivé ; `profil@bigm.fr` réservé au parcours e2e « Mon compte » (son
-  e-mail/mdp changent en test — ne pas l'utiliser ailleurs).
+  e-mail/mdp changent en test — ne pas l'utiliser ailleurs) ;
+  `prestataire@ext.fr` (rôle PRESTATAIRE, structure 401ORAN) pour l'espace
+  prestataire.
