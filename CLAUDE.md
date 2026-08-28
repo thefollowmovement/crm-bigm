@@ -272,10 +272,16 @@ identité déclarée + IP tracées sur la transmission, rien n'entre en compta
 sans validation manuelle ; l'option A du cdc est couverte par les comptes
 CRM existants des franchisés. Permissions : `accounting:read/write/import`
 et `transmission:manage` (compta + direction), `transmission:create` (tous
-les rôles sauf SALARIE).
+les rôles sauf SALARIE). **Étape 50** : lecture Excel par VALEUR de cellule
+(montants au format monétaire « 939988.98  EUR », dates américaines m/d/yy
+en numéro de série, entiers type SIRET tels quels), suffixe monétaire toléré
+sur les cellules texte, lignes de TOTAUX en pied d'export et colonne de
+numérotation sans en-tête ignorées — validé de bout en bout sur les exports
+réels du client (92 structures + 158 pièces dont avoirs, 0 erreur, réimport
+idempotent : 0 doublon / 158 MAJ, statuts conservés).
 
 **FEUILLE DE ROUTE CLIENT TERMINÉE (phases 0 à 5 + améliorations 28-45 +
-module comptabilité 46-49).**
+module comptabilité 46-50).**
 Reste hors périmètre : la « V2 » (pôle 15 « Modules complémentaires » du cdc
 §24 : HACCP, litiges, assurances, maintenance, parc matériel, notes
 plateformes…) — nouveau devis.

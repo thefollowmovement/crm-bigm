@@ -5,8 +5,8 @@
 > Mise à jour : feuille de route client (phases 0 à 5, étapes 1 à 27)
 > + améliorations post-V1 (étapes 28 à 33, 34 à 40, 41 à 43, 44, 45 :
 > vitrine publique + administration masquée) + module comptabilité
-> (étapes 46 à 49 : structures, journal factures, transmissions, accès
-> externe sécurisé).
+> (étapes 46 à 50 : structures, journal factures, transmissions, accès
+> externe sécurisé, imports calés sur les exports réels du client).
 
 ## Vue d'ensemble
 
@@ -14,10 +14,10 @@
   Drizzle ORM · Tailwind v4 · composants shadcn maison · recharts (graphiques).
 - **Volumétrie** : 75 tables · 64 enums · 29 migrations · 45 services ·
   68 pages · 69 permissions · 9 rôles (+ rôles personnalisés dynamiques) ·
-  10 jobs cron · 182 tests unitaires · 165 tests d'intégration ·
+  10 jobs cron · 184 tests unitaires · 165 tests d'intégration ·
   103 parcours e2e Playwright.
 - **Branche de travail** : `claude/crm-interne-plan-docker-s3neyk`
-  (commits « Étape 1 » à « Étape 49 », un commit par étape, gate complet vert
+  (commits « Étape 1 » à « Étape 50 », un commit par étape, gate complet vert
   avant chacun).
 
 ## Architecture en couches (règles non négociables du CLAUDE.md)
@@ -99,10 +99,10 @@ partagée : planning, congés, agenda) · `src/components/info-hint.tsx` (icône
 | `/achats` (+dépôts) | `purchase:read` | Achats DPS, ratio achats/CA, import CSV. |
 | `/foodcost` | `foodcost:read` (siège sauf franchisé) | Ingrédients, tarifs par dépôt à date (dépôt créable à la volée depuis le formulaire de tarif avec `purchase:write`), recettes, synthèse, MENUS (formules produits × qté + emballages/ingrédients directs, coût et % du PV par dépôt), écart matière. |
 
-### Comptabilité (étapes 46-49 — cdc « Transmission comptable & Factures »)
+### Comptabilité (étapes 46-50 — cdc « Transmission comptable & Factures »)
 | Page | Permission | Contenu |
 |---|---|---|
-| `/compta/structures` | `accounting:read` (compta+dir) | Liste des CLIENTS COMPTABLES : référentiel (code 411…, encours, TVA/SIRET, type, actif, lien boutique) + agrégats calculés en base sur la période choisie (nb pièces, CA HT, charges HT, résultat, restant dû TTC, dernière pièce), tri/recherche/filtre impayés, export CSV, import multi-formats **xlsx/xls/xlsb/csv** détecté par signature binaire avec rapport détaillé persistant et fichier original conservé. |
+| `/compta/structures` | `accounting:read` (compta+dir) | Liste des CLIENTS COMPTABLES : référentiel (code 411…, encours, TVA/SIRET, type, actif, lien boutique) + agrégats calculés en base sur la période choisie (nb pièces, CA HT, charges HT, résultat, restant dû TTC, dernière pièce), tri/recherche/filtre impayés, export CSV, import multi-formats **xlsx/xls/xlsb/csv** détecté par signature binaire avec rapport détaillé persistant et fichier original conservé — lecture par VALEUR de cellule (montants « x EUR », dates américaines en serial, lignes de totaux ignorées : étape 50, calée sur les exports réels). |
 | `/compta/factures` | `accounting:read` | Journal factures/avoirs : pièce unique, Facture/Avoir signé, Standard/RFA, classe 6 charge / 7 produit (choisie à l'import), échéance, source ; **statut saisi à la main par la compta** (jamais écrasé par un réimport) ; résultat = Σ HT classe 7 − Σ HT classe 6 (annulées exclues) ; import du journal avec structure inconnue nommée par son code. |
 | `/compta/transmissions` (+fiche) | `transmission:create` (tous sauf SALARIE) | Transmissions « TR-… » : Demande ou Facture, cas d'usage (influenceur, ticket, achat succursale, note de frais, quittance, fournisseur…), PJ multiples, historique des statuts, notifications ; hors `transmission:manage` chacun ne voit que LES SIENNES (franchisé : sa boutique uniquement) ; la compta valide/rejette/traite et convertit une Facture validée en pièce du journal (source « Transmission »). Génération de liens externes + suivi (actif/utilisé/expiré/révoqué). |
 | `/transmission/[jeton]` | public (lien à usage unique) | Formulaire externe SANS compte : jeton 32 octets stocké haché, expiration ≤ 90 j, usage unique atomique, limitation de débit par IP, fichiers restreints (pdf/images ≤ 10 Mo, 5 max), IP tracée, notification compta ; rien n'entre en comptabilité sans validation manuelle. |
@@ -249,7 +249,8 @@ P&L, ratio achats/CA, coût matière, écart matière, sens des flux CIE.
   liste des clients comptables avec agrégats SQL et export · transmissions
   internes (demandes/factures, PJ, historique, conversion en facture) ·
   accès externe par lien sécurisé à usage unique (formulaire public, rate
-  limiting, validation stricte, IP tracée).
+  limiting, validation stricte, IP tracée) · étape 50 : lecture Excel par
+  valeur de cellule, calée et validée sur les exports réels du client.
 - ⬜ **V2 (hors périmètre — nouveau devis)** : HACCP/hygiène, contrôles
   officiels, litiges, assurances/sinistres, maintenance/travaux, parc
   matériel, fournisseurs/ruptures, notes Google/Uber Eats/Deliveroo,
