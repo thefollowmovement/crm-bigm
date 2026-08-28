@@ -157,3 +157,55 @@ describe("mapping du référentiel Structures", () => {
     expect(rows[0].lastOrderDate).toBe("2026-06-26");
   });
 });
+
+describe("format réel des exports du logiciel comptable (étape 50)", () => {
+  // Réplique les fichiers clients : cellules NUMÉRIQUES au format monétaire
+  // (affichées « 939988.98  EUR »), dates au format américain m/d/yy
+  // (serial + format), 1re colonne sans en-tête, ligne de TOTAUX en pied.
+  function clientLikeSheet() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["", "Type de pièce", "N° pièce", "Date Pièce", "Client", "Société", "Total HT", "Total TVA", "Total TTC"],
+      [1, "Facture", "FA1257", 46149, "411CSELF", "SELFORME", 5416.67, 1083.33, 6500],
+      [2, "Avoir", "AV0110", 46161, "411CSELF", "SELFORME", -100, -20, -120],
+      ["", "", "", "", "", "", 661104.4, 132220.82, 793325.22],
+    ]);
+    // Format de date américain sur la colonne Date Pièce (comme l'export).
+    ws["D2"].z = "m/d/yy";
+    ws["D3"].z = "m/d/yy";
+    // Format monétaire sur les montants.
+    for (const ref of ["G2", "H2", "I2", "G3", "H3", "I3"]) {
+      ws[ref].z = '0.00\\ \\E\\U\\R';
+    }
+    return ws;
+  }
+
+  it("journal réel : dates serial m/d/yy converties, montants numériques, totaux ignorés", async () => {
+    const { parseInvoiceRows } = await import("@/lib/import/invoices-import");
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, clientLikeSheet(), "Feuil1");
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "buffer" }) as Buffer;
+    const read = readTabularFile(buffer, "Liste des pièces clients.xlsx");
+    if ("error" in read) throw new Error(read.error);
+    const { rows, errors } = parseInvoiceRows(read.rows);
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(2); // la ligne de totaux est ignorée
+    expect(rows[0]).toMatchObject({
+      pieceNumber: "FA1257",
+      pieceDate: "2026-05-07",
+      amountHT: "5416.67",
+      amountTTC: "6500.00",
+    });
+    expect(rows[1]).toMatchObject({ pieceType: "AVOIR", amountHT: "-100.00" });
+  });
+
+  it("référentiel réel : encours texte « 939988.98  EUR » accepté, totaux ignorés", () => {
+    const { rows, errors } = parseStructureRows([
+      ["Code", "Nom", "Encours disponible"],
+      ["411CBMK", "SAS BMK", "939988.98  EUR"],
+      ["", "", "186 795 379,06"],
+    ]);
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].creditAvailable).toBe("939988.98");
+  });
+});

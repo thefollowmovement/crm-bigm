@@ -8,7 +8,7 @@ import {
   type ParseError,
 } from "@/lib/csv/revenue-import";
 import { fromCents, toCents } from "@/lib/money";
-import { excelSerialToIsoDate } from "./tabular";
+import { excelSerialToIsoDate, stripCurrencySuffix } from "./tabular";
 
 export type ParsedInvoiceRow = {
   line: number; // ligne du fichier source (rapports d'erreur du service)
@@ -108,6 +108,9 @@ export function parseInvoiceRows(matrix: string[][]): InvoiceParseResult {
     };
 
     const pieceNumber = get("pieceNumber");
+    // Ligne de TOTAUX en pied d'export (montants sans n° de pièce ni type ni
+    // client) : ignorée silencieusement.
+    if (!pieceNumber && !get("pieceType") && !get("clientCode")) return;
     if (!pieceNumber) {
       errors.push({ line, message: "N° de pièce manquant." });
       return;
@@ -149,7 +152,8 @@ export function parseInvoiceRows(matrix: string[][]): InvoiceParseResult {
     }
 
     const rawHT = get("amountHT");
-    const amountHT = rawHT !== null ? parseFrenchAmount(rawHT) : null;
+    const amountHT =
+      rawHT !== null ? parseFrenchAmount(stripCurrencySuffix(rawHT)) : null;
     if (amountHT === null) {
       errors.push({
         line,
@@ -158,7 +162,8 @@ export function parseInvoiceRows(matrix: string[][]): InvoiceParseResult {
       return;
     }
     const rawTTC = get("amountTTC");
-    const amountTTC = rawTTC !== null ? parseFrenchAmount(rawTTC) : null;
+    const amountTTC =
+      rawTTC !== null ? parseFrenchAmount(stripCurrencySuffix(rawTTC)) : null;
     if (amountTTC === null) {
       errors.push({
         line,
@@ -170,7 +175,7 @@ export function parseInvoiceRows(matrix: string[][]): InvoiceParseResult {
     let amountVAT: string;
     const rawVAT = get("amountVAT");
     if (rawVAT !== null) {
-      const parsed = parseFrenchAmount(rawVAT);
+      const parsed = parseFrenchAmount(stripCurrencySuffix(rawVAT));
       if (parsed === null) {
         errors.push({
           line,

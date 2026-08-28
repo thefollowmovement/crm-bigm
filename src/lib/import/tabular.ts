@@ -75,24 +75,77 @@ export function readTabularFile(
   }
   let workbook: XLSX.WorkBook;
   try {
-    workbook = XLSX.read(buffer, { type: "buffer" });
+    workbook = XLSX.read(buffer, { type: "buffer", cellDates: false, cellNF: true });
   } catch {
     return { error: "Fichier Excel illisible ou corrompu." };
   }
   const sheetName = workbook.SheetNames[0];
   const sheet = sheetName ? workbook.Sheets[sheetName] : undefined;
-  if (!sheet) return { error: "Le classeur ne contient aucune feuille." };
-  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-    header: 1,
-    raw: false,
-    defval: "",
-    dateNF: "dd/mm/yyyy",
-    blankrows: false,
-  });
-  return {
-    format,
-    rows: rows.map((row) => row.map((cell) => String(cell ?? "").trim())),
-  };
+  if (!sheet || !sheet["!ref"]) {
+    return { error: "Le classeur ne contient aucune feuille." };
+  }
+  // Lecture par VALEUR de cellule, pas par texte affiché : les exports
+  // comptables affichent « 939988.98  EUR » (format monétaire) et des dates
+  // américaines « 5/7/26 » — on lit le nombre et le numéro de série de date
+  // sous-jacents pour rester indépendant du format d'affichage.
+  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const rows: string[][] = [];
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const row: string[] = [];
+    let hasContent = false;
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r, c })] as
+        | XLSX.CellObject
+        | undefined;
+      const value = cellToString(cell);
+      if (value !== "") hasContent = true;
+      row.push(value);
+    }
+    if (hasContent) rows.push(row);
+  }
+  return { format, rows };
+}
+
+function cellToString(cell: XLSX.CellObject | undefined): string {
+  if (!cell || cell.v === undefined || cell.v === null) return "";
+  switch (cell.t) {
+    case "n": {
+      const value = cell.v as number;
+      // Cellule numérique au format DATE → ISO, quel que soit l'affichage.
+      if (cell.z && XLSX.SSF.is_date(String(cell.z))) {
+        return serialToIsoDate(value);
+      }
+      // Montant : deux décimales ; entier (code, SIRET…) : tel quel.
+      return Number.isInteger(value) ? String(value) : value.toFixed(2);
+    }
+    case "d": {
+      const d = cell.v as Date;
+      const year = d.getUTCFullYear();
+      const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+    case "b":
+      return cell.v ? "1" : "0";
+    default:
+      return String(cell.v).trim();
+  }
+}
+
+// Numéro de série Excel (jours depuis le 30/12/1899) → ISO.
+function serialToIsoDate(serial: number): string {
+  const ms = Math.round((serial - 25569) * 86400 * 1000);
+  const d = new Date(ms);
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Retire un éventuel suffixe monétaire (« 939988.98  EUR », « 12,50 € »)
+// avant le parsing du montant — présent quand la cellule est du TEXTE.
+export function stripCurrencySuffix(value: string): string {
+  return value.replace(/\s*(?:EUR|€)\s*$/i, "").trim();
 }
 
 // Les exports Excel livrent parfois une date en « numéro de série » (jours

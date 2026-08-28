@@ -7,7 +7,7 @@ import {
   parseFrenchDate,
   type ParseError,
 } from "@/lib/csv/revenue-import";
-import { excelSerialToIsoDate } from "./tabular";
+import { excelSerialToIsoDate, stripCurrencySuffix } from "./tabular";
 
 export type ParsedStructureRow = {
   code: string;
@@ -109,6 +109,9 @@ export function parseStructureRows(matrix: string[][]): StructureParseResult {
     };
 
     const code = get("code");
+    // Ligne de TOTAUX en pied d'export (montants sans code ni nom) : ignorée
+    // silencieusement — ce n'est pas une erreur de saisie.
+    if (!code && !get("name")) return;
     if (!code) {
       errors.push({ line, message: "Code structure manquant." });
       return;
@@ -129,7 +132,7 @@ export function parseStructureRows(matrix: string[][]): StructureParseResult {
     let creditAvailable: string | null = null;
     const rawCredit = get("creditAvailable");
     if (rawCredit !== null) {
-      creditAvailable = parseFrenchAmount(rawCredit);
+      creditAvailable = parseFrenchAmount(stripCurrencySuffix(rawCredit));
       if (creditAvailable === null) {
         errors.push({
           line,
